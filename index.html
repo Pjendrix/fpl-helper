@@ -251,6 +251,19 @@ tr.click:hover td{background:rgba(63,191,127,.07)}
 .ok-box{background:var(--card);border:1px solid var(--ok);border-left:4px solid var(--ok);
   border-radius:8px;padding:15px 17px}
 
+.budget label{display:inline-flex;align-items:center;gap:5px;color:var(--mute)}
+.pin{
+  background:var(--ink-2);border:1px solid var(--line);color:var(--chalk);
+  font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;
+  width:62px;padding:4px 7px;border-radius:5px;text-align:right;
+}
+.pin:focus{outline:2px solid var(--ok);outline-offset:1px;border-color:transparent}
+.edited{color:var(--ok);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-left:8px}
+.est{color:var(--mute);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-left:8px;opacity:.75}
+.lnk{background:none;border:0;color:var(--mute);font-family:'Archivo';font-size:12px;
+  text-decoration:underline;padding:2px 4px;cursor:pointer;text-transform:none;letter-spacing:0}
+.lnk:hover{color:var(--chalk)}
+
 .note{color:var(--mute);font-size:13px;margin:6px 0 0}
 .bar{height:6px;background:var(--ink-2);border-radius:3px;overflow:hidden;min-width:52px}
 .bar i{display:block;height:100%;background:var(--ok)}
@@ -1221,14 +1234,48 @@ async function analyzeTransfers(){
         .then(r => r.history || []).catch(() => []))
     );
 
-    renderTransfers(picks, summaries, bank, startGw);
+    // ulozime si to, aby slo prepocitat po rucni uprave cen bez novych dotazu
+    TR_STATE = {picks, summaries, apiBank: bank, startGw};
+    renderTransfers();
     $('trmsg').textContent = '';
   }catch(e){
     $('trmsg').textContent = e.message;
   }
 }
 
-function renderTransfers(picks, summaries, bank, startGw){
+/* --- rucni korekce cen -------------------------------------------------
+   FPL veřejně nedává prodejní cenu (při zdražení vrací jen polovinu zisku),
+   takže odhad z aktuální ceny bývá o desetinu vedle. Uživatel si ji může
+   přepsat podle toho, co vidí ve své sestavě na FPL; ukládá se do prohlížeče.
+*/
+let TR_STATE = null;
+
+const SELL_KEY = 'fpl_sell';
+const BANK_KEY = 'fpl_bank';
+
+function loadSell(){
+  try { return JSON.parse(localStorage.getItem(SELL_KEY) || '{}'); }
+  catch(e){ return {}; }
+}
+function saveSell(o){ localStorage.setItem(SELL_KEY, JSON.stringify(o)); }
+
+function sellPrice(p){
+  const o = loadSell();
+  const v = parseFloat(o[p.id]);
+  return Number.isFinite(v) && v > 0 ? v : p.now_cost / 10;
+}
+function isOverridden(p){
+  const v = parseFloat(loadSell()[p.id]);
+  return Number.isFinite(v) && v > 0 && Math.abs(v - p.now_cost / 10) > 0.001;
+}
+function bankValue(){
+  const v = parseFloat(localStorage.getItem(BANK_KEY));
+  return Number.isFinite(v) && v >= 0 ? v : (TR_STATE ? TR_STATE.apiBank : 0);
+}
+
+function renderTransfers(){
+  const {picks, summaries, startGw} = TR_STATE;
+  const bank = bankValue();
   const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
   const owned = new Set(picks.picks.map(pk => pk.element));
@@ -1292,10 +1339,9 @@ function renderTransfers(picks, summaries, bank, startGw){
   issues.sort((a, b) => a.prio - b.prio || b.dry - a.dry);
 
   const blocks = issues.map(it => {
-    // prodejni cena: FPL vraci pri rustu ceny jen polovinu zisku, ale presnou
-    // prodejni cenu verejne API nedava — pouzivam aktualni cenu jako odhad
-    const sell = it.p.now_cost / 10;
+    const sell = sellPrice(it.p);
     const budget = bank + sell;
+    const edited = isOverridden(it.p);
 
     const cands = PLAYERS
       .filter(r => r.p.element_type === it.p.element_type)
@@ -1332,22 +1378,69 @@ function renderTransfers(picks, summaries, bank, startGw){
         <span class="tag">${it.prio === 1 ? 'Priorita 1' : 'Priorita 2'}</span>
       </div>
       <p class="why">${it.reasons.map(r => '• ' + esc(r)).join('<br>')}</p>
-      <div class="budget">Rozpočet na náhradu: ${sell.toFixed(1)}m za prodej
-        + ${bank.toFixed(1)}m v bance = <b>${budget.toFixed(1)}m</b></div>
+      <div class="budget">
+        <label>Prodejní cena
+          <input class="pin" type="number" step="0.1" min="0" max="20"
+                 data-pid="${it.p.id}" value="${sell.toFixed(1)}">m
+        </label>
+        + banka ${bank.toFixed(1)}m = <b>${budget.toFixed(1)}m</b>
+        ${edited ? '<span class="edited">upraveno</span>'
+                 : '<span class="est">odhad z aktuální ceny</span>'}
+      </div>
       ${candHtml}
     </div>`;
   });
 
   const p1 = issues.filter(i => i.prio === 1).length;
+  const bankEdited = Number.isFinite(parseFloat(localStorage.getItem(BANK_KEY)));
 
   $('trout').innerHTML = `
     <h2>Nalezeno ${issues.length} problémů · ${p1} akutních</h2>
-    <p class="note">V bance máš ${bank.toFixed(1)}m. Priorita 1 je červená (nehraje nebo ho
-    čeká série těžkých zápasů), priorita 2 oranžová (nebodovala, nebo je pod otazníkem).</p>
+    <div class="budget" style="border-top:0;padding-top:0">
+      <label>V bance
+        <input class="pin" id="bankin" type="number" step="0.1" min="0" max="100"
+               value="${bank.toFixed(1)}">m
+      </label>
+      ${bankEdited ? `<span class="edited">upraveno</span>
+        <button class="lnk" id="bankreset">vrátit ${TR_STATE.apiBank.toFixed(1)}m z FPL</button>` : ''}
+    </div>
+    <p class="note">Prodejní cenu si u každého hráče přepiš podle toho, co ti FPL ukazuje
+    ve tvé sestavě — návrhy se hned přepočítají. Uloží se v prohlížeči.</p>
     ${blocks.join('')}
-    <p class="note" style="margin-top:18px">Prodejní cena je odhadnutá z aktuální ceny hráče.
-    Když ti hráč zdražil, FPL ti vrátí jen polovinu zisku, takže reálný rozpočet může být
-    o desetinu nižší — přesnou prodejní cenu veřejné API nedává.</p>`;
+    <p class="note" style="margin-top:18px">Nevyplněné ceny jsou odhad z aktuální ceny hráče.
+    Když ti hráč zdražil, FPL vrací jen polovinu zisku, takže skutečná prodejní cena bývá nižší.</p>
+    <button class="lnk" id="sellreset" style="margin-top:10px">Zahodit všechny ruční ceny</button>`;
+
+  // prepocet po uprave — bez novych dotazu na API
+  $('trout').querySelectorAll('input.pin[data-pid]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const o = loadSell();
+      const v = parseFloat(inp.value);
+      if(Number.isFinite(v) && v > 0) o[inp.dataset.pid] = v;
+      else delete o[inp.dataset.pid];
+      saveSell(o);
+      renderTransfers();
+    });
+  });
+
+  $('bankin').addEventListener('change', () => {
+    const v = parseFloat($('bankin').value);
+    if(Number.isFinite(v) && v >= 0) localStorage.setItem(BANK_KEY, String(v));
+    else localStorage.removeItem(BANK_KEY);
+    renderTransfers();
+  });
+
+  const br = $('bankreset');
+  if(br) br.addEventListener('click', () => {
+    localStorage.removeItem(BANK_KEY);
+    renderTransfers();
+  });
+
+  $('sellreset').addEventListener('click', () => {
+    localStorage.removeItem(SELL_KEY);
+    localStorage.removeItem(BANK_KEY);
+    renderTransfers();
+  });
 }
 
 $('trgo').addEventListener('click', async () => {
