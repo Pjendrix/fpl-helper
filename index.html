@@ -264,6 +264,35 @@ tr.click:hover td{background:rgba(63,191,127,.07)}
   text-decoration:underline;padding:2px 4px;cursor:pointer;text-transform:none;letter-spacing:0}
 .lnk:hover{color:var(--chalk)}
 
+/* --- hub ligy --- */
+.news{background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;margin-bottom:10px;border-left:4px solid var(--line)}
+.news.good{border-left-color:var(--ok)}
+.news.bad{border-left-color:var(--alert)}
+.news.warn{border-left-color:var(--warn)}
+.news .kicker{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--mute);margin-bottom:5px}
+.news .head{font-size:15.5px;font-weight:900;letter-spacing:-.01em;line-height:1.3}
+.news .body{font-size:13.5px;color:var(--mute);margin-top:5px;line-height:1.55}
+.news .body b{color:var(--chalk);font-weight:600}
+
+.boards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.board{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:13px 15px}
+.board h4{margin:0 0 3px;font-size:13px;font-weight:700;letter-spacing:.02em}
+.board .cap{font-size:11.5px;color:var(--mute);margin:0 0 9px}
+.board ol{margin:0;padding-left:19px;font-size:13px}
+.board li{padding:2px 0}
+.board li span{float:right;font-family:'IBM Plex Mono',monospace;color:var(--mute)}
+.board li.me{color:var(--ok);font-weight:600}
+
+.capmap{display:flex;flex-direction:column;gap:7px}
+.capmap .row2{display:flex;align-items:center;gap:10px;font-size:13px}
+.capmap .nm2{width:96px;font-weight:600;flex:none}
+.capmap .bar2{flex:1;height:20px;background:var(--ink-2);border-radius:4px;overflow:hidden;min-width:40px}
+.capmap .bar2 i{display:block;height:100%;background:var(--ok);opacity:.75}
+.capmap .ct2{width:78px;text-align:right;font-family:'IBM Plex Mono',monospace;
+  font-size:11.5px;color:var(--mute);flex:none}
+
 .note{color:var(--mute);font-size:13px;margin:6px 0 0}
 .bar{height:6px;background:var(--ink-2);border-radius:3px;overflow:hidden;min-width:52px}
 .bar i{display:block;height:100%;background:var(--ok)}
@@ -290,6 +319,7 @@ tr.click:hover td{background:rgba(63,191,127,.07)}
   <button class="tab" id="t-live" role="tab" aria-selected="false" aria-controls="p-live">Před deadlinem</button>
   <button class="tab" id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Hráči</button>
   <button class="tab" id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
+  <button class="tab" id="t-hub" role="tab" aria-selected="false" aria-controls="p-hub">Hub ligy</button>
 </div>
 
 <div class="panel" id="p-squad" role="tabpanel" aria-labelledby="t-squad">
@@ -343,6 +373,13 @@ tr.click:hover td{background:rgba(63,191,127,.07)}
   <button id="trgo" style="margin-top:14px">Analyzovat sestavu</button>
   <div id="trmsg"></div>
   <div id="trout"></div>
+</div>
+
+<div class="panel" id="p-hub" role="tabpanel" aria-labelledby="t-hub" hidden>
+  <p class="hint">Novinky, žebříčky a přehled celé ligy. Načte historii a sestavy všech členů.</p>
+  <button id="hubgo" style="margin-top:14px">Načíst hub</button>
+  <div id="hubmsg"></div>
+  <div id="hubout"></div>
 </div>
 </div>
 
@@ -564,7 +601,7 @@ function render(entry, picks, startGw){
 
 /* ============ ZALOZKY ============ */
 const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-live','p-live'],
-              ['t-players','p-players'], ['t-tr','p-tr']];
+              ['t-players','p-players'], ['t-tr','p-tr'], ['t-hub','p-hub']];
 TABS.forEach(([tid, pid]) => {
   $(tid).addEventListener('click', () => {
     TABS.forEach(([t, p]) => {
@@ -1447,6 +1484,398 @@ $('trgo').addEventListener('click', async () => {
   $('trgo').disabled = true;
   await analyzeTransfers();
   $('trgo').disabled = false;
+});
+
+/* ============ HUB LIGY ============ */
+let HUB = null;
+
+async function loadHub(){
+  $('hubmsg').textContent = 'Načítám ligu…';
+  $('hubout').innerHTML = '';
+  try{
+    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+    if(!PLAYERS) PLAYERS = playerRows();
+
+    const lid = CONFIG.leagueId || localStorage.getItem('fpl_league');
+    if(!lid){ $('hubmsg').textContent = 'Nejdřív si načti ligu v záložce Miniliga.'; return; }
+
+    const cur = BOOT.events.find(e => e.is_current);
+    if(!cur){ $('hubmsg').textContent = 'Sezóna ještě nezačala.'; return; }
+
+    const st = await api('leagues-classic/' + lid + '/standings/');
+    const members = st.standings.results;
+    if(!members.length){ $('hubmsg').textContent = 'Liga nemá členy.'; return; }
+
+    $('hubmsg').textContent = 'Načítám ' + members.length + ' týmů…';
+
+    const [hists, picks] = await Promise.all([
+      Promise.all(members.map(m => api('entry/' + m.entry + '/history/').catch(() => null))),
+      Promise.all(members.map(m => api('entry/' + m.entry + '/event/' + cur.id + '/picks/')
+        .catch(() => null))),
+    ]);
+
+    HUB = {st, members, hists, picks, cur};
+    renderHub();
+    $('hubmsg').textContent = '';
+  }catch(e){
+    $('hubmsg').textContent = e.message;
+  }
+}
+
+// poradi v lize po jednotlivych kolech, z kumulativnich bodu
+function leagueRanks(members, hists){
+  const gws = Math.max(...hists.map(h => h ? h.current.length : 0));
+  const ranks = members.map(() => []);
+  for(let g = 0; g < gws; g++){
+    const pts = members.map((m, i) => {
+      const ev = hists[i] && hists[i].current[g];
+      return [i, ev ? ev.total_points : -1];
+    }).sort((a, b) => b[1] - a[1]);
+    pts.forEach(([i], pos) => ranks[i].push(pos + 1));
+  }
+  return {ranks, gws};
+}
+
+function buildNews(){
+  const {members, hists, picks, cur} = HUB;
+  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const news = [];
+
+  // body za posledni kolo
+  const gw = members.map((m, i) => {
+    const h = hists[i];
+    const ev = h && h.current.find(x => x.round === cur.id);
+    return {m, i, ev};
+  }).filter(x => x.ev);
+
+  if(!gw.length) return news;
+
+  const sorted = gw.slice().sort((a, b) => b.ev.points - a.ev.points);
+  const top = sorted[0], second = sorted[1], bottom = sorted[sorted.length - 1];
+  const gap = second ? top.ev.points - second.ev.points : 0;
+
+  news.push({
+    cls: 'good', kicker: 'Kolo ' + cur.id,
+    head: esc(top.m.player_name) + ' vyhrál kolo s ' + top.ev.points + ' body',
+    body: second
+      ? (gap >= 15
+          ? `Náskok <b>${gap} bodů</b> na druhého — to už není náhoda, to je jiná liga.`
+          : gap === 0
+            ? `O první místo se dělí s <b>${esc(second.m.player_name)}</b>.`
+            : `Druhý <b>${esc(second.m.player_name)}</b> zaostal o ${gap} bodů.`)
+      : '',
+  });
+
+  if(bottom !== top){
+    news.push({
+      cls: 'bad', kicker: 'Průšvih kola',
+      head: esc(bottom.m.player_name) + ' zvládl jen ' + bottom.ev.points + ' bodů',
+      body: `O <b>${top.ev.points - bottom.ev.points}</b> méně než vítěz kola.`,
+    });
+  }
+
+  // kapitani
+  const caps = members.map((m, i) => {
+    const pk = picks[i];
+    if(!pk) return null;
+    const c = pk.picks.find(x => x.is_captain);
+    return c ? {m, pid: c.element} : null;
+  }).filter(Boolean);
+
+  if(caps.length){
+    const count = {};
+    caps.forEach(c => count[c.pid] = (count[c.pid] || 0) + 1);
+    const popular = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+    const popId = parseInt(popular[0], 10);
+
+    const rebels = caps.filter(c => c.pid !== popId);
+    if(rebels.length && rebels.length <= Math.ceil(caps.length / 2)){
+      const best = rebels
+        .map(r => ({...r, ev: (hists[members.indexOf(r.m)] || {current: []}).current
+          .find(x => x.round === cur.id)}))
+        .filter(r => r.ev)
+        .sort((a, b) => b.ev.points - a.ev.points)[0];
+      if(best){
+        news.push({
+          cls: 'warn', kicker: 'Kapitánská volba',
+          head: `${popular[1]} z ${caps.length} manažerů vsadilo na ${esc(els[popId] ? els[popId].web_name : '?')}`,
+          body: `Proti proudu šel <b>${esc(best.m.player_name)}</b> s kapitánem
+            <b>${esc(els[best.pid] ? els[best.pid].web_name : '?')}</b> a udělal ${best.ev.points} bodů.`,
+        });
+      }
+    }
+  }
+
+  // dan za transfery
+  const taxed = gw.filter(x => x.ev.event_transfers_cost > 0)
+    .sort((a, b) => b.ev.event_transfers_cost - a.ev.event_transfers_cost);
+  if(taxed.length){
+    const t = taxed[0];
+    news.push({
+      cls: 'warn', kicker: 'Netrpělivost',
+      head: `${esc(t.m.player_name)} zaplatil ${t.ev.event_transfers_cost} bodů za transfery`,
+      body: `Udělal <b>${t.ev.event_transfers}</b> přesunů a skončil na ${t.ev.points} bodech.
+        Bez trestu by měl ${t.ev.points + t.ev.event_transfers_cost}.`,
+    });
+  }
+
+  // lavicka
+  const bench = gw.slice().sort((a, b) => b.ev.points_on_bench - a.ev.points_on_bench)[0];
+  if(bench && bench.ev.points_on_bench >= 8){
+    news.push({
+      cls: 'bad', kicker: 'Lavička hanby',
+      head: `${esc(bench.m.player_name)} nechal ${bench.ev.points_on_bench} bodů na lavičce`,
+      body: 'Body, které měl v týmu a nedostal je.',
+    });
+  }
+
+  // pohyb v tabulce
+  const {ranks, gws} = leagueRanks(members, hists);
+  if(gws >= 2){
+    const moves = members.map((m, i) => ({
+      m, delta: ranks[i][gws - 2] - ranks[i][gws - 1],
+      from: ranks[i][gws - 2], to: ranks[i][gws - 1],
+    })).filter(x => Number.isFinite(x.delta));
+    const up = moves.slice().sort((a, b) => b.delta - a.delta)[0];
+    const down = moves.slice().sort((a, b) => a.delta - b.delta)[0];
+    if(up && up.delta >= 2){
+      news.push({
+        cls: 'good', kicker: 'Skok kola',
+        head: `${esc(up.m.player_name)} vyskočil o ${up.delta} míst`,
+        body: `Z <b>${up.from}.</b> na <b>${up.to}. místo</b>.`,
+      });
+    }
+    if(down && down.delta <= -2){
+      news.push({
+        cls: 'bad', kicker: 'Pád kola',
+        head: `${esc(down.m.player_name)} spadl o ${-down.delta} míst`,
+        body: `Z <b>${down.from}.</b> na <b>${down.to}. místo</b>.`,
+      });
+    }
+  }
+
+  return news;
+}
+
+function buildBoards(){
+  const {members, hists} = HUB;
+  const myId = parseInt(CONFIG.entryId || localStorage.getItem('fpl_entry') || '0', 10);
+
+  const stats = members.map((m, i) => {
+    const h = hists[i];
+    const cs = h ? h.current : [];
+    const pts = cs.map(x => x.points);
+    const mean = pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : 0;
+    const sd = pts.length > 1
+      ? Math.sqrt(pts.reduce((a, b) => a + (b - mean) ** 2, 0) / pts.length) : 0;
+    const last = cs[cs.length - 1];
+    return {
+      m,
+      tax: cs.reduce((a, x) => a + x.event_transfers_cost, 0),
+      moves: cs.reduce((a, x) => a + x.event_transfers, 0),
+      bench: cs.reduce((a, x) => a + x.points_on_bench, 0),
+      sd, mean,
+      value: last ? last.value / 10 : 0,
+      total: last ? last.total_points : 0,
+      chips: (h && h.chips) ? h.chips : [],
+    };
+  });
+
+  const board = (title, cap, arr, fmt, asc) => {
+    const rows = arr.slice().sort((a, b) => asc ? a.v - b.v : b.v - a.v).slice(0, 5);
+    return `<div class="board">
+      <h4>${esc(title)}</h4>
+      <p class="cap">${esc(cap)}</p>
+      <ol>${rows.map(r => `<li class="${r.id === myId ? 'me' : ''}">${esc(r.n)}
+        <span>${fmt(r.v)}</span></li>`).join('')}</ol>
+    </div>`;
+  };
+
+  const pick = f => stats.map(s => ({n: s.m.player_name, id: s.m.entry, v: f(s)}));
+
+  const chipNames = {wildcard: 'Wildcard', '3xc': 'Triple captain',
+                     bboost: 'Bench boost', freehit: 'Free hit', manager: 'Manager'};
+  const chipRows = stats.filter(s => s.chips.length).map(s =>
+    `<li>${esc(s.m.player_name)} <span>${s.chips.map(c =>
+      (chipNames[c.name] || c.name) + ' GW' + c.event).join(', ')}</span></li>`).join('');
+
+  return `<div class="boards">
+    ${board('Daň za transfery', 'Body odevzdané za přesuny', pick(s => s.tax), v => '−' + v)}
+    ${board('Zmrzlá lavička', 'Body, co protekly na lavičce', pick(s => s.bench), v => v)}
+    ${board('Nejaktivnější', 'Počet transferů za sezónu', pick(s => s.moves), v => v)}
+    ${board('Nejstabilnější', 'Nejmenší rozptyl bodů po kolech', pick(s => s.sd),
+            v => v.toFixed(1), true)}
+    ${board('Efektivita kádru', 'Body na milion hodnoty týmu',
+            pick(s => s.value ? s.total / s.value : 0), v => v.toFixed(1))}
+    <div class="board">
+      <h4>Spálené žolíky</h4>
+      <p class="cap">Kdo už co použil</p>
+      <ol>${chipRows || '<li style="list-style:none;margin-left:-19px;color:var(--mute)">Zatím nikdo.</li>'}</ol>
+    </div>
+  </div>`;
+}
+
+function buildHealth(){
+  const {members, picks, cur} = HUB;
+  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const nxt = BOOT.events.find(e => e.is_next);
+  const startGw = nxt ? nxt.id : cur.id + 1;
+
+  const rows = members.map((m, i) => {
+    const pk = picks[i];
+    if(!pk) return null;
+    const squad = pk.picks.map(x => els[x.element]).filter(Boolean);
+    const flagged = squad.filter(p => p.status !== 'a' ||
+      (p.chance_of_playing_next_round !== null && p.chance_of_playing_next_round < 100));
+    const out = squad.filter(p => p.status === 'i' || p.status === 's' || p.status === 'u');
+    const fdrs = squad.map(p => {
+      const f = nextFixtures(p.team, startGw, 3);
+      return f.length ? f.reduce((a, x) => a + x.d, 0) / f.length : 3;
+    });
+    const avgFdr = fdrs.reduce((a, b) => a + b, 0) / (fdrs.length || 1);
+    return {m, flagged, out, avgFdr,
+            names: flagged.map(p => p.web_name + ' (' + teams[p.team].short_name + ')')};
+  }).filter(Boolean);
+
+  rows.sort((a, b) => b.out.length - a.out.length || b.flagged.length - a.flagged.length);
+
+  return `<table>
+    <thead><tr><th>Manažer</th><th class="n">Nehraje</th><th class="n">Pod otazníkem</th>
+      <th class="n">FDR kádru</th><th class="hide-s">Kdo</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td><b>${esc(r.m.player_name)}</b></td>
+      <td class="n ${r.out.length >= 3 ? 'al' : r.out.length ? 'wn' : ''}">${r.out.length}</td>
+      <td class="n">${r.flagged.length}</td>
+      <td class="n ${r.avgFdr >= 3.6 ? 'al' : r.avgFdr <= 2.6 ? 'ok' : ''}">${r.avgFdr.toFixed(2)}</td>
+      <td class="hide-s" style="color:var(--mute);font-size:12px">${esc(r.names.join(', ')) || '—'}</td>
+    </tr>`).join('')}</tbody></table>
+  <p class="note">FDR kádru je průměrná obtížnost dalších tří zápasů přes všech 15 hráčů.
+  Nižší je lepší.</p>`;
+}
+
+function buildCollective(){
+  const {members, picks, cur} = HUB;
+  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+
+  const valid = picks.filter(Boolean);
+  const n = valid.length;
+  if(!n) return '<p class="note">Sestavy zatím nejsou dostupné.</p>';
+
+  // kapitanska mapa
+  const capCount = {};
+  members.forEach((m, i) => {
+    const pk = picks[i];
+    if(!pk) return;
+    const c = pk.picks.find(x => x.is_captain);
+    if(c) (capCount[c.element] = capCount[c.element] || []).push(m.player_name);
+  });
+  const capRows = Object.entries(capCount)
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([pid, list]) => {
+      const p = els[pid];
+      return `<div class="row2">
+        <span class="nm2">${esc(p ? p.web_name : '?')}</span>
+        <span class="bar2"><i style="width:${Math.round(list.length / n * 100)}%"></i></span>
+        <span class="ct2">${list.length}/${n}</span>
+      </div>`;
+    }).join('');
+
+  // sablona: jak moc jsou si sestavy podobne
+  const own = {};
+  members.forEach((m, i) => {
+    const pk = picks[i];
+    if(!pk) return;
+    pk.picks.forEach(x => own[x.element] = (own[x.element] || 0) + 1);
+  });
+  const core = Object.entries(own).filter(([, c]) => c >= Math.ceil(n * 0.5));
+  const universal = Object.entries(own).filter(([, c]) => c === n);
+  const templatePct = Math.round(core.length / 15 * 100);
+
+  // liga proti proudu: kde se vlastnictvi lisi od globalu
+  const contrarian = Object.entries(own)
+    .map(([pid, c]) => {
+      const p = els[pid];
+      if(!p) return null;
+      return {p, local: c / n * 100, global: parseFloat(p.selected_by_percent)};
+    })
+    .filter(Boolean)
+    .map(x => ({...x, diff: x.local - x.global}))
+    .sort((a, b) => b.diff - a.diff)
+    .slice(0, 6);
+
+  return `
+    <h2>Kapitánská mapa · GW${cur.id}</h2>
+    <div class="capmap">${capRows}</div>
+
+    <h2>Efekt šablony</h2>
+    <div class="kpis">
+      <div><div class="k">Jádro ligy</div><div class="v">${core.length}</div></div>
+      <div><div class="k">Má každý</div><div class="v">${universal.length}</div></div>
+      <div><div class="k">Shoda</div><div class="v">${templatePct} %</div></div>
+    </div>
+    <p class="note">${
+      templatePct >= 60
+        ? 'Liga hraje skoro stejný tým — rozhodne se to na pár rozdílných hráčích a kapitánovi.'
+        : templatePct >= 35
+          ? 'Sestavy se překrývají zhruba z třetiny. Prostor odlišit se tu pořád je.'
+          : 'Každý si jede po svém — tabulka se může házet kolo od kola.'}</p>
+
+    <h2>Liga proti proudu</h2>
+    <table>
+      <thead><tr><th>Hráč</th><th class="hide-s">Tým</th>
+        <th class="n">V lize</th><th class="n">Globálně</th><th class="n">Rozdíl</th></tr></thead>
+      <tbody>${contrarian.map(x => `<tr>
+        <td><b>${esc(x.p.web_name)}</b></td>
+        <td class="hide-s">${esc(teams[x.p.team].short_name)}</td>
+        <td class="n">${x.local.toFixed(0)} %</td>
+        <td class="n">${x.global.toFixed(1)} %</td>
+        <td class="n ${x.diff > 0 ? 'ok' : 'al'}">${x.diff > 0 ? '+' : ''}${x.diff.toFixed(0)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <p class="note">Kde je tvoje liga jinde než zbytek světa. Kladný rozdíl znamená,
+    že vy na hráče věříte víc než ostatní.</p>`;
+}
+
+function renderHub(){
+  const news = buildNews();
+  const newsHtml = news.length
+    ? news.map(x => `<div class="news ${x.cls}">
+        <div class="kicker">${esc(x.kicker)}</div>
+        <div class="head">${x.head}</div>
+        ${x.body ? `<div class="body">${x.body}</div>` : ''}
+      </div>`).join('')
+    : '<p class="note">Novinky se objeví po prvním odehraném kole.</p>';
+
+  const SECS = [
+    ['Novinky', newsHtml],
+    ['Žebříčky', buildBoards()],
+    ['Zdraví kádrů', buildHealth()],
+    ['Celá liga', buildCollective()],
+  ];
+
+  $('hubout').innerHTML = `
+    <h2>${esc(CONFIG.leagueName || HUB.st.league.name)} · po ${HUB.cur.id}. kole</h2>
+    <div class="subnav" role="tablist">
+      ${SECS.map((s, i) => `<button class="sub-btn" role="tab"
+        aria-selected="${i === 0}" data-hs="${i}">${esc(s[0])}</button>`).join('')}
+    </div>
+    ${SECS.map((s, i) => `<div class="sec" id="hs-${i}"${i ? ' hidden' : ''}>${s[1]}</div>`).join('')}`;
+
+  $('hubout').querySelectorAll('.sub-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      $('hubout').querySelectorAll('.sub-btn').forEach(x =>
+        x.setAttribute('aria-selected', x === b));
+      SECS.forEach((_, i) => { $('hs-' + i).hidden = String(i) !== b.dataset.hs; });
+    });
+  });
+}
+
+$('hubgo').addEventListener('click', async () => {
+  $('hubgo').disabled = true;
+  await loadHub();
+  $('hubgo').disabled = false;
 });
 
 $('lf').addEventListener('submit', async ev => {
