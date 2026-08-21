@@ -60,7 +60,7 @@ button:disabled{opacity:.45;cursor:wait}
 .hint{color:var(--mute);font-size:12.5px;margin:0}
 .hint code{font-family:'IBM Plex Mono',monospace;color:var(--chalk)}
 
-#msg{margin:22px 0;color:var(--warn);font-size:14px}
+#msg,#lmsg,#amsg{margin:22px 0;color:var(--warn);font-size:14px}
 
 .meta{display:flex;gap:26px;flex-wrap:wrap;margin:28px 0 6px;
   border-top:1px solid var(--line);padding-top:18px}
@@ -129,6 +129,73 @@ tr .st{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
   .hide-s{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* --- zalozky --- */
+.tabs{display:flex;gap:4px;margin:26px 0 0;border-bottom:2px solid var(--line)}
+.tab{
+  background:none;border:0;border-bottom:3px solid transparent;
+  color:var(--mute);font-family:'Archivo';font-weight:700;font-size:13px;
+  letter-spacing:.08em;text-transform:uppercase;padding:11px 16px;cursor:pointer;
+  border-radius:0;margin-bottom:-2px;
+}
+.tab:hover{color:var(--chalk)}
+.tab[aria-selected="true"]{color:var(--ok);border-bottom-color:var(--ok)}
+.panel[hidden]{display:none}
+
+/* --- graf poradi --- */
+.chart{background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:16px 12px 8px;margin:14px 0;overflow-x:auto}
+.chart svg{display:block;min-width:520px;width:100%;height:auto}
+.chart .gl{stroke:var(--line);stroke-width:1}
+.chart .ax{fill:var(--mute);font-family:'IBM Plex Mono',monospace;font-size:10px}
+.chart path{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart path.me{stroke-width:3.5}
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+.legend span{display:flex;align-items:center;gap:5px;color:var(--mute)}
+.legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+.legend b{color:var(--chalk);font-weight:700}
+
+/* --- vlastnictvi --- */
+.own{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 0}
+.chip{
+  background:var(--ink-2);border:1px solid var(--line);border-radius:20px;
+  padding:4px 11px;font-size:12.5px;display:flex;align-items:center;gap:7px;
+}
+.chip b{font-weight:700}
+.chip .ct{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute)}
+.chip.mine{border-color:var(--ok)}
+.chip.unique{border-color:var(--warn)}
+.chip.miss{border-color:var(--alert)}
+
+/* --- podsekce --- */
+.subnav{display:flex;gap:6px;flex-wrap:wrap;margin:20px 0 4px}
+.sub-btn{
+  background:var(--ink-2);border:1px solid var(--line);border-radius:20px;
+  color:var(--mute);font-family:'Archivo';font-weight:700;font-size:12px;
+  letter-spacing:.05em;text-transform:uppercase;padding:7px 15px;cursor:pointer;
+}
+.sub-btn:hover{color:var(--chalk)}
+.sub-btn[aria-selected="true"]{background:var(--ok);border-color:var(--ok);color:#08160F}
+.sec[hidden]{display:none}
+
+/* --- potvrzene sestavy --- */
+.match{background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:14px 16px;margin-bottom:10px}
+.match h3{margin:0 0 4px;font-size:15px;font-weight:900;letter-spacing:-.01em}
+.match .ko{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute)}
+.risk{border-left:4px solid var(--alert)}
+.safe{border-left:4px solid var(--ok)}
+.pend{border-left:4px solid var(--line)}
+
+.setup{background:var(--card);border:1px solid var(--warn);border-radius:8px;
+  padding:16px 18px;margin:16px 0}
+.setup h3{margin:0 0 8px;font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--warn)}
+.setup ol{margin:0;padding-left:20px;color:var(--mute);font-size:13.5px;line-height:1.7}
+.setup code{font-family:'IBM Plex Mono',monospace;color:var(--chalk);font-size:12.5px}
+
+.note{color:var(--mute);font-size:13px;margin:6px 0 0}
+.bar{height:6px;background:var(--ink-2);border-radius:3px;overflow:hidden;min-width:52px}
+.bar i{display:block;height:100%;background:var(--ok)}
 </style>
 </head>
 <body>
@@ -145,10 +212,55 @@ tr .st{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
 <p class="hint">ID najdeš v URL svého týmu: <code>fantasy.premierleague.com/entry/<b>1234567</b>/event/1</code></p>
 
 <div id="msg"></div>
-<div id="out"></div>
+
+<div class="tabs" role="tablist">
+  <button class="tab" id="t-squad" role="tab" aria-selected="true" aria-controls="p-squad">Sestava</button>
+  <button class="tab" id="t-league" role="tab" aria-selected="false" aria-controls="p-league">Miniliga</button>
+  <button class="tab" id="t-live" role="tab" aria-selected="false" aria-controls="p-live">Před deadlinem</button>
+</div>
+
+<div class="panel" id="p-squad" role="tabpanel" aria-labelledby="t-squad">
+  <div id="out"></div>
+</div>
+
+<div class="panel" id="p-league" role="tabpanel" aria-labelledby="t-league" hidden>
+  <form id="lf">
+    <input id="lid" inputmode="numeric" placeholder="ID miniligy, např. 314159">
+    <button id="lgo">Načíst ligu</button>
+  </form>
+  <p class="hint">ID najdeš v URL ligy: <code>fantasy.premierleague.com/leagues/<b>314159</b>/standings/c</code></p>
+  <div id="lmsg"></div>
+  <div id="lout"></div>
+</div>
+
+<div class="panel" id="p-live" role="tabpanel" aria-labelledby="t-live" hidden>
+  <p class="hint">Potvrzené sestavy se objevují zhruba hodinu před výkopem. Porovnávám je s tím, koho vlastní tvoje miniliga.</p>
+  <button id="ago" style="margin-top:14px">Zkontrolovat dnešní zápasy</button>
+  <div id="amsg"></div>
+  <div id="aout"></div>
+</div>
 </div>
 
 <script>
+/* ============================================================
+   KONFIGURACE — vyplň si tady svoje ID a máš appku "svoji".
+   ============================================================ */
+const CONFIG = {
+  // ID tvojí miniligy. Najdeš v URL:
+  // fantasy.premierleague.com/leagues/314159/standings/c
+  leagueId: '',
+
+  // Tvoje ID týmu. Používá se pro sekci Rozdíly a pro zvýraznění v tabulce.
+  // fantasy.premierleague.com/entry/1234567/event/1
+  entryId: '',
+
+  // Název, který se zobrazí v hlavičce. Prázdné = vezme se z FPL.
+  leagueName: '',
+
+  // Sezóna pro API-Football (rok, ve kterém sezóna začíná).
+  season: '2026',
+};
+
 const S = {a:['OK','ok'],d:['Pochybný','wn'],i:['Zraněný','al'],
            s:['Suspendovaný','al'],u:['Nedostupný','al'],n:['Neregistrovaný','al']};
 const POS = {1:'GKP',2:'DEF',3:'MID',4:'FWD'};
@@ -342,6 +454,397 @@ function render(entry, picks, startGw){
     </table>`;
 }
 
+/* ============ ZALOZKY ============ */
+const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-live','p-live']];
+TABS.forEach(([tid, pid]) => {
+  $(tid).addEventListener('click', () => {
+    TABS.forEach(([t, p]) => {
+      const on = t === tid;
+      $(t).setAttribute('aria-selected', on);
+      $(p).hidden = !on;
+    });
+  });
+});
+
+/* ============ MINILIGA ============ */
+const COLORS = ['#3FBF7F','#F2A93B','#E8453C','#5B8DEF','#C77DFF',
+                '#2DD4BF','#F472B6','#A3E635','#FB923C','#94A3B8'];
+
+async function loadLeague(lid){
+  $('lmsg').textContent = 'Načítám ligu…';
+  $('lout').innerHTML = '';
+  try{
+    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+
+    const cur = BOOT.events.find(e => e.is_current);
+    const st = await api('leagues-classic/' + lid + '/standings/');
+    const members = st.standings.results;
+
+    if(!members.length){
+      $('lmsg').textContent = 'Liga nemá žádné členy, nebo ještě nezačala sezóna.';
+      return;
+    }
+
+    $('lmsg').textContent = 'Načítám ' + members.length + ' týmů…';
+
+    // historie kazdeho clena -> kumulativni body po kolech
+    const hist = await Promise.all(
+      members.map(m => api('entry/' + m.entry + '/history/').catch(() => null))
+    );
+
+    // sestavy pro aktualni kolo
+    let picks = [];
+    if(cur){
+      picks = await Promise.all(
+        members.map(m => api('entry/' + m.entry + '/event/' + cur.id + '/picks/').catch(() => null))
+      );
+    }
+
+    renderLeague(st, members, hist, picks, cur);
+    $('lmsg').textContent = '';
+  }catch(e){
+    $('lmsg').textContent = e.message;
+  }
+}
+
+function rankChart(members, hist){
+  const gws = Math.max(...hist.map(h => h ? h.current.length : 0));
+  if(gws < 2) return '<p class="note">Graf se objeví po druhém odehraném kole.</p>';
+
+  // kumulativni body -> poradi v lize pro kazde kolo
+  const series = members.map((m, i) => {
+    const h = hist[i];
+    const pts = [];
+    let sum = 0;
+    for(let g = 0; g < gws; g++){
+      const ev = h && h.current[g];
+      if(ev) sum = ev.total_points;
+      pts.push(sum);
+    }
+    return {name: m.player_name, team: m.entry_name, entry: m.entry, pts};
+  });
+
+  const ranks = series.map(() => []);
+  for(let g = 0; g < gws; g++){
+    const order = series.map((s, i) => [i, s.pts[g]]).sort((a, b) => b[1] - a[1]);
+    order.forEach(([i], pos) => ranks[i].push(pos + 1));
+  }
+
+  const W = 700, H = 46 + Math.min(members.length, 12) * 22, PL = 34, PR = 14, PT = 12, PB = 26;
+  const n = members.length;
+  const x = g => PL + (gws === 1 ? 0 : (g * (W - PL - PR)) / (gws - 1));
+  const y = r => PT + (n === 1 ? 0 : ((r - 1) * (H - PT - PB)) / (n - 1));
+
+  const grid = [];
+  for(let g = 0; g < gws; g++){
+    grid.push(`<line class="gl" x1="${x(g)}" y1="${PT}" x2="${x(g)}" y2="${H - PB}"/>`);
+    if(gws <= 20 || g % 2 === 0)
+      grid.push(`<text class="ax" x="${x(g)}" y="${H - PB + 14}" text-anchor="middle">${g + 1}</text>`);
+  }
+  for(let r = 1; r <= n; r++)
+    grid.push(`<text class="ax" x="${PL - 8}" y="${y(r) + 3}" text-anchor="end">${r}</text>`);
+
+  const myId = parseInt(localStorage.getItem('fpl_entry') || '0', 10);
+  const paths = series.map((s, i) => {
+    const d = ranks[i].map((r, g) => (g ? 'L' : 'M') + x(g).toFixed(1) + ' ' + y(r).toFixed(1)).join(' ');
+    const mine = s.entry === myId;
+    return `<path d="${d}" stroke="${COLORS[i % COLORS.length]}" class="${mine ? 'me' : ''}" opacity="${mine || n <= 6 ? 1 : .72}"/>`;
+  }).join('');
+
+  const legend = series.map((s, i) =>
+    `<span><i style="background:${COLORS[i % COLORS.length]}"></i>${
+      s.entry === myId ? '<b>' + esc(s.name) + '</b>' : esc(s.name)}</span>`).join('');
+
+  return `<div class="chart">
+      <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Vývoj pořadí v lize po kolech">
+        ${grid.join('')}${paths}
+      </svg>
+      <div class="legend">${legend}</div>
+    </div>
+    <p class="note">Svislá osa je pořadí v lize, vodorovná číslo kola. Tvoje čára je silnější.</p>`;
+}
+
+function renderLeague(st, members, hist, picks, cur){
+  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const myId = parseInt(localStorage.getItem('fpl_entry') || '0', 10);
+
+  /* --- tabulka poradi --- */
+  const table = `<table>
+    <thead><tr>
+      <th class="n">#</th><th>Manažer</th><th class="hide-s">Tým</th>
+      <th class="n">GW</th><th class="n">Celkem</th><th class="n hide-s">Změna</th>
+    </tr></thead>
+    <tbody>${members.map(m => {
+      const move = m.last_rank ? m.last_rank - m.rank : 0;
+      return `<tr${m.entry === myId ? ' style="background:rgba(63,191,127,.08)"' : ''}>
+        <td class="n">${m.rank}</td>
+        <td><b>${esc(m.player_name)}</b></td>
+        <td class="hide-s" style="color:var(--mute)">${esc(m.entry_name)}</td>
+        <td class="n">${m.event_total}</td>
+        <td class="n">${m.total}</td>
+        <td class="n hide-s ${move > 0 ? 'ok' : move < 0 ? 'al' : ''}">${
+          move > 0 ? '▲' + move : move < 0 ? '▼' + (-move) : '–'}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+
+  if(!cur || !picks.some(Boolean)){
+    $('lout').innerHTML = `<h2>${esc(CONFIG.leagueName || st.league.name)} · ${members.length} týmů</h2>${table}
+      <p class="note">Sestavy, rozdíly a graf se zobrazí, jakmile proběhne první kolo.</p>`;
+    return;
+  }
+
+  /* --- kdo koho ma --- */
+  const owners = {};   // playerId -> [jmena manazeru]
+  const caps = {};     // playerId -> [jmena]
+  const byEntry = {};  // entryId -> Set(playerId)
+
+  members.forEach((m, i) => {
+    const pk = picks[i];
+    if(!pk) return;
+    byEntry[m.entry] = new Set();
+    pk.picks.forEach(p => {
+      byEntry[m.entry].add(p.element);
+      (owners[p.element] = owners[p.element] || []).push(m.player_name);
+      if(p.is_captain) (caps[p.element] = caps[p.element] || []).push(m.player_name);
+    });
+  });
+
+  const n = Object.keys(byEntry).length;
+  const ranked = Object.entries(owners)
+    .map(([pid, list]) => ({p: els[pid], list, pct: Math.round((list.length / n) * 100)}))
+    .filter(o => o.p)
+    .sort((a, b) => b.list.length - a.list.length ||
+                    parseFloat(b.p.selected_by_percent) - parseFloat(a.p.selected_by_percent));
+
+  const ownTable = `<table>
+    <thead><tr><th>Hráč</th><th class="hide-s">Tým</th>
+      <th class="n">V lize</th><th style="width:90px">Podíl</th>
+      <th class="hide-s">Kdo</th><th class="n">Kapitán</th></tr></thead>
+    <tbody>${ranked.slice(0, 40).map(o => `<tr>
+      <td><b>${esc(o.p.web_name)}</b></td>
+      <td class="hide-s">${esc(teams[o.p.team].short_name)}</td>
+      <td class="n">${o.list.length}/${n}</td>
+      <td><div class="bar"><i style="width:${o.pct}%"></i></div></td>
+      <td class="hide-s" style="color:var(--mute);font-size:12px">${esc(o.list.join(', '))}</td>
+      <td class="n">${caps[o.p.id] ? caps[o.p.id].length : '–'}</td>
+    </tr>`).join('')}</tbody></table>`;
+
+  /* --- rozdily proti me --- */
+  let diffHtml = '<p class="note">Načti si nejdřív svoji sestavu v záložce Sestava, ať vím, s kým porovnávat.</p>';
+  const mine = byEntry[myId];
+
+  if(mine){
+    const chip = (pid, cls) => {
+      const p = els[pid];
+      const list = owners[pid] || [];
+      return `<span class="chip ${cls}"><b>${esc(p.web_name)}</b>
+        <span class="ct">${esc(teams[p.team].short_name)} · ${list.length}/${n}</span></span>`;
+    };
+
+    const uniq = [...mine].filter(pid => owners[pid].length === 1);
+    const missing = ranked.filter(o => !mine.has(o.p.id) && o.list.length >= Math.ceil(n / 2));
+    const universal = ranked.filter(o => o.list.length === n).map(o => o.p.id);
+
+    diffHtml = `
+      <h2>Máš jen ty · ${uniq.length}</h2>
+      ${uniq.length ? `<div class="own">${uniq.map(pid => chip(pid, 'unique')).join('')}</div>
+        <p class="note">Tady získáváš nebo ztrácíš náskok. Nikdo jiný v lize je nemá.</p>`
+        : '<p class="note">Žádný hráč, kterého bys měl jen ty.</p>'}
+
+      <h2>Nemáš, ale většina ligy ano · ${missing.length}</h2>
+      ${missing.length ? `<div class="own">${missing.map(o => chip(o.p.id, 'miss')).join('')}</div>
+        <p class="note">Když tihle bodují, propadáš se v tabulce, aniž bys udělal chybu.</p>`
+        : '<p class="note">Nic ti neuniká — všechny populární hráče v lize máš.</p>'}
+
+      <h2>Má úplně každý · ${universal.length}</h2>
+      ${universal.length ? `<div class="own">${universal.map(pid => chip(pid, 'mine')).join('')}</div>
+        <p class="note">Na těchhle se pořadí nerozhodne, body dostanou všichni stejně.</p>`
+        : '<p class="note">Neexistuje hráč, kterého by měli všichni.</p>'}`;
+  }
+
+  const SECTIONS = [
+    ['Pořadí', table],
+    ['Vývoj', rankChart(members, hist)],
+    ['Rozdíly', diffHtml],
+    ['Kdo koho má', ownTable],
+  ];
+
+  $('lout').innerHTML = `
+    <h2>${esc(CONFIG.leagueName || st.league.name)} · ${members.length} týmů · GW${cur.id}</h2>
+    <div class="subnav" role="tablist">
+      ${SECTIONS.map((s, i) =>
+        `<button class="sub-btn" role="tab" aria-selected="${i === 0}" data-sec="${i}">${esc(s[0])}</button>`
+      ).join('')}
+    </div>
+    ${SECTIONS.map((s, i) =>
+      `<div class="sec" id="sec-${i}"${i ? ' hidden' : ''}>${s[1]}</div>`
+    ).join('')}`;
+
+  $('lout').querySelectorAll('.sub-btn').forEach(b => {
+    b.addEventListener('click', () => {
+      $('lout').querySelectorAll('.sub-btn').forEach(x =>
+        x.setAttribute('aria-selected', x === b));
+      SECTIONS.forEach((_, i) => { $('sec-' + i).hidden = String(i) !== b.dataset.sec; });
+    });
+  });
+
+  // sestavy si schovame pro zalozku "Pred deadlinem"
+  LEAGUE_OWNERS = {owners, els, teams, n};
+}
+
+/* ============ PRED DEADLINEM (API-Football) ============ */
+let LEAGUE_OWNERS = null;
+
+// Prevod jmen mezi FPL a API-Football. Jmena se lisi diakritikou a formatem,
+// tak porovnavame zjednodusenou podobu prijmeni.
+function normName(s){
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z ]/g, '').trim();
+}
+
+function lastName(s){
+  const parts = normName(s).split(' ').filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : '';
+}
+
+async function apiFootball(params){
+  const qs = new URLSearchParams(params).toString();
+  const r = await fetch('/api/football?' + qs);
+  const ct = r.headers.get('content-type') || '';
+  if(!ct.includes('application/json'))
+    throw new Error('Funkce /api/football neodpovídá (' + r.status + ').');
+  const data = await r.json();
+  if(!r.ok){
+    const e = new Error(data.error || 'Chyba');
+    e.setup = data.setup;
+    throw e;
+  }
+  return data;
+}
+
+const SETUP_HTML = `<div class="setup">
+  <h3>Chybí API klíč</h3>
+  <ol>
+    <li>Zaregistruj se na <code>dashboard.api-football.com</code> — free plán je 100 dotazů denně</li>
+    <li>Zkopíruj si API klíč z dashboardu</li>
+    <li>Ve Vercelu: Settings → Environment Variables → přidej <code>APIFOOTBALL_KEY</code></li>
+    <li>Deployments → poslední → Redeploy, aby se proměnná načetla</li>
+  </ol>
+</div>`;
+
+async function loadLineups(){
+  $('amsg').textContent = 'Načítám zápasy…';
+  $('aout').innerHTML = '';
+  try{
+    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const fx = await apiFootball({route: 'fixtures', date: today, season: CONFIG.season});
+
+    if(!fx.response || !fx.response.length){
+      $('amsg').textContent = 'Dnes se v Premier League nehraje.';
+      return;
+    }
+
+    $('amsg').textContent = 'Načítám sestavy ' + fx.response.length + ' zápasů…';
+
+    const lineups = await Promise.all(
+      fx.response.map(f =>
+        apiFootball({route: 'lineups', fixture: String(f.fixture.id)})
+          .then(r => r.response).catch(() => null))
+    );
+
+    renderLineups(fx.response, lineups);
+    $('amsg').textContent = '';
+  }catch(e){
+    $('amsg').textContent = e.setup ? '' : e.message;
+    if(e.setup) $('aout').innerHTML = SETUP_HTML;
+  }
+}
+
+function renderLineups(fixtures, lineups){
+  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const owners = LEAGUE_OWNERS ? LEAGUE_OWNERS.owners : null;
+
+  const blocks = fixtures.map((f, i) => {
+    const lu = lineups[i];
+    const ko = new Date(f.fixture.date).toLocaleTimeString('cs-CZ',
+      {hour: '2-digit', minute: '2-digit'});
+    const head = `${esc(f.teams.home.name)} — ${esc(f.teams.away.name)}`;
+
+    if(!lu || !lu.length){
+      return `<div class="match pend">
+        <h3>${head}</h3>
+        <div class="ko">Výkop ${ko} · sestava zatím není potvrzená</div>
+      </div>`;
+    }
+
+    // jmena hracu, kteri jsou v zakladni sestave
+    const starters = new Set();
+    lu.forEach(side => (side.startXI || []).forEach(x => starters.add(lastName(x.player.name))));
+
+    // FPL hraci obou tymu, ktere nekdo v lize vlastni
+    const clubNames = [f.teams.home.name, f.teams.away.name].map(normName);
+    const relevant = BOOT.elements.filter(p => {
+      const t = normName(teams[p.team].name);
+      return clubNames.some(c => c.includes(t) || t.includes(c));
+    });
+
+    const benched = relevant
+      .filter(p => !starters.has(lastName(p.second_name)))
+      .filter(p => !owners || owners[p.id])
+      .map(p => ({p, list: owners ? owners[p.id] : []}))
+      .sort((a, b) => b.list.length - a.list.length);
+
+    const cls = benched.length ? 'risk' : 'safe';
+    const body = benched.length
+      ? `<div class="own" style="margin-top:9px">${benched.map(b =>
+          `<span class="chip miss"><b>${esc(b.p.web_name)}</b>${
+            b.list.length ? `<span class="ct">${esc(b.list.join(', '))}</span>` : ''}</span>`
+        ).join('')}</div>`
+      : '<p class="note">Všichni vlastnění hráči jsou v základní sestavě.</p>';
+
+    return `<div class="match ${cls}">
+      <h3>${head}</h3>
+      <div class="ko">Výkop ${ko} · sestava potvrzená</div>
+      ${body}
+    </div>`;
+  });
+
+  const hint = owners
+    ? ''
+    : '<p class="note">Načti si nejdřív minligu, ať u každého hráče vidíš, koho v lize trefí.</p>';
+
+  $('aout').innerHTML = `<h2>Kdo nezačíná · ${new Date().toLocaleDateString('cs-CZ')}</h2>
+    ${hint}${blocks.join('')}
+    <p class="note">Párování jmen mezi FPL a API-Football jede přes příjmení. U hráčů se
+    shodným příjmením ve stejném klubu se může splést — ber to jako upozornění, ne jako důkaz.</p>`;
+}
+
+$('ago').addEventListener('click', async () => {
+  $('ago').disabled = true;
+  await loadLineups();
+  $('ago').disabled = false;
+});
+
+$('lf').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const id = $('lid').value.trim();
+  if(!/^\d+$/.test(id)){ $('lmsg').textContent = 'Zadej číselné ID ligy.'; return; }
+  localStorage.setItem('fpl_league', id);
+  $('lgo').disabled = true;
+  await loadLeague(id);
+  $('lgo').disabled = false;
+});
+
+const savedLeague = CONFIG.leagueId || localStorage.getItem('fpl_league');
+if(savedLeague){
+  $('lid').value = savedLeague;
+  if(CONFIG.leagueId) loadLeague(CONFIG.leagueId);
+}
+
 $('f').addEventListener('submit', async ev => {
   ev.preventDefault();
   const id = $('eid').value.trim();
@@ -352,8 +855,12 @@ $('f').addEventListener('submit', async ev => {
   $('go').disabled = false;
 });
 
-const saved = localStorage.getItem('fpl_entry');
-if(saved){ $('eid').value = saved; load(saved); }
+const saved = CONFIG.entryId || localStorage.getItem('fpl_entry');
+if(saved){
+  $('eid').value = saved;
+  localStorage.setItem('fpl_entry', saved);
+  load(saved);
+}
 </script>
 </body>
 </html>
