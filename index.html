@@ -193,6 +193,64 @@ tr .st{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
 .setup ol{margin:0;padding-left:20px;color:var(--mute);font-size:13.5px;line-height:1.7}
 .setup code{font-family:'IBM Plex Mono',monospace;color:var(--chalk);font-size:12.5px}
 
+/* --- filtry --- */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 14px}
+.filters input,.filters select{
+  background:var(--ink-2);border:1px solid var(--line);color:var(--chalk);
+  font-family:'Archivo';font-size:13.5px;padding:9px 11px;border-radius:6px;
+  flex:1 1 130px;min-width:0;
+}
+.filters input:focus,.filters select:focus{outline:2px solid var(--ok);outline-offset:1px}
+.chk{display:flex;align-items:center;gap:7px;color:var(--mute);font-size:13px;
+  padding:0 4px;cursor:pointer;white-space:nowrap}
+.chk input{flex:none;width:16px;height:16px;accent-color:var(--ok)}
+
+tr.click{cursor:pointer}
+tr.click:hover td{background:rgba(63,191,127,.07)}
+
+/* --- detail hrace --- */
+.detail{background:var(--card);border:1px solid var(--ok);border-radius:8px;
+  padding:18px 20px;margin:18px 0}
+.detail .close{float:right;background:none;border:0;color:var(--mute);
+  font-size:20px;cursor:pointer;padding:0 4px;line-height:1}
+.detail h3{margin:0 0 2px;font-size:20px;font-weight:900;letter-spacing:-.02em}
+.detail .who{color:var(--mute);font-family:'IBM Plex Mono',monospace;font-size:12px}
+
+.pills{display:flex;gap:5px;margin:12px 0 4px;flex-wrap:wrap}
+.pill{width:38px;text-align:center;background:var(--ink-2);border-radius:5px;
+  padding:5px 0;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600}
+.pill small{display:block;font-size:9px;color:var(--mute);font-weight:400}
+.p-hi{background:rgba(63,191,127,.22);color:var(--ok)}
+.p-md{background:rgba(242,169,59,.18);color:var(--warn)}
+.p-lo{background:rgba(232,69,60,.15);color:var(--alert)}
+
+.kpis{display:flex;gap:20px;flex-wrap:wrap;margin:14px 0 2px}
+.kpis div{min-width:74px}
+.kpis .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.kpis .v{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600}
+
+/* --- transfery --- */
+.issue{background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:15px 17px;margin-bottom:12px}
+.issue.p1{border-left:4px solid var(--alert)}
+.issue.p2{border-left:4px solid var(--warn)}
+.issue .hdr{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.issue .hdr b{font-size:16px}
+.issue .why{color:var(--mute);font-size:13.5px;margin:6px 0 0}
+.issue .why b{color:var(--chalk);font-weight:600}
+.budget{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--mute);
+  margin:11px 0 7px;padding-top:10px;border-top:1px solid var(--line)}
+.cand{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:8px 0;border-bottom:1px solid rgba(44,49,69,.5);flex-wrap:wrap}
+.cand:last-child{border-bottom:0}
+.cand .l b{font-size:14px}
+.cand .l span{color:var(--mute);font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+  display:block;margin-top:2px}
+.cand .r{font-family:'IBM Plex Mono',monospace;font-size:12.5px;text-align:right;white-space:nowrap}
+.cand .r b{font-size:15px;color:var(--ok)}
+.ok-box{background:var(--card);border:1px solid var(--ok);border-left:4px solid var(--ok);
+  border-radius:8px;padding:15px 17px}
+
 .note{color:var(--mute);font-size:13px;margin:6px 0 0}
 .bar{height:6px;background:var(--ink-2);border-radius:3px;overflow:hidden;min-width:52px}
 .bar i{display:block;height:100%;background:var(--ok)}
@@ -217,6 +275,8 @@ tr .st{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
   <button class="tab" id="t-squad" role="tab" aria-selected="true" aria-controls="p-squad">Sestava</button>
   <button class="tab" id="t-league" role="tab" aria-selected="false" aria-controls="p-league">Miniliga</button>
   <button class="tab" id="t-live" role="tab" aria-selected="false" aria-controls="p-live">Před deadlinem</button>
+  <button class="tab" id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Hráči</button>
+  <button class="tab" id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
 </div>
 
 <div class="panel" id="p-squad" role="tabpanel" aria-labelledby="t-squad">
@@ -238,6 +298,38 @@ tr .st{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
   <button id="ago" style="margin-top:14px">Zkontrolovat dnešní zápasy</button>
   <div id="amsg"></div>
   <div id="aout"></div>
+</div>
+
+<div class="panel" id="p-players" role="tabpanel" aria-labelledby="t-players" hidden>
+  <div class="filters">
+    <input id="q" placeholder="Hledat hráče…" style="flex:2 1 180px">
+    <select id="fpos">
+      <option value="">Všechny pozice</option>
+      <option value="1">Brankáři</option>
+      <option value="2">Obránci</option>
+      <option value="3">Záložníci</option>
+      <option value="4">Útočníci</option>
+    </select>
+    <select id="fteam"><option value="">Všechny týmy</option></select>
+    <select id="fsort">
+      <option value="xp">Řadit: projekce</option>
+      <option value="total_points">Řadit: body celkem</option>
+      <option value="form">Řadit: forma</option>
+      <option value="value">Řadit: body za milion</option>
+      <option value="xgi">Řadit: xGI/90</option>
+      <option value="minutes">Řadit: minuty</option>
+    </select>
+    <label class="chk"><input type="checkbox" id="fmine"> Jen moje</label>
+  </div>
+  <div id="pout"></div>
+  <div id="pdetail"></div>
+</div>
+
+<div class="panel" id="p-tr" role="tabpanel" aria-labelledby="t-tr" hidden>
+  <p class="hint">Projdu tvoji sestavu, najdu problémové hráče a ke každému navrhnu náhrady, které se ti vejdou do rozpočtu.</p>
+  <button id="trgo" style="margin-top:14px">Analyzovat sestavu</button>
+  <div id="trmsg"></div>
+  <div id="trout"></div>
 </div>
 </div>
 
@@ -282,6 +374,7 @@ async function api(p){
 }
 
 let BOOT = null, FIX = null;
+let MY_SQUAD = null;   // Set(playerId) — naplní se po načtení vlastní sestavy
 
 async function load(id){
   $('msg').textContent = 'Načítám…';
@@ -384,6 +477,8 @@ function render(entry, picks, startGw){
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
   const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
 
+  MY_SQUAD = new Set(picks.picks.map(pk => pk.element));
+
   const squad = picks.picks.map(pk => {
     const p = els[pk.element];
     const f = fdr(p.team, startGw, 5);
@@ -455,7 +550,8 @@ function render(entry, picks, startGw){
 }
 
 /* ============ ZALOZKY ============ */
-const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-live','p-live']];
+const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-live','p-live'],
+              ['t-players','p-players'], ['t-tr','p-tr']];
 TABS.forEach(([tid, pid]) => {
   $(tid).addEventListener('click', () => {
     TABS.forEach(([t, p]) => {
@@ -827,6 +923,437 @@ $('ago').addEventListener('click', async () => {
   $('ago').disabled = true;
   await loadLineups();
   $('ago').disabled = false;
+});
+
+/* ============ HRÁČI + PROJEKCE ============ */
+
+// Kolik bodů dá FPL za gól a čisté konto podle pozice.
+const GOAL_PTS = {1: 10, 2: 6, 3: 5, 4: 4};
+const CS_PTS   = {1: 4,  2: 4, 3: 1, 4: 0};
+
+/*
+  Odhad bodů na příští kolo. Je to hrubý model, ne předpověď — staví na tom,
+  že dlouhodobé xG a xA jsou lepší ukazatel budoucnosti než odehrané body,
+  které jsou plné náhody.
+
+  Skládá se ze čtyř částí:
+    1) pravděpodobnost, že hráč vůbec nastoupí (z minut a hlášené dostupnosti)
+    2) očekávané góly a asistence na 90 minut, přepočtené body podle pozice
+    3) šance na čisté konto odvozená z obtížnosti soupeře
+    4) odhad bonusových bodů z dosavadního poměru bonusů na zápas
+*/
+function projectPoints(p, fdrAvg){
+  const chance = p.chance_of_playing_next_round === null ? 100 : p.chance_of_playing_next_round;
+  const starts = p.starts || 0;
+  const gamesPlayed = Math.max(1, Math.round(p.minutes / 75));
+
+  // podíl zápasů, kde odehrál skoro celý zápas
+  const startRate = Math.min(1, starts / Math.max(gamesPlayed, 1));
+  const pPlay = (chance / 100) * (p.minutes > 0 ? Math.max(.25, startRate) : 0);
+  const expMin = pPlay * (p.minutes / Math.max(gamesPlayed, 1));
+
+  const xg90 = parseFloat(p.expected_goals_per_90 || 0);
+  const xa90 = parseFloat(p.expected_assists_per_90 || 0);
+  const share = Math.min(1, expMin / 90);
+
+  // čisté konto: FDR 2 je lehký soupeř, 5 těžký
+  const fd = fdrAvg === null ? 3 : fdrAvg;
+  const pCS = Math.max(.04, Math.min(.55, .46 - .09 * (fd - 2)));
+
+  // proti slabšímu soupeři se šance tvoří snáz, proti silnějšímu hůř
+  const attFactor = Math.max(.65, Math.min(1.35, 1 + (3 - fd) * .13));
+
+  const appearance = pPlay * (expMin >= 60 ? 2 : 1);
+  const attack = share * attFactor * (xg90 * GOAL_PTS[p.element_type] + xa90 * 3);
+
+  const defence = CS_PTS[p.element_type] ? share * pCS * CS_PTS[p.element_type] : 0;
+
+  // penalizace za inkasované góly u brankářů a obránců
+  const conceded = p.element_type <= 2 ? -share * (1 - pCS) * 0.7 : 0;
+
+  const bonusRate = (p.bonus || 0) / Math.max(gamesPlayed, 1);
+  const bonus = pPlay * bonusRate;
+
+  return Math.max(0, appearance + attack + defence + conceded + bonus);
+}
+
+function playerRows(){
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const cur = BOOT.events.find(e => e.is_current);
+  const nxt = BOOT.events.find(e => e.is_next);
+  const startGw = nxt ? nxt.id : (cur ? cur.id + 1 : 1);
+
+  return BOOT.elements.map(p => {
+    const f = fdr(p.team, startGw, 5);
+    const price = p.now_cost / 10;
+    return {
+      p, team: teams[p.team], price,
+      fdr: f.avg,
+      xp: projectPoints(p, f.avg),
+      value: p.total_points / price,
+      xgi: parseFloat(p.expected_goal_involvements_per_90 || 0),
+      chance: p.chance_of_playing_next_round === null ? 100 : p.chance_of_playing_next_round,
+    };
+  });
+}
+
+let PLAYERS = null;
+
+async function loadPlayers(){
+  if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+  if(!PLAYERS){
+    PLAYERS = playerRows();
+    const sel = $('fteam');
+    BOOT.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.id; o.textContent = t.name;
+      sel.appendChild(o);
+    });
+  }
+  drawPlayers();
+}
+
+function drawPlayers(){
+  const q = normName($('q').value);
+  const pos = $('fpos').value;
+  const team = $('fteam').value;
+  const sort = $('fsort').value;
+  const onlyMine = $('fmine').checked;
+
+  const myIds = MY_SQUAD;
+
+  let rows = PLAYERS.filter(r => {
+    if(pos && String(r.p.element_type) !== pos) return false;
+    if(team && String(r.p.team) !== team) return false;
+    if(q && !normName(r.p.web_name + ' ' + r.p.second_name).includes(q)) return false;
+    if(onlyMine && (!myIds || !myIds.has(r.p.id))) return false;
+    return true;
+  });
+
+  const key = {
+    xp: r => r.xp,
+    total_points: r => r.p.total_points,
+    form: r => parseFloat(r.p.form || 0),
+    value: r => r.value,
+    xgi: r => r.xgi,
+    minutes: r => r.p.minutes,
+  }[sort];
+
+  rows.sort((a, b) => key(b) - key(a));
+
+  const warn = onlyMine && !myIds
+    ? '<p class="note">Nejdřív si načti sestavu v záložce Sestava — do té doby nevím, koho máš.</p>' : '';
+
+  $('pout').innerHTML = warn + `
+    <p class="note">Klikni na hráče pro rozpis kolo po kole a formu z posledních 5 zápasů.</p>
+    <table>
+      <thead><tr>
+        <th>Hráč</th><th class="hide-s">Tým</th><th>Poz</th>
+        <th class="n">Cena</th><th class="n">Body</th><th class="n hide-s">Za mil.</th>
+        <th class="n">Forma</th><th class="n hide-s">xGI/90</th>
+        <th class="n hide-s">Min</th><th class="n">FDR</th><th class="n">xP</th>
+      </tr></thead>
+      <tbody>${rows.slice(0, 60).map(r => `<tr class="click" data-pid="${r.p.id}">
+        <td><b>${esc(r.p.web_name)}</b>${r.chance < 100
+          ? ` <span class="st ${S[r.p.status][1]}">${r.chance}%</span>` : ''}</td>
+        <td class="hide-s">${esc(r.team.short_name)}</td>
+        <td>${POS[r.p.element_type]}</td>
+        <td class="n">${r.price.toFixed(1)}</td>
+        <td class="n">${r.p.total_points}</td>
+        <td class="n hide-s">${r.value.toFixed(1)}</td>
+        <td class="n">${r.p.form}</td>
+        <td class="n hide-s">${r.xgi.toFixed(2)}</td>
+        <td class="n hide-s">${r.p.minutes}</td>
+        <td class="n">${r.fdr === null ? '–' : r.fdr.toFixed(1)}</td>
+        <td class="n"><b>${r.xp.toFixed(1)}</b></td>
+      </tr>`).join('')}</tbody>
+    </table>
+    ${rows.length > 60 ? `<p class="note">Zobrazeno 60 z ${rows.length} hráčů — zužuj filtry.</p>` : ''}`;
+
+  $('pout').querySelectorAll('tr.click').forEach(tr =>
+    tr.addEventListener('click', () => showPlayer(parseInt(tr.dataset.pid, 10))));
+}
+
+async function showPlayer(pid){
+  const row = PLAYERS.find(r => r.p.id === pid);
+  $('pdetail').innerHTML = '<div class="detail"><p class="note">Načítám historii…</p></div>';
+  $('pdetail').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+
+  let sum;
+  try { sum = await api('element-summary/' + pid + '/'); }
+  catch(e){ $('pdetail').innerHTML = `<div class="detail"><p class="note">${esc(e.message)}</p></div>`; return; }
+
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const hist = sum.history || [];
+  const last5 = hist.slice(-5);
+
+  const agg = last5.reduce((a, h) => ({
+    pts: a.pts + h.total_points, min: a.min + h.minutes,
+    g: a.g + h.goals_scored, as: a.as + h.assists,
+    xg: a.xg + parseFloat(h.expected_goals || 0),
+    xa: a.xa + parseFloat(h.expected_assists || 0),
+    bps: a.bps + h.bonus,
+  }), {pts: 0, min: 0, g: 0, as: 0, xg: 0, xa: 0, bps: 0});
+
+  const pillCls = v => v >= 7 ? 'p-hi' : v >= 3 ? 'p-md' : 'p-lo';
+
+  const pills = last5.length
+    ? `<div class="pills">${last5.map(h => `<span class="pill ${pillCls(h.total_points)}">
+        ${h.total_points}<small>GW${h.round}</small></span>`).join('')}</div>`
+    : '<p class="note">Zatím žádné odehrané zápasy v této sezóně.</p>';
+
+  const season = hist.reduce((a, h) => ({
+    pts: a.pts + h.total_points, min: a.min + h.minutes,
+    g: a.g + h.goals_scored, as: a.as + h.assists,
+  }), {pts: 0, min: 0, g: 0, as: 0});
+
+  const upcoming = (sum.fixtures || []).slice(0, 5).map(f => {
+    const opp = teams[f.is_home ? f.team_a : f.team_h];
+    return `${opp ? opp.short_name : '?'}${f.is_home ? ' (D)' : ' (V)'} · ${f.difficulty}`;
+  }).join(' | ');
+
+  const table = hist.length ? `<table style="margin-top:14px">
+    <thead><tr><th>GW</th><th class="hide-s">Soupeř</th><th class="n">Min</th>
+      <th class="n">G</th><th class="n">A</th><th class="n hide-s">xG</th>
+      <th class="n hide-s">xA</th><th class="n">Bon</th><th class="n">Body</th></tr></thead>
+    <tbody>${hist.slice().reverse().slice(0, 12).map(h => {
+      const opp = teams[h.opponent_team];
+      return `<tr>
+        <td>${h.round}</td>
+        <td class="hide-s">${opp ? esc(opp.short_name) : '–'}${h.was_home ? ' (D)' : ' (V)'}</td>
+        <td class="n">${h.minutes}</td>
+        <td class="n">${h.goals_scored}</td>
+        <td class="n">${h.assists}</td>
+        <td class="n hide-s">${parseFloat(h.expected_goals || 0).toFixed(2)}</td>
+        <td class="n hide-s">${parseFloat(h.expected_assists || 0).toFixed(2)}</td>
+        <td class="n">${h.bonus}</td>
+        <td class="n"><b>${h.total_points}</b></td>
+      </tr>`;
+    }).join('')}</tbody></table>` : '';
+
+  $('pdetail').innerHTML = `<div class="detail">
+    <button class="close" id="pclose" aria-label="Zavřít">×</button>
+    <h3>${esc(row.p.first_name)} ${esc(row.p.second_name)}</h3>
+    <div class="who">${esc(row.team.name)} · ${POS[row.p.element_type]} · ${row.price.toFixed(1)}m</div>
+
+    <h2 style="margin-top:16px">Posledních 5 kol</h2>
+    ${pills}
+    <div class="kpis">
+      <div><div class="k">Body</div><div class="v">${agg.pts}</div></div>
+      <div><div class="k">Minuty</div><div class="v">${agg.min}</div></div>
+      <div><div class="k">G + A</div><div class="v">${agg.g}+${agg.as}</div></div>
+      <div><div class="k">xG + xA</div><div class="v">${(agg.xg + agg.xa).toFixed(2)}</div></div>
+      <div><div class="k">Bonus</div><div class="v">${agg.bps}</div></div>
+    </div>
+    ${last5.length ? `<p class="note">${
+      (agg.g + agg.as) > (agg.xg + agg.xa) + 1
+        ? 'Skóruje nad očekávání — část bodů je štěstí a nemusí vydržet.'
+        : (agg.xg + agg.xa) > (agg.g + agg.as) + 1
+          ? 'Šance si vytváří, ale nepromítly se do bodů — může se to obrátit.'
+          : 'Body zhruba odpovídají vytvořeným šancím.'}</p>` : ''}
+
+    <h2>Celá sezóna</h2>
+    <div class="kpis">
+      <div><div class="k">Body</div><div class="v">${season.pts}</div></div>
+      <div><div class="k">Zápasy</div><div class="v">${hist.length}</div></div>
+      <div><div class="k">Minuty</div><div class="v">${season.min}</div></div>
+      <div><div class="k">G + A</div><div class="v">${season.g}+${season.as}</div></div>
+      <div><div class="k">Vlastní %</div><div class="v">${row.p.selected_by_percent}</div></div>
+      <div><div class="k">Projekce</div><div class="v">${row.xp.toFixed(1)}</div></div>
+    </div>
+    ${upcoming ? `<p class="note">Program: ${esc(upcoming)}</p>` : ''}
+    ${table}
+  </div>`;
+
+  $('pclose').addEventListener('click', () => { $('pdetail').innerHTML = ''; });
+}
+
+['q','fpos','fteam','fsort','fmine'].forEach(id =>
+  $(id).addEventListener('input', () => { if(PLAYERS) drawPlayers(); }));
+
+$('t-players').addEventListener('click', () => { loadPlayers(); });
+
+/* ============ TRANSFERY ============
+   Postup:
+     1. načti sestavu a stav banky
+     2. priorita 1 — zranění, suspenze, nebo 3 zápasy v řadě s FDR 4+
+     3. priorita 2 — 3 a více zápasů po sobě pod 3 body
+     4. ke každému problému najdi náhrady, které se vejdou do rozpočtu
+*/
+
+function nextFixtures(teamId, startGw, n){
+  const out = [];
+  for(const f of FIX){
+    if(f.event === null || f.event < startGw) continue;
+    if(f.team_h === teamId) out.push({gw: f.event, opp: f.team_a, home: true, d: f.team_h_difficulty});
+    else if(f.team_a === teamId) out.push({gw: f.event, opp: f.team_h, home: false, d: f.team_a_difficulty});
+  }
+  return out.sort((a, b) => a.gw - b.gw).slice(0, n);
+}
+
+async function analyzeTransfers(){
+  $('trmsg').textContent = 'Načítám sestavu…';
+  $('trout').innerHTML = '';
+  try{
+    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+    if(!PLAYERS) PLAYERS = playerRows();
+
+    const entryId = CONFIG.entryId || localStorage.getItem('fpl_entry');
+    if(!entryId){ $('trmsg').textContent = 'Nejdřív si načti sestavu v záložce Sestava.'; return; }
+
+    const cur = BOOT.events.find(e => e.is_current);
+    const nxt = BOOT.events.find(e => e.is_next);
+    const startGw = nxt ? nxt.id : (cur ? cur.id + 1 : 1);
+
+    if(!cur){
+      $('trmsg').textContent = 'Sezóna ještě nezačala — analýza dává smysl až po prvním kole.';
+      return;
+    }
+
+    const picks = await api('entry/' + entryId + '/event/' + cur.id + '/picks/');
+    const bank = (picks.entry_history.bank || 0) / 10;
+
+    $('trmsg').textContent = 'Procházím ' + picks.picks.length + ' hráčů…';
+
+    // historie kazdeho hrace v kadru — kvuli bodum za posledni zapasy
+    const summaries = await Promise.all(
+      picks.picks.map(pk => api('element-summary/' + pk.element + '/')
+        .then(r => r.history || []).catch(() => []))
+    );
+
+    renderTransfers(picks, summaries, bank, startGw);
+    $('trmsg').textContent = '';
+  }catch(e){
+    $('trmsg').textContent = e.message;
+  }
+}
+
+function renderTransfers(picks, summaries, bank, startGw){
+  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const owned = new Set(picks.picks.map(pk => pk.element));
+  const byId = Object.fromEntries(PLAYERS.map(r => [r.p.id, r]));
+
+  const issues = [];
+
+  picks.picks.forEach((pk, i) => {
+    const p = els[pk.element];
+    if(!p) return;
+    const hist = summaries[i];
+    const fx = nextFixtures(p.team, startGw, 3);
+    const chance = p.chance_of_playing_next_round === null ? 100 : p.chance_of_playing_next_round;
+    const reasons = [];
+    let prio = 0;
+
+    // --- priorita 1: dostupnost ---
+    if(p.status === 's'){ reasons.push('Suspendovaný'); prio = 1; }
+    else if(p.status === 'i'){ reasons.push('Zraněný'); prio = 1; }
+    else if(p.status === 'u' || p.status === 'n'){ reasons.push('Nedostupný'); prio = 1; }
+    else if(chance < 100){
+      reasons.push('Šance nastoupit jen ' + chance + ' %');
+      prio = chance <= 50 ? 1 : Math.max(prio, 2);
+    }
+
+    // --- priorita 1: tri tezke zapasy v rade ---
+    const hard = fx.filter(f => f.d >= 4);
+    if(fx.length === 3 && hard.length === 3){
+      reasons.push('Tři těžké zápasy v řadě: ' + fx.map(f =>
+        (teams[f.opp] ? teams[f.opp].short_name : '?') + (f.home ? ' (D)' : ' (V)') + ' ' + f.d).join(', '));
+      prio = 1;
+    } else if(hard.length === 2){
+      reasons.push('Dva ze tří dalších zápasů jsou těžké');
+      prio = Math.max(prio, 2);
+    }
+
+    // --- priorita 2: bodova sucha ---
+    const played = hist.filter(h => h.minutes > 0);
+    let dry = 0;
+    for(let k = played.length - 1; k >= 0; k--){
+      if(played[k].total_points <= 3) dry++; else break;
+    }
+    if(dry >= 3){
+      const pts = played.slice(-dry).map(h => h.total_points).join(', ');
+      reasons.push('Poslední ' + dry + ' zápasy pod 3 body (' + pts + ')');
+      prio = prio === 1 ? 1 : 2;
+    }
+
+    if(prio) issues.push({p, pk, prio, reasons, fx, dry, chance});
+  });
+
+  if(!issues.length){
+    $('trout').innerHTML = `<div class="ok-box">
+      <b>Sestava je v pořádku.</b>
+      <p class="note">Nikdo není zraněný ani suspendovaný, nikoho nečeká série tří těžkých
+      zápasů a nikdo netrpí bodovým suchem. V bance máš ${bank.toFixed(1)}m.</p>
+    </div>`;
+    return;
+  }
+
+  issues.sort((a, b) => a.prio - b.prio || b.dry - a.dry);
+
+  const blocks = issues.map(it => {
+    // prodejni cena: FPL vraci pri rustu ceny jen polovinu zisku, ale presnou
+    // prodejni cenu verejne API nedava — pouzivam aktualni cenu jako odhad
+    const sell = it.p.now_cost / 10;
+    const budget = bank + sell;
+
+    const cands = PLAYERS
+      .filter(r => r.p.element_type === it.p.element_type)
+      .filter(r => !owned.has(r.p.id))
+      .filter(r => r.price <= budget + 0.001)
+      .filter(r => r.chance >= 75 && r.p.status === 'a')
+      .filter(r => r.p.minutes >= 180)
+      .map(r => {
+        const f3 = nextFixtures(r.p.team, startGw, 3);
+        const avgD = f3.length ? f3.reduce((s, x) => s + x.d, 0) / f3.length : 3;
+        // vazeny mix: projekce, nedavna forma a program
+        const score = r.xp * 1.0 + parseFloat(r.p.form || 0) * 0.5 + (3.5 - avgD) * 0.4;
+        return {...r, f3, avgD, score};
+      })
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3);
+
+    const candHtml = cands.length ? cands.map(c => `<div class="cand">
+        <div class="l">
+          <b>${esc(c.p.web_name)}</b>
+          <span>${esc(c.team.short_name)} · ${c.price.toFixed(1)}m · forma ${c.p.form}
+            · ${c.p.total_points} b · ${c.f3.map(f =>
+              (teams[f.opp] ? teams[f.opp].short_name : '?') + ' ' + f.d).join(' ')}</span>
+        </div>
+        <div class="r"><b>${c.xp.toFixed(1)}</b><br>xP</div>
+      </div>`).join('')
+      : '<p class="note">Do rozpočtu se nevejde nikdo lepší. Zvaž prodej jiného hráče, aby ti zbylo víc.</p>';
+
+    return `<div class="issue p${it.prio}">
+      <div class="hdr">
+        <b>${esc(it.p.web_name)}</b>
+        <span class="tag">${esc(teams[it.p.team].short_name)} · ${POS[it.p.element_type]}
+          · ${(it.p.now_cost / 10).toFixed(1)}m</span>
+        <span class="tag">${it.prio === 1 ? 'Priorita 1' : 'Priorita 2'}</span>
+      </div>
+      <p class="why">${it.reasons.map(r => '• ' + esc(r)).join('<br>')}</p>
+      <div class="budget">Rozpočet na náhradu: ${sell.toFixed(1)}m za prodej
+        + ${bank.toFixed(1)}m v bance = <b>${budget.toFixed(1)}m</b></div>
+      ${candHtml}
+    </div>`;
+  });
+
+  const p1 = issues.filter(i => i.prio === 1).length;
+
+  $('trout').innerHTML = `
+    <h2>Nalezeno ${issues.length} problémů · ${p1} akutních</h2>
+    <p class="note">V bance máš ${bank.toFixed(1)}m. Priorita 1 je červená (nehraje nebo ho
+    čeká série těžkých zápasů), priorita 2 oranžová (nebodovala, nebo je pod otazníkem).</p>
+    ${blocks.join('')}
+    <p class="note" style="margin-top:18px">Prodejní cena je odhadnutá z aktuální ceny hráče.
+    Když ti hráč zdražil, FPL ti vrátí jen polovinu zisku, takže reálný rozpočet může být
+    o desetinu nižší — přesnou prodejní cenu veřejné API nedává.</p>`;
+}
+
+$('trgo').addEventListener('click', async () => {
+  $('trgo').disabled = true;
+  await analyzeTransfers();
+  $('trgo').disabled = false;
 });
 
 $('lf').addEventListener('submit', async ev => {
