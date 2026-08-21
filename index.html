@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Squad Check — FPL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#14161F;
+  --ink-2:#1E2130;
+  --line:#2C3145;
+  --chalk:#E8EBF2;
+  --mute:#8891A8;
+  --pitch:#1B6B4A;
+  --pitch-dk:#134D36;
+  --ok:#3FBF7F;
+  --warn:#F2A93B;
+  --alert:#E8453C;
+  --card:#111219;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{
+  background:var(--ink);
+  color:var(--chalk);
+  font-family:'Archivo',system-ui,sans-serif;
+  font-size:15px;
+  line-height:1.45;
+  padding:32px 20px 80px;
+}
+.wrap{max-width:1020px;margin:0 auto}
+
+header{border-bottom:2px solid var(--line);padding-bottom:18px;margin-bottom:26px}
+h1{
+  font-weight:900;font-size:clamp(34px,7vw,60px);
+  letter-spacing:-.035em;line-height:.92;margin:0 0 6px;
+  text-transform:uppercase;
+}
+h1 em{font-style:normal;color:var(--ok)}
+.sub{color:var(--mute);font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin:0}
+
+form{display:flex;gap:10px;flex-wrap:wrap;margin:24px 0 8px}
+input{
+  flex:1 1 220px;min-width:0;
+  background:var(--ink-2);border:1px solid var(--line);color:var(--chalk);
+  font-family:'IBM Plex Mono',monospace;font-size:17px;
+  padding:13px 15px;border-radius:6px;
+}
+input:focus{outline:2px solid var(--ok);outline-offset:2px;border-color:transparent}
+button{
+  background:var(--ok);color:#08160F;border:0;border-radius:6px;
+  font-family:'Archivo';font-weight:900;font-size:14px;letter-spacing:.06em;
+  text-transform:uppercase;padding:13px 26px;cursor:pointer;
+}
+button:hover{background:#4fd692}
+button:disabled{opacity:.45;cursor:wait}
+.hint{color:var(--mute);font-size:12.5px;margin:0}
+.hint code{font-family:'IBM Plex Mono',monospace;color:var(--chalk)}
+
+#msg{margin:22px 0;color:var(--warn);font-size:14px}
+
+.meta{display:flex;gap:26px;flex-wrap:wrap;margin:28px 0 6px;
+  border-top:1px solid var(--line);padding-top:18px}
+.meta div{min-width:96px}
+.meta .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.meta .v{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600}
+
+/* signature: hriste */
+.pitch{
+  background:
+    linear-gradient(var(--pitch-dk),var(--pitch));
+  border:1px solid var(--line);border-radius:10px;
+  padding:22px 12px;margin:22px 0;
+  display:flex;flex-direction:column;gap:20px;
+  position:relative;overflow:hidden;
+}
+.pitch::before{
+  content:"";position:absolute;inset:0;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 10%,transparent 10% 20%);
+  pointer-events:none;
+}
+.row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;position:relative}
+.shirt{
+  width:88px;background:rgba(10,14,12,.72);border-radius:8px;
+  padding:8px 5px 7px;text-align:center;
+  border-top:4px solid var(--ok);
+}
+.shirt.d{border-top-color:var(--warn)}
+.shirt.i,.shirt.s,.shirt.u{border-top-color:var(--alert)}
+.shirt .nm{font-weight:700;font-size:12.5px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.shirt .tm{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#B9C6BE;
+  letter-spacing:.06em}
+.shirt .fd{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#B9C6BE;margin-top:3px}
+.shirt .cap{display:inline-block;background:var(--chalk);color:var(--ink);
+  font-size:9px;font-weight:900;border-radius:3px;padding:0 4px;margin-left:3px;vertical-align:1px}
+
+h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);
+  margin:34px 0 10px;font-weight:700}
+
+.alerts{display:flex;flex-direction:column;gap:8px}
+.alert{
+  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warn);
+  border-radius:6px;padding:11px 14px;
+}
+.alert.bad{border-left-color:var(--alert)}
+.alert .top{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+.alert .who{font-weight:700}
+.alert .tag{font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+  letter-spacing:.08em;text-transform:uppercase;
+  border:1px solid var(--line);border-radius:3px;padding:1px 6px;color:var(--mute)}
+.alert .txt{font-size:13.5px;color:var(--mute);margin-top:3px}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--mute);padding:7px 8px;border-bottom:1px solid var(--line);font-weight:700}
+td{padding:8px;border-bottom:1px solid rgba(44,49,69,.5)}
+td.n{font-family:'IBM Plex Mono',monospace;text-align:right}
+tr .st{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
+.ok{color:var(--ok)} .wn{color:var(--warn)} .al{color:var(--alert)}
+.bench td{opacity:.55}
+
+@media (max-width:620px){
+  .shirt{width:74px}
+  td,th{padding:6px 5px}
+  .hide-s{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Squad <em>Check</em></h1>
+  <p class="sub">Kdo ti v sestavě nenastoupí</p>
+</header>
+
+<form id="f">
+  <input id="eid" inputmode="numeric" placeholder="ID týmu, např. 1234567" autofocus>
+  <button id="go">Načíst sestavu</button>
+</form>
+<p class="hint">ID najdeš v URL svého týmu: <code>fantasy.premierleague.com/entry/<b>1234567</b>/event/1</code></p>
+
+<div id="msg"></div>
+<div id="out"></div>
+</div>
+
+<script>
+const S = {a:['OK','ok'],d:['Pochybný','wn'],i:['Zraněný','al'],
+           s:['Suspendovaný','al'],u:['Nedostupný','al'],n:['Neregistrovaný','al']};
+const POS = {1:'GKP',2:'DEF',3:'MID',4:'FWD'};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function api(p){
+  const r = await fetch('/api/fpl?path=' + encodeURIComponent(p));
+  const ct = r.headers.get('content-type') || '';
+
+  if(!ct.includes('application/json')){
+    throw new Error('Serverová funkce /api/fpl neodpovídá (' + r.status + '). '
+      + 'Zkontroluj, že je nasazený soubor api/fpl.js a package.json.');
+  }
+
+  const data = await r.json();
+  if(!r.ok) throw new Error((data.error || 'Chyba') + ' — ' + p + ' (' + r.status + ')');
+  return data;
+}
+
+let BOOT = null, FIX = null;
+
+async function load(id){
+  $('msg').textContent = 'Načítám…';
+  $('out').innerHTML = '';
+  try{
+    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+
+    const cur = BOOT.events.find(e => e.is_current);
+    const nxt = BOOT.events.find(e => e.is_next);
+    const startGw = nxt ? nxt.id : (cur ? cur.id + 1 : 1);
+    const pickGw = cur ? cur.id : 1;
+
+    const entry = await api('entry/' + id + '/');
+    let picks;
+    try { picks = await api('entry/' + id + '/event/' + pickGw + '/picks/'); }
+    catch(e){ throw new Error('Tým existuje, ale pro GW' + pickGw + ' nemá uloženou sestavu.'); }
+
+    render(entry, picks, startGw);
+    $('msg').textContent = '';
+  }catch(e){
+    $('msg').textContent = e.message;
+  }
+}
+
+function fdr(teamId, startGw, n){
+  const out = [];
+  for(const f of FIX){
+    if(f.event === null || f.event < startGw || f.event >= startGw + n) continue;
+    if(f.team_h === teamId) out.push([f.event, f.team_a, 'H', f.team_h_difficulty]);
+    else if(f.team_a === teamId) out.push([f.event, f.team_h, 'A', f.team_a_difficulty]);
+  }
+  out.sort((a,b) => a[0]-b[0]);
+  const avg = out.length ? out.reduce((s,x) => s+x[3], 0)/out.length : null;
+  return {list: out, avg};
+}
+
+function render(entry, picks, startGw){
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+
+  const squad = picks.picks.map(pk => {
+    const p = els[pk.element];
+    const f = fdr(p.team, startGw, 5);
+    return {p, pk, team: teams[p.team], f,
+            starting: pk.position <= 11,
+            chance: p.chance_of_playing_next_round === null ? 100 : p.chance_of_playing_next_round};
+  });
+
+  const rows = {1:[],2:[],3:[],4:[]};
+  squad.filter(s => s.starting).forEach(s => rows[s.p.element_type].push(s));
+
+  const shirt = s => `<div class="shirt ${s.p.status}">
+      <div class="nm">${esc(s.p.web_name)}${s.pk.is_captain?'<span class="cap">C</span>':s.pk.is_vice_captain?'<span class="cap">V</span>':''}</div>
+      <div class="tm">${esc(s.team.short_name)}</div>
+      <div class="fd">FDR ${s.f.avg ? s.f.avg.toFixed(1) : '–'}</div>
+    </div>`;
+
+  const problems = squad.filter(s => s.p.status !== 'a' || s.chance < 100);
+  problems.sort((a,b) => (a.starting === b.starting ? a.chance - b.chance : (a.starting ? -1 : 1)));
+
+  const alertHtml = problems.length ? problems.map(s => `
+    <div class="alert ${s.chance <= 50 ? 'bad' : ''}">
+      <div class="top">
+        <span class="who">${esc(s.p.web_name)}</span>
+        <span class="tag">${esc(s.team.short_name)} · ${POS[s.p.element_type]}</span>
+        <span class="tag">${s.starting ? 'Základ' : 'Lavička'}</span>
+        <span class="tag">${S[s.p.status][0]} · ${s.chance}%</span>
+      </div>
+      ${s.p.news ? `<div class="txt">${esc(s.p.news)}</div>` : ''}
+    </div>`).join('')
+    : '<div class="alert" style="border-left-color:var(--ok)"><div class="top"><span class="who">Nikdo není hlášený jako zraněný ani suspendovaný.</span></div></div>';
+
+  const tRow = s => `<tr class="${s.starting ? '' : 'bench'}">
+      <td><b>${esc(s.p.web_name)}</b></td>
+      <td class="hide-s">${esc(s.team.short_name)}</td>
+      <td>${POS[s.p.element_type]}</td>
+      <td class="n">${(s.p.now_cost/10).toFixed(1)}</td>
+      <td class="n hide-s">${s.p.total_points}</td>
+      <td class="n">${s.p.form}</td>
+      <td class="n">${s.f.avg ? s.f.avg.toFixed(1) : '–'}</td>
+      <td class="st ${S[s.p.status][1]}">${S[s.p.status][0]}${s.chance < 100 ? ' ' + s.chance + '%' : ''}</td>
+    </tr>`;
+
+  $('out').innerHTML = `
+    <div class="meta">
+      <div><div class="k">Tým</div><div class="v">${esc(entry.name)}</div></div>
+      <div><div class="k">Manažer</div><div class="v">${esc(entry.player_first_name + ' ' + entry.player_last_name)}</div></div>
+      <div><div class="k">Body</div><div class="v">${entry.summary_overall_points ?? '–'}</div></div>
+      <div><div class="k">Pořadí</div><div class="v">${entry.summary_overall_rank ? entry.summary_overall_rank.toLocaleString('cs-CZ') : '–'}</div></div>
+      <div><div class="k">Další kolo</div><div class="v">GW${startGw}</div></div>
+    </div>
+
+    <div class="pitch">
+      ${[4,3,2,1].map(t => `<div class="row">${rows[t].map(shirt).join('')}</div>`).join('')}
+    </div>
+
+    <h2>Upozornění</h2>
+    <div class="alerts">${alertHtml}</div>
+
+    <h2>Celý kádr · FDR = průměrná obtížnost dalších 5 kol</h2>
+    <table>
+      <thead><tr>
+        <th>Hráč</th><th class="hide-s">Tým</th><th>Poz</th>
+        <th class="n">Cena</th><th class="n hide-s">Body</th><th class="n">Forma</th>
+        <th class="n">FDR</th><th>Stav</th>
+      </tr></thead>
+      <tbody>${squad.map(tRow).join('')}</tbody>
+    </table>`;
+}
+
+$('f').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const id = $('eid').value.trim();
+  if(!/^\d+$/.test(id)){ $('msg').textContent = 'Zadej číselné ID týmu.'; return; }
+  localStorage.setItem('fpl_entry', id);
+  $('go').disabled = true;
+  await load(id);
+  $('go').disabled = false;
+});
+
+const saved = localStorage.getItem('fpl_entry');
+if(saved){ $('eid').value = saved; load(saved); }
+</script>
+</body>
+</html>
