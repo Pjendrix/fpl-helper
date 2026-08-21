@@ -3,398 +3,434 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Squad Check — FPL</title>
+<title>Squad Check — Fantasy Premier League</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@700&family=Space+Mono:wght@400;700&family=Dancing+Script:wght@500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --ink:#14161F;
-  --ink-2:#1E2130;
-  --line:#2C3145;
-  --chalk:#E8EBF2;
-  --mute:#8891A8;
-  --pitch:#1B6B4A;
-  --pitch-dk:#134D36;
-  --ok:#3FBF7F;
-  --warn:#F2A93B;
-  --alert:#E8453C;
-  --card:#111219;
+  --sky:#426188;
+  --sky-deep:#33506f;
+  --blue:#2b7fff;
+  --ink:#000000;
+  --white:#ffffff;
+  --charcoal:#1b1b1b;
+  --haze:#f5f5f5;
+  --line:rgba(0,0,0,.1);
+  --mute:#6b7280;
+
+  --ok:#0f7d4a;
+  --ok-bg:#e6f5ed;
+  --warn:#8a5a00;
+  --warn-bg:#fdf2dc;
+  --alert:#b32218;
+  --alert-bg:#fceceb;
+
+  --f:'Inter',ui-sans-serif,system-ui,sans-serif;
+  --f-disp:'Oswald',var(--f);
+  --f-mono:'Space Mono',ui-monospace,monospace;
+  --f-cur:'Dancing Script',cursive;
+
+  --r-card:14px; --r-btn:8px; --r-in:4px; --r-img:11px;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
 body{
-  background:var(--ink);
-  color:var(--chalk);
-  font-family:'Archivo',system-ui,sans-serif;
-  font-size:15px;
-  line-height:1.45;
-  padding:32px 20px 80px;
+  background:var(--sky);
+  color:var(--charcoal);
+  font-family:var(--f);
+  font-size:14px;
+  font-weight:500;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
 }
-.wrap{max-width:1020px;margin:0 auto}
+.wrap{max-width:1040px;margin:0 auto;padding:0 20px}
 
-header{border-bottom:2px solid var(--line);padding-bottom:18px;margin-bottom:26px}
-h1{
-  font-weight:900;font-size:clamp(34px,7vw,60px);
-  letter-spacing:-.035em;line-height:.92;margin:0 0 6px;
-  text-transform:uppercase;
+/* ---------- horní lišta ---------- */
+.bar{
+  position:sticky;top:0;z-index:20;
+  background:rgba(255,255,255,.82);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line);
 }
-h1 em{font-style:normal;color:var(--ok)}
-.sub{color:var(--mute);font-size:13px;letter-spacing:.08em;text-transform:uppercase;margin:0}
+.bar .wrap{display:flex;align-items:center;gap:16px;height:60px;flex-wrap:wrap}
+.brand{font-family:var(--f-disp);font-weight:700;font-size:22px;letter-spacing:.01em;
+  text-transform:uppercase;color:var(--charcoal);white-space:nowrap}
+.brand em{font-family:var(--f-cur);font-style:normal;font-weight:500;
+  text-transform:none;color:var(--blue);font-size:24px;margin-left:2px}
+.who{margin-left:auto;display:flex;align-items:center;gap:8px;
+  font-family:var(--f-mono);font-size:12px;color:var(--mute)}
+.who b{color:var(--charcoal);font-weight:700}
 
-form{display:flex;gap:10px;flex-wrap:wrap;margin:24px 0 8px}
-input{
-  flex:1 1 220px;min-width:0;
-  background:var(--ink-2);border:1px solid var(--line);color:var(--chalk);
-  font-family:'IBM Plex Mono',monospace;font-size:17px;
-  padding:13px 15px;border-radius:6px;
+/* ---------- vstupní obrazovka ---------- */
+.hero{padding:80px 0 120px;text-align:center}
+.hero h1{
+  font-family:var(--f-disp);font-weight:700;
+  font-size:clamp(56px,13vw,140px);line-height:.85;
+  letter-spacing:-.01em;text-transform:uppercase;
+  color:var(--white);margin:0;
 }
-input:focus{outline:2px solid var(--ok);outline-offset:2px;border-color:transparent}
+.hero h1 em{font-family:var(--f-cur);font-style:normal;font-weight:500;
+  text-transform:none;letter-spacing:0;font-size:.52em;
+  display:block;margin-top:6px;color:var(--white);opacity:.92}
+.hero .lede{color:rgba(255,255,255,.86);font-size:16px;max-width:440px;
+  margin:20px auto 0;line-height:1.5}
+
+.gate{
+  background:var(--white);border-radius:var(--r-card);
+  padding:32px;max-width:460px;margin:48px auto 0;text-align:left;
+}
+.gate h2{font-size:20px;line-height:1.1;font-weight:600;margin:0 0 4px}
+.gate p.sub{color:var(--mute);font-size:13px;margin:0 0 24px}
+.field{margin-bottom:20px}
+.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
+.field .help{font-size:12px;color:var(--mute);margin:6px 0 0;line-height:1.5}
+.field .help code{font-family:var(--f-mono);font-size:11px;color:var(--charcoal)}
+input,select{
+  width:100%;background:var(--haze);border:1px solid var(--line);
+  color:var(--charcoal);font-family:var(--f);font-weight:500;font-size:16px;
+  padding:10px 12px;border-radius:var(--r-in);
+}
+input:focus,select:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:transparent}
+input[type=number]{font-family:var(--f-mono)}
+
 button{
-  background:var(--ok);color:#08160F;border:0;border-radius:6px;
-  font-family:'Archivo';font-weight:900;font-size:14px;letter-spacing:.06em;
-  text-transform:uppercase;padding:13px 26px;cursor:pointer;
+  background:transparent;color:var(--blue);
+  border:1px solid var(--blue);border-radius:var(--r-btn);
+  font-family:var(--f);font-weight:600;font-size:16px;
+  padding:10px 20px;cursor:pointer;
 }
-button:hover{background:#4fd692}
+button:hover{background:rgba(43,127,255,.07)}
 button:disabled{opacity:.45;cursor:wait}
-.hint{color:var(--mute);font-size:12.5px;margin:0}
-.hint code{font-family:'IBM Plex Mono',monospace;color:var(--chalk)}
+button.wide{width:100%}
+button.small{font-size:13px;padding:7px 14px}
 
-#msg,#lmsg,#amsg{margin:22px 0;color:var(--warn);font-size:14px}
+/* ---------- navigace v appce ---------- */
+.nav{display:flex;gap:6px;overflow-x:auto;padding:14px 0 0}
+.nav button{
+  border-color:var(--line);color:var(--charcoal);background:rgba(255,255,255,.72);
+  font-size:13px;padding:7px 15px;white-space:nowrap;
+}
+.nav button:hover{background:var(--white)}
+.nav button[aria-selected="true"]{background:var(--white);border-color:var(--charcoal)}
 
-.meta{display:flex;gap:26px;flex-wrap:wrap;margin:28px 0 6px;
-  border-top:1px solid var(--line);padding-top:18px}
-.meta div{min-width:96px}
-.meta .k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
-.meta .v{font-family:'IBM Plex Mono',monospace;font-size:19px;font-weight:600}
+.panel{
+  background:var(--white);border-radius:var(--r-card);
+  padding:28px;margin:14px 0 48px;
+}
+.panel[hidden]{display:none}
+#app[hidden]{display:none}
+#landing[hidden]{display:none}
 
-/* signature: hriste */
+h2{font-size:20px;line-height:1.1;font-weight:600;margin:32px 0 12px}
+h2:first-child{margin-top:0}
+.hint{color:var(--mute);font-size:13px;margin:0}
+.hint code{font-family:var(--f-mono);font-size:12px;color:var(--charcoal)}
+.note{color:var(--mute);font-size:13px;margin:8px 0 0;line-height:1.5}
+#msg,#lmsg,#amsg,#trmsg,#hubmsg{margin:16px 0;color:var(--warn);font-size:13px}
+
+/* ---------- podsekce ---------- */
+.subnav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 20px}
+.sub-btn{border-color:var(--line);color:var(--mute);font-size:12px;padding:6px 14px;
+  border-radius:9999px;background:var(--white)}
+.sub-btn:hover{color:var(--charcoal);background:var(--haze)}
+.sub-btn[aria-selected="true"]{background:var(--charcoal);border-color:var(--charcoal);color:var(--white)}
+.sec[hidden]{display:none}
+
+/* ---------- hřiště ---------- */
 .pitch{
-  background:
-    linear-gradient(var(--pitch-dk),var(--pitch));
-  border:1px solid var(--line);border-radius:10px;
-  padding:22px 12px;margin:22px 0;
+  background:var(--sky);border-radius:var(--r-img);
+  padding:24px 12px;margin:16px 0;
   display:flex;flex-direction:column;gap:20px;
-  position:relative;overflow:hidden;
 }
-.pitch::before{
-  content:"";position:absolute;inset:0;
-  background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 10%,transparent 10% 20%);
-  pointer-events:none;
-}
-.row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;position:relative}
-.shirt{
-  width:88px;background:rgba(10,14,12,.72);border-radius:8px;
-  padding:8px 5px 7px;text-align:center;
-  border-top:4px solid var(--ok);
-}
-.shirt.d{border-top-color:var(--warn)}
+.row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.shirt{width:88px;background:rgba(255,255,255,.93);border-radius:var(--r-btn);
+  padding:9px 5px 8px;text-align:center;border-top:4px solid var(--ok)}
+.shirt.d{border-top-color:#d99400}
 .shirt.i,.shirt.s,.shirt.u{border-top-color:var(--alert)}
-.shirt .nm{font-weight:700;font-size:12.5px;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis}
-.shirt .tm{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#B9C6BE;
-  letter-spacing:.06em}
-.shirt .fd{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#B9C6BE;margin-top:3px}
-.shirt .cap{display:inline-block;background:var(--chalk);color:var(--ink);
-  font-size:9px;font-weight:900;border-radius:3px;padding:0 4px;margin-left:3px;vertical-align:1px}
+.shirt .nm{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shirt .tm{font-family:var(--f-mono);font-size:10px;color:var(--mute)}
+.shirt .fd{font-family:var(--f-mono);font-size:10px;color:var(--mute);margin-top:3px}
+.shirt .cap{display:inline-block;background:var(--charcoal);color:var(--white);
+  font-size:9px;font-weight:700;border-radius:3px;padding:0 4px;margin-left:3px;vertical-align:1px}
 
-h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--mute);
-  margin:34px 0 10px;font-weight:700}
+/* ---------- karty a tabulky ---------- */
+.meta,.kpis{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 8px}
+.meta div,.kpis div{min-width:82px}
+.meta .k,.kpis .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute)}
+.meta .v,.kpis .v{font-family:var(--f-mono);font-size:18px;font-weight:700;color:var(--charcoal)}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--mute);padding:8px;border-bottom:1px solid var(--line);font-weight:600}
+td{padding:9px 8px;border-bottom:1px solid rgba(0,0,0,.05)}
+td.n,th.n{text-align:right;font-family:var(--f-mono)}
+.bench td{opacity:.5}
+tr.click{cursor:pointer}
+tr.click:hover td{background:var(--haze)}
+.ok{color:var(--ok)} .wn{color:var(--warn)} .al{color:var(--alert)}
+.st{font-family:var(--f-mono);font-size:11.5px}
 
 .alerts{display:flex;flex-direction:column;gap:8px}
-.alert{
-  background:var(--card);border:1px solid var(--line);border-left:4px solid var(--warn);
-  border-radius:6px;padding:11px 14px;
-}
+.alert{background:var(--haze);border-radius:12px;padding:12px 16px;border-left:3px solid #d99400}
 .alert.bad{border-left-color:var(--alert)}
-.alert .top{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
-.alert .who{font-weight:700}
-.alert .tag{font-family:'IBM Plex Mono',monospace;font-size:10.5px;
-  letter-spacing:.08em;text-transform:uppercase;
-  border:1px solid var(--line);border-radius:3px;padding:1px 6px;color:var(--mute)}
-.alert .txt{font-size:13.5px;color:var(--mute);margin-top:3px}
+.alert .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.alert .who{font-weight:600;margin:0;font-family:var(--f);font-size:14px;color:var(--charcoal)}
+.alert .tag,.issue .tag{font-family:var(--f-mono);font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.06em;background:var(--white);border:1px solid var(--line);
+  border-radius:9999px;padding:1px 9px;color:var(--mute)}
+.alert .txt{font-size:13px;color:var(--mute);margin-top:4px}
 
-table{width:100%;border-collapse:collapse;font-size:13.5px}
-th{text-align:left;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--mute);padding:7px 8px;border-bottom:1px solid var(--line);font-weight:700}
-td{padding:8px;border-bottom:1px solid rgba(44,49,69,.5)}
-td.n{font-family:'IBM Plex Mono',monospace;text-align:right}
-tr .st{font-family:'IBM Plex Mono',monospace;font-size:11.5px}
-.ok{color:var(--ok)} .wn{color:var(--warn)} .al{color:var(--alert)}
-.bench td{opacity:.55}
+.own{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 0}
+.chip{background:var(--haze);border:1px solid var(--line);border-radius:9999px;
+  padding:5px 12px;font-size:12.5px;display:flex;align-items:center;gap:7px}
+.chip .ct{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
+.chip.mine{border-color:var(--ok)}
+.chip.unique{border-color:#d99400}
+.chip.miss{border-color:var(--alert)}
 
-@media (max-width:620px){
-  .shirt{width:74px}
-  td,th{padding:6px 5px}
-  .hide-s{display:none}
-}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.bar-w{height:6px;background:var(--haze);border-radius:3px;overflow:hidden;min-width:52px}
+.bar-w i{display:block;height:100%;background:var(--blue)}
 
-/* --- zalozky --- */
-.tabs{display:flex;gap:4px;margin:26px 0 0;border-bottom:2px solid var(--line)}
-.tab{
-  background:none;border:0;border-bottom:3px solid transparent;
-  color:var(--mute);font-family:'Archivo';font-weight:700;font-size:13px;
-  letter-spacing:.08em;text-transform:uppercase;padding:11px 16px;cursor:pointer;
-  border-radius:0;margin-bottom:-2px;
-}
-.tab:hover{color:var(--chalk)}
-.tab[aria-selected="true"]{color:var(--ok);border-bottom-color:var(--ok)}
-.panel[hidden]{display:none}
-
-/* --- graf poradi --- */
-.chart{background:var(--card);border:1px solid var(--line);border-radius:8px;
-  padding:16px 12px 8px;margin:14px 0;overflow-x:auto}
+/* ---------- graf ---------- */
+.chart{background:var(--haze);border-radius:12px;padding:16px 12px 8px;margin:12px 0;overflow-x:auto}
 .chart svg{display:block;min-width:520px;width:100%;height:auto}
-.chart .gl{stroke:var(--line);stroke-width:1}
-.chart .ax{fill:var(--mute);font-family:'IBM Plex Mono',monospace;font-size:10px}
+.chart .gl{stroke:rgba(0,0,0,.08);stroke-width:1}
+.chart .ax{fill:var(--mute);font-family:var(--f-mono);font-size:10px}
 .chart path{fill:none;stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
 .chart path.me{stroke-width:3.5}
 .legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:12px}
 .legend span{display:flex;align-items:center;gap:5px;color:var(--mute)}
 .legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
-.legend b{color:var(--chalk);font-weight:700}
+.legend b{color:var(--charcoal);font-weight:600}
 
-/* --- vlastnictvi --- */
-.own{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 0}
-.chip{
-  background:var(--ink-2);border:1px solid var(--line);border-radius:20px;
-  padding:4px 11px;font-size:12.5px;display:flex;align-items:center;gap:7px;
-}
-.chip b{font-weight:700}
-.chip .ct{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute)}
-.chip.mine{border-color:var(--ok)}
-.chip.unique{border-color:var(--warn)}
-.chip.miss{border-color:var(--alert)}
+/* ---------- před deadlinem ---------- */
+.match{background:var(--haze);border-radius:12px;padding:14px 16px;margin-bottom:10px;
+  border-left:3px solid var(--line)}
+.match h3{margin:0 0 4px;font-size:15px;font-weight:600}
+.match .ko{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
+.risk{border-left-color:var(--alert)}
+.safe{border-left-color:var(--ok)}
+.pend{border-left-color:var(--line)}
+.setup{background:var(--warn-bg);border-radius:12px;padding:16px 20px;margin:16px 0}
+.setup h3{margin:0 0 8px;font-size:14px;font-weight:600;color:var(--warn)}
+.setup ol{margin:0;padding-left:20px;color:var(--charcoal);font-size:13px;line-height:1.8}
+.setup code{font-family:var(--f-mono);font-size:12px}
 
-/* --- podsekce --- */
-.subnav{display:flex;gap:6px;flex-wrap:wrap;margin:20px 0 4px}
-.sub-btn{
-  background:var(--ink-2);border:1px solid var(--line);border-radius:20px;
-  color:var(--mute);font-family:'Archivo';font-weight:700;font-size:12px;
-  letter-spacing:.05em;text-transform:uppercase;padding:7px 15px;cursor:pointer;
-}
-.sub-btn:hover{color:var(--chalk)}
-.sub-btn[aria-selected="true"]{background:var(--ok);border-color:var(--ok);color:#08160F}
-.sec[hidden]{display:none}
-
-/* --- potvrzene sestavy --- */
-.match{background:var(--card);border:1px solid var(--line);border-radius:8px;
-  padding:14px 16px;margin-bottom:10px}
-.match h3{margin:0 0 4px;font-size:15px;font-weight:900;letter-spacing:-.01em}
-.match .ko{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--mute)}
-.risk{border-left:4px solid var(--alert)}
-.safe{border-left:4px solid var(--ok)}
-.pend{border-left:4px solid var(--line)}
-
-.setup{background:var(--card);border:1px solid var(--warn);border-radius:8px;
-  padding:16px 18px;margin:16px 0}
-.setup h3{margin:0 0 8px;font-size:14px;letter-spacing:.05em;text-transform:uppercase;color:var(--warn)}
-.setup ol{margin:0;padding-left:20px;color:var(--mute);font-size:13.5px;line-height:1.7}
-.setup code{font-family:'IBM Plex Mono',monospace;color:var(--chalk);font-size:12.5px}
-
-/* --- filtry --- */
-.filters{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0 14px}
-.filters input,.filters select{
-  background:var(--ink-2);border:1px solid var(--line);color:var(--chalk);
-  font-family:'Archivo';font-size:13.5px;padding:9px 11px;border-radius:6px;
-  flex:1 1 130px;min-width:0;
-}
-.filters input:focus,.filters select:focus{outline:2px solid var(--ok);outline-offset:1px}
-.chk{display:flex;align-items:center;gap:7px;color:var(--mute);font-size:13px;
-  padding:0 4px;cursor:pointer;white-space:nowrap}
-.chk input{flex:none;width:16px;height:16px;accent-color:var(--ok)}
-
-tr.click{cursor:pointer}
-tr.click:hover td{background:rgba(63,191,127,.07)}
-
-/* --- detail hrace --- */
-.detail{background:var(--card);border:1px solid var(--ok);border-radius:8px;
-  padding:18px 20px;margin:18px 0}
-.detail .close{float:right;background:none;border:0;color:var(--mute);
-  font-size:20px;cursor:pointer;padding:0 4px;line-height:1}
-.detail h3{margin:0 0 2px;font-size:20px;font-weight:900;letter-spacing:-.02em}
-.detail .who{color:var(--mute);font-family:'IBM Plex Mono',monospace;font-size:12px}
-
+/* ---------- detail hráče ---------- */
+.detail{background:var(--haze);border-radius:12px;padding:20px 22px;margin:16px 0}
+.detail .close{float:right;border:0;background:none;color:var(--mute);font-size:20px;
+  padding:0 4px;line-height:1;cursor:pointer}
+.detail h3{margin:0 0 2px;font-size:20px;font-weight:600;line-height:1.1}
+.detail .who{color:var(--mute);font-family:var(--f-mono);font-size:12px;margin:0}
 .pills{display:flex;gap:5px;margin:12px 0 4px;flex-wrap:wrap}
-.pill{width:38px;text-align:center;background:var(--ink-2);border-radius:5px;
-  padding:5px 0;font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600}
+.pill{width:40px;text-align:center;background:var(--white);border-radius:var(--r-in);
+  padding:6px 0;font-family:var(--f-mono);font-size:13px;font-weight:700}
 .pill small{display:block;font-size:9px;color:var(--mute);font-weight:400}
-.p-hi{background:rgba(63,191,127,.22);color:var(--ok)}
-.p-md{background:rgba(242,169,59,.18);color:var(--warn)}
-.p-lo{background:rgba(232,69,60,.15);color:var(--alert)}
+.p-hi{background:var(--ok-bg);color:var(--ok)}
+.p-md{background:var(--warn-bg);color:var(--warn)}
+.p-lo{background:var(--alert-bg);color:var(--alert)}
 
-.kpis{display:flex;gap:20px;flex-wrap:wrap;margin:14px 0 2px}
-.kpis div{min-width:74px}
-.kpis .k{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
-.kpis .v{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600}
+/* ---------- filtry ---------- */
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}
+.filters input,.filters select{flex:1 1 140px;min-width:0;font-size:14px}
+.chk{display:flex;align-items:center;gap:7px;color:var(--mute);font-size:13px;
+  white-space:nowrap;cursor:pointer}
+.chk input{width:16px;height:16px;flex:none;accent-color:var(--blue)}
 
-/* --- transfery --- */
-.issue{background:var(--card);border:1px solid var(--line);border-radius:8px;
-  padding:15px 17px;margin-bottom:12px}
-.issue.p1{border-left:4px solid var(--alert)}
-.issue.p2{border-left:4px solid var(--warn)}
+/* ---------- transfery ---------- */
+.issue{background:var(--haze);border-radius:12px;padding:16px 18px;margin-bottom:12px;
+  border-left:3px solid var(--line)}
+.issue.p1{border-left-color:var(--alert)}
+.issue.p2{border-left-color:#d99400}
 .issue .hdr{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .issue .hdr b{font-size:16px}
-.issue .why{color:var(--mute);font-size:13.5px;margin:6px 0 0}
-.issue .why b{color:var(--chalk);font-weight:600}
-.budget{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--mute);
-  margin:11px 0 7px;padding-top:10px;border-top:1px solid var(--line)}
+.issue .why{color:var(--mute);font-size:13px;margin:8px 0 0;line-height:1.6}
+.issue .why b{color:var(--charcoal);font-weight:600}
+.budget{font-family:var(--f-mono);font-size:12px;color:var(--mute);
+  margin:12px 0 4px;padding-top:11px;border-top:1px solid var(--line);
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.budget label{display:inline-flex;align-items:center;gap:6px}
+.budget b{color:var(--charcoal)}
+.pin{width:66px;padding:5px 8px;font-family:var(--f-mono);font-size:13px;
+  font-weight:700;text-align:right;background:var(--white)}
+.edited{color:var(--ok);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em}
+.est{color:var(--mute);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em}
+.lnk{border:0;background:none;color:var(--blue);font-size:12px;padding:2px 4px;
+  text-decoration:underline;cursor:pointer;font-weight:500}
 .cand{display:flex;justify-content:space-between;align-items:center;gap:10px;
-  padding:8px 0;border-bottom:1px solid rgba(44,49,69,.5);flex-wrap:wrap}
+  padding:9px 0;border-bottom:1px solid rgba(0,0,0,.06);flex-wrap:wrap}
 .cand:last-child{border-bottom:0}
 .cand .l b{font-size:14px}
-.cand .l span{color:var(--mute);font-family:'IBM Plex Mono',monospace;font-size:11.5px;
-  display:block;margin-top:2px}
-.cand .r{font-family:'IBM Plex Mono',monospace;font-size:12.5px;text-align:right;white-space:nowrap}
-.cand .r b{font-size:15px;color:var(--ok)}
-.ok-box{background:var(--card);border:1px solid var(--ok);border-left:4px solid var(--ok);
-  border-radius:8px;padding:15px 17px}
+.cand .l span{display:block;margin-top:2px;font-family:var(--f-mono);
+  font-size:11.5px;color:var(--mute)}
+.cand .r{font-family:var(--f-mono);font-size:11px;text-align:right;
+  color:var(--mute);white-space:nowrap}
+.cand .r b{font-size:15px;color:var(--blue);display:block}
+.ok-box{background:var(--ok-bg);border-radius:12px;padding:16px 18px}
 
-.budget label{display:inline-flex;align-items:center;gap:5px;color:var(--mute)}
-.pin{
-  background:var(--ink-2);border:1px solid var(--line);color:var(--chalk);
-  font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;
-  width:62px;padding:4px 7px;border-radius:5px;text-align:right;
-}
-.pin:focus{outline:2px solid var(--ok);outline-offset:1px;border-color:transparent}
-.edited{color:var(--ok);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-left:8px}
-.est{color:var(--mute);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-left:8px;opacity:.75}
-.lnk{background:none;border:0;color:var(--mute);font-family:'Archivo';font-size:12px;
-  text-decoration:underline;padding:2px 4px;cursor:pointer;text-transform:none;letter-spacing:0}
-.lnk:hover{color:var(--chalk)}
-
-/* --- hub ligy --- */
-.news{background:var(--card);border:1px solid var(--line);border-radius:8px;
-  padding:14px 16px;margin-bottom:10px;border-left:4px solid var(--line)}
+/* ---------- hub ---------- */
+.news{background:var(--haze);border-radius:12px;padding:16px 18px;margin-bottom:10px;
+  border-left:3px solid var(--line)}
 .news.good{border-left-color:var(--ok)}
 .news.bad{border-left-color:var(--alert)}
-.news.warn{border-left-color:var(--warn)}
-.news .kicker{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+.news.warn{border-left-color:#d99400}
+.news .kicker{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
   color:var(--mute);margin-bottom:5px}
-.news .head{font-size:15.5px;font-weight:900;letter-spacing:-.01em;line-height:1.3}
-.news .body{font-size:13.5px;color:var(--mute);margin-top:5px;line-height:1.55}
-.news .body b{color:var(--chalk);font-weight:600}
+.news .head{font-size:17px;font-weight:600;line-height:1.25}
+.news .body{font-size:13px;color:var(--mute);margin-top:6px;line-height:1.55}
+.news .body b{color:var(--charcoal);font-weight:600}
 
 .boards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
-.board{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:13px 15px}
-.board h4{margin:0 0 3px;font-size:13px;font-weight:700;letter-spacing:.02em}
-.board .cap{font-size:11.5px;color:var(--mute);margin:0 0 9px}
+.board{background:var(--haze);border-radius:12px;padding:16px 18px}
+.board h4{margin:0 0 3px;font-size:14px;font-weight:600}
+.board .cap{font-size:12px;color:var(--mute);margin:0 0 10px}
 .board ol{margin:0;padding-left:19px;font-size:13px}
-.board li{padding:2px 0}
-.board li span{float:right;font-family:'IBM Plex Mono',monospace;color:var(--mute)}
-.board li.me{color:var(--ok);font-weight:600}
+.board li{padding:3px 0}
+.board li span{float:right;font-family:var(--f-mono);font-size:12px;color:var(--mute)}
+.board li.me{color:var(--blue);font-weight:600}
 
-.capmap{display:flex;flex-direction:column;gap:7px}
+.capmap{display:flex;flex-direction:column;gap:8px}
 .capmap .row2{display:flex;align-items:center;gap:10px;font-size:13px}
 .capmap .nm2{width:96px;font-weight:600;flex:none}
-.capmap .bar2{flex:1;height:20px;background:var(--ink-2);border-radius:4px;overflow:hidden;min-width:40px}
-.capmap .bar2 i{display:block;height:100%;background:var(--ok);opacity:.75}
-.capmap .ct2{width:78px;text-align:right;font-family:'IBM Plex Mono',monospace;
+.capmap .bar2{flex:1;height:20px;background:var(--haze);border-radius:var(--r-in);
+  overflow:hidden;min-width:40px}
+.capmap .bar2 i{display:block;height:100%;background:var(--blue);opacity:.8}
+.capmap .ct2{width:74px;text-align:right;font-family:var(--f-mono);
   font-size:11.5px;color:var(--mute);flex:none}
 
-.note{color:var(--mute);font-size:13px;margin:6px 0 0}
-.bar{height:6px;background:var(--ink-2);border-radius:3px;overflow:hidden;min-width:52px}
-.bar i{display:block;height:100%;background:var(--ok)}
+@media (max-width:640px){
+  .hero{padding:48px 0 72px}
+  .gate{padding:24px}
+  .panel{padding:20px 16px}
+  .shirt{width:74px}
+  td,th{padding:7px 5px}
+  .hide-s{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
-<div class="wrap">
-<header>
-  <h1>Squad <em>Check</em></h1>
-  <p class="sub">Kdo ti v sestavě nenastoupí</p>
-</header>
 
-<form id="f">
-  <input id="eid" inputmode="numeric" placeholder="ID týmu, např. 1234567" autofocus>
-  <button id="go">Načíst sestavu</button>
-</form>
-<p class="hint">ID najdeš v URL svého týmu: <code>fantasy.premierleague.com/entry/<b>1234567</b>/event/1</code></p>
+<div id="landing">
+  <div class="wrap">
+    <div class="hero">
+      <h1>Squad<em>check</em></h1>
+      <p class="lede">Zadej svoje ID a uvidíš, kdo ti nenastoupí, kdo v lize vede
+        a koho vyměnit. Data se stahují až když si o ně řekneš.</p>
+    </div>
 
-<div id="msg"></div>
+    <div class="gate">
+      <h2>Začni tady</h2>
+      <p class="sub">Obojí najdeš v adrese na webu FPL.</p>
 
-<div class="tabs" role="tablist">
-  <button class="tab" id="t-squad" role="tab" aria-selected="true" aria-controls="p-squad">Sestava</button>
-  <button class="tab" id="t-league" role="tab" aria-selected="false" aria-controls="p-league">Miniliga</button>
-  <button class="tab" id="t-live" role="tab" aria-selected="false" aria-controls="p-live">Před deadlinem</button>
-  <button class="tab" id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Hráči</button>
-  <button class="tab" id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
-  <button class="tab" id="t-hub" role="tab" aria-selected="false" aria-controls="p-hub">Hub ligy</button>
-</div>
+      <div class="field">
+        <label for="eid">ID tvého týmu</label>
+        <input id="eid" inputmode="numeric" placeholder="60480">
+        <p class="help">fantasy.premierleague.com/entry/<code>60480</code>/event/1</p>
+      </div>
 
-<div class="panel" id="p-squad" role="tabpanel" aria-labelledby="t-squad">
-  <div id="out"></div>
-</div>
+      <div class="field">
+        <label for="lid">ID miniligy <span style="color:var(--mute);font-weight:500">— nepovinné</span></label>
+        <input id="lid" inputmode="numeric" placeholder="14044">
+        <p class="help">fantasy.premierleague.com/leagues/<code>14044</code>/standings/c</p>
+      </div>
 
-<div class="panel" id="p-league" role="tabpanel" aria-labelledby="t-league" hidden>
-  <form id="lf">
-    <input id="lid" inputmode="numeric" placeholder="ID miniligy, např. 314159">
-    <button id="lgo">Načíst ligu</button>
-  </form>
-  <p class="hint">ID najdeš v URL ligy: <code>fantasy.premierleague.com/leagues/<b>314159</b>/standings/c</code></p>
-  <div id="lmsg"></div>
-  <div id="lout"></div>
-</div>
-
-<div class="panel" id="p-live" role="tabpanel" aria-labelledby="t-live" hidden>
-  <p class="hint">Potvrzené sestavy se objevují zhruba hodinu před výkopem. Porovnávám je s tím, koho vlastní tvoje miniliga.</p>
-  <button id="ago" style="margin-top:14px">Zkontrolovat dnešní zápasy</button>
-  <div id="amsg"></div>
-  <div id="aout"></div>
-</div>
-
-<div class="panel" id="p-players" role="tabpanel" aria-labelledby="t-players" hidden>
-  <div class="filters">
-    <input id="q" placeholder="Hledat hráče…" style="flex:2 1 180px">
-    <select id="fpos">
-      <option value="">Všechny pozice</option>
-      <option value="1">Brankáři</option>
-      <option value="2">Obránci</option>
-      <option value="3">Záložníci</option>
-      <option value="4">Útočníci</option>
-    </select>
-    <select id="fteam"><option value="">Všechny týmy</option></select>
-    <select id="fsort">
-      <option value="xp">Řadit: projekce</option>
-      <option value="total_points">Řadit: body celkem</option>
-      <option value="form">Řadit: forma</option>
-      <option value="value">Řadit: body za milion</option>
-      <option value="xgi">Řadit: xGI/90</option>
-      <option value="minutes">Řadit: minuty</option>
-    </select>
-    <label class="chk"><input type="checkbox" id="fmine"> Jen moje</label>
+      <button class="wide" id="enter">Otevřít</button>
+      <p id="gatemsg" class="help" style="color:var(--alert);margin-top:12px"></p>
+    </div>
   </div>
-  <div id="pout"></div>
-  <div id="pdetail"></div>
 </div>
 
-<div class="panel" id="p-tr" role="tabpanel" aria-labelledby="t-tr" hidden>
-  <p class="hint">Projdu tvoji sestavu, najdu problémové hráče a ke každému navrhnu náhrady, které se ti vejdou do rozpočtu.</p>
-  <button id="trgo" style="margin-top:14px">Analyzovat sestavu</button>
-  <div id="trmsg"></div>
-  <div id="trout"></div>
-</div>
+<div id="app" hidden>
+  <div class="bar">
+    <div class="wrap">
+      <span class="brand">Squad<em>check</em></span>
+      <span class="who"><b id="whoName">—</b><button class="small" id="logout">Změnit ID</button></span>
+    </div>
+  </div>
 
-<div class="panel" id="p-hub" role="tabpanel" aria-labelledby="t-hub" hidden>
-  <p class="hint">Novinky, žebříčky a přehled celé ligy. Načte historii a sestavy všech členů.</p>
-  <button id="hubgo" style="margin-top:14px">Načíst hub</button>
-  <div id="hubmsg"></div>
-  <div id="hubout"></div>
-</div>
+  <div class="wrap">
+    <div class="nav" role="tablist">
+      <button id="t-squad" role="tab" aria-selected="true" aria-controls="p-squad">Sestava</button>
+      <button id="t-league" role="tab" aria-selected="false" aria-controls="p-league">Miniliga</button>
+      <button id="t-hub" role="tab" aria-selected="false" aria-controls="p-hub">Hub ligy</button>
+      <button id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Hráči</button>
+      <button id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
+      <button id="t-live" role="tab" aria-selected="false" aria-controls="p-live">Před deadlinem</button>
+    </div>
+
+    <div class="panel" id="p-squad" role="tabpanel" aria-labelledby="t-squad">
+      <div id="msg"></div>
+      <div id="out"></div>
+    </div>
+
+    <div class="panel" id="p-league" role="tabpanel" aria-labelledby="t-league" hidden>
+      <p class="hint">Pořadí, vývoj v tabulce, rozdíly proti soupeřům a kdo koho vlastní.</p>
+      <button id="lgo" style="margin-top:14px">Načíst ligu</button>
+      <div id="lmsg"></div>
+      <div id="lout"></div>
+    </div>
+
+    <div class="panel" id="p-hub" role="tabpanel" aria-labelledby="t-hub" hidden>
+      <p class="hint">Novinky po kole, sezónní žebříčky, zdraví kádrů a pohled na celou ligu.</p>
+      <button id="hubgo" style="margin-top:14px">Načíst hub</button>
+      <div id="hubmsg"></div>
+      <div id="hubout"></div>
+    </div>
+
+    <div class="panel" id="p-players" role="tabpanel" aria-labelledby="t-players" hidden>
+      <div class="filters">
+        <input id="q" placeholder="Hledat hráče…" style="flex:2 1 180px">
+        <select id="fpos">
+          <option value="">Všechny pozice</option>
+          <option value="1">Brankáři</option>
+          <option value="2">Obránci</option>
+          <option value="3">Záložníci</option>
+          <option value="4">Útočníci</option>
+        </select>
+        <select id="fteam"><option value="">Všechny týmy</option></select>
+        <select id="fsort">
+          <option value="xp">Řadit: projekce</option>
+          <option value="total_points">Řadit: body celkem</option>
+          <option value="form">Řadit: forma</option>
+          <option value="value">Řadit: body za milion</option>
+          <option value="xgi">Řadit: xGI/90</option>
+          <option value="minutes">Řadit: minuty</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="fmine"> Jen moje</label>
+      </div>
+      <div id="pout"></div>
+      <div id="pdetail"></div>
+    </div>
+
+    <div class="panel" id="p-tr" role="tabpanel" aria-labelledby="t-tr" hidden>
+      <p class="hint">Najdu problémové hráče a navrhnu náhrady, které se vejdou do rozpočtu.</p>
+      <button id="trgo" style="margin-top:14px">Analyzovat sestavu</button>
+      <div id="trmsg"></div>
+      <div id="trout"></div>
+    </div>
+
+    <div class="panel" id="p-live" role="tabpanel" aria-labelledby="t-live" hidden>
+      <p class="hint">Potvrzené sestavy vycházejí zhruba hodinu před výkopem. Porovnám je s tím,
+        koho vlastní tvoje miniliga.</p>
+      <button id="ago" style="margin-top:14px">Zkontrolovat dnešní zápasy</button>
+      <div id="amsg"></div>
+      <div id="aout"></div>
+    </div>
+  </div>
 </div>
 
 <script>
+
 /* ============================================================
    KONFIGURACE — vyplň si tady svoje ID a máš appku "svoji".
    ============================================================ */
 const CONFIG = {
-  // ID tvojí miniligy. Najdeš v URL:
-  // fantasy.premierleague.com/leagues/314159/standings/c
-  leagueId: '14044',
-
-  // Tvoje ID týmu. Používá se pro sekci Rozdíly a pro zvýraznění v tabulce.
-  // fantasy.premierleague.com/entry/1234567/event/1
-  entryId: '60480',
+  // Necháš-li obojí prázdné, appka se zeptá na vstupní obrazovce.
+  // Vyplněním přeskočíš zadávání — hodí se, když je stránka jen pro tebe.
+  leagueId: '',
+  entryId: '',
 
   // Název, který se zobrazí v hlavičce. Prázdné = vezme se z FPL.
   leagueName: '',
@@ -600,8 +636,8 @@ function render(entry, picks, startGw){
 }
 
 /* ============ ZALOZKY ============ */
-const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-live','p-live'],
-              ['t-players','p-players'], ['t-tr','p-tr'], ['t-hub','p-hub']];
+const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-hub','p-hub'],
+              ['t-players','p-players'], ['t-tr','p-tr'], ['t-live','p-live']];
 TABS.forEach(([tid, pid]) => {
   $(tid).addEventListener('click', () => {
     TABS.forEach(([t, p]) => {
@@ -771,7 +807,7 @@ function renderLeague(st, members, hist, picks, cur){
       <td><b>${esc(o.p.web_name)}</b></td>
       <td class="hide-s">${esc(teams[o.p.team].short_name)}</td>
       <td class="n">${o.list.length}/${n}</td>
-      <td><div class="bar"><i style="width:${o.pct}%"></i></div></td>
+      <td><div class="bar-w"><i style="width:${o.pct}%"></i></div></td>
       <td class="hide-s" style="color:var(--mute);font-size:12px">${esc(o.list.join(', '))}</td>
       <td class="n">${caps[o.p.id] ? caps[o.p.id].length : '–'}</td>
     </tr>`).join('')}</tbody></table>`;
@@ -1878,38 +1914,79 @@ $('hubgo').addEventListener('click', async () => {
   $('hubgo').disabled = false;
 });
 
-$('lf').addEventListener('submit', async ev => {
-  ev.preventDefault();
-  const id = $('lid').value.trim();
-  if(!/^\d+$/.test(id)){ $('lmsg').textContent = 'Zadej číselné ID ligy.'; return; }
-  localStorage.setItem('fpl_league', id);
+
+/* ============ VSTUPNÍ OBRAZOVKA ============
+   Nic se nestahuje, dokud uživatel nezadá ID. Jednotlivé záložky si
+   pak data tahají samy, až když na ně přijde řada.
+*/
+const ENTRY_KEY = 'fpl_entry';
+const LEAGUE_KEY = 'fpl_league';
+
+function enterApp(entryId, leagueId){
+  CONFIG.entryId = entryId;
+  CONFIG.leagueId = leagueId || '';
+  localStorage.setItem(ENTRY_KEY, entryId);
+  if(leagueId) localStorage.setItem(LEAGUE_KEY, leagueId);
+  else localStorage.removeItem(LEAGUE_KEY);
+
+  $('landing').hidden = true;
+  $('app').hidden = false;
+  $('whoName').textContent = '#' + entryId;
+
+  // ligové záložky nedávají smysl bez ID ligy
+  const hasLeague = Boolean(leagueId);
+  ['t-league','t-hub'].forEach(id => {
+    $(id).disabled = !hasLeague;
+    $(id).title = hasLeague ? '' : 'Zadej ID miniligy';
+  });
+
+  load(entryId);
+  window.scrollTo(0, 0);
+}
+
+$('enter').addEventListener('click', () => {
+  const e = $('eid').value.trim();
+  const l = $('lid').value.trim();
+  if(!/^\d+$/.test(e)){
+    $('gatemsg').textContent = 'ID týmu musí být číslo.';
+    $('eid').focus();
+    return;
+  }
+  if(l && !/^\d+$/.test(l)){
+    $('gatemsg').textContent = 'ID ligy musí být číslo, nebo nech pole prázdné.';
+    $('lid').focus();
+    return;
+  }
+  $('gatemsg').textContent = '';
+  enterApp(e, l);
+});
+
+['eid','lid'].forEach(id => {
+  $(id).addEventListener('input', () => { $('gatemsg').textContent = ''; });
+  $(id).addEventListener('keydown', ev => { if(ev.key === 'Enter') $('enter').click(); });
+});
+
+$('logout').addEventListener('click', () => {
+  $('app').hidden = true;
+  $('landing').hidden = false;
+  window.scrollTo(0, 0);
+});
+
+$('lgo').addEventListener('click', async () => {
+  const lid = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY);
+  if(!lid){ $('lmsg').textContent = 'Nemáš zadané ID miniligy.'; return; }
   $('lgo').disabled = true;
-  await loadLeague(id);
+  await loadLeague(lid);
   $('lgo').disabled = false;
 });
 
-const savedLeague = CONFIG.leagueId || localStorage.getItem('fpl_league');
-if(savedLeague){
-  $('lid').value = savedLeague;
-  if(CONFIG.leagueId) loadLeague(CONFIG.leagueId);
-}
+// předvyplnění z minula i z CONFIG nahoře v souboru
+$('eid').value = CONFIG.entryId || localStorage.getItem(ENTRY_KEY) || '';
+$('lid').value = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY) || '';
 
-$('f').addEventListener('submit', async ev => {
-  ev.preventDefault();
-  const id = $('eid').value.trim();
-  if(!/^\d+$/.test(id)){ $('msg').textContent = 'Zadej číselné ID týmu.'; return; }
-  localStorage.setItem('fpl_entry', id);
-  $('go').disabled = true;
-  await load(id);
-  $('go').disabled = false;
-});
+// když je všechno vyplněné v CONFIG, přeskoč vstupní obrazovku
+if(CONFIG.entryId) enterApp(CONFIG.entryId, CONFIG.leagueId);
 
-const saved = CONFIG.entryId || localStorage.getItem('fpl_entry');
-if(saved){
-  $('eid').value = saved;
-  localStorage.setItem('fpl_entry', saved);
-  load(saved);
-}
 </script>
 </body>
 </html>
