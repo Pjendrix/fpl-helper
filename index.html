@@ -183,12 +183,21 @@ async function load(id){
     const pickGw = cur ? cur.id : 1;
 
     const entry = await api('entry/' + id + '/');
-    let picks;
-    try { picks = await api('entry/' + id + '/event/' + pickGw + '/picks/'); }
-    catch(e){ throw new Error('Tým existuje, ale pro GW' + pickGw + ' nemá uloženou sestavu.'); }
 
-    render(entry, picks, startGw);
-    $('msg').textContent = '';
+    let picks = null;
+    if(cur){
+      try { picks = await api('entry/' + id + '/event/' + pickGw + '/picks/'); }
+      catch(e){ picks = null; }
+    }
+
+    if(picks){
+      render(entry, picks, startGw);
+      $('msg').textContent = '';
+    } else {
+      renderPreseason(entry, startGw);
+      $('msg').innerHTML = 'Sestava zatím není veřejná — FPL ji zpřístupní až po deadlinu '
+        + 'GW' + startGw + '. Zatím ukazuju stav hráčů v celé lize.';
+    }
   }catch(e){
     $('msg').textContent = e.message;
   }
@@ -204,6 +213,59 @@ function fdr(teamId, startGw, n){
   out.sort((a,b) => a[0]-b[0]);
   const avg = out.length ? out.reduce((s,x) => s+x[3], 0)/out.length : null;
   return {list: out, avg};
+}
+
+function renderPreseason(entry, startGw){
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+
+  const flagged = BOOT.elements
+    .filter(p => p.status !== 'a' || p.chance_of_playing_next_round !== null)
+    .map(p => ({p, team: teams[p.team],
+                chance: p.chance_of_playing_next_round === null ? 100 : p.chance_of_playing_next_round}))
+    .sort((a,b) => (a.chance - b.chance) || (parseFloat(b.p.selected_by_percent) - parseFloat(a.p.selected_by_percent)));
+
+  const fdrRows = BOOT.teams.map(t => {
+    const f = fdr(t.id, startGw, 5);
+    return {short: t.short_name, name: t.name, avg: f.avg, n: f.list.length,
+            prog: f.list.map(x => teams[x[1]].short_name + (x[2] === 'H' ? ' (D)' : ' (V)')).join(' · ')};
+  }).filter(r => r.avg !== null).sort((a,b) => a.avg - b.avg);
+
+  $('out').innerHTML = `
+    <div class="meta">
+      <div><div class="k">Tým</div><div class="v">${esc(entry.name)}</div></div>
+      <div><div class="k">Manažer</div><div class="v">${esc(entry.player_first_name + ' ' + entry.player_last_name)}</div></div>
+      <div><div class="k">Další kolo</div><div class="v">GW${startGw}</div></div>
+      <div><div class="k">Hlášení</div><div class="v">${flagged.length}</div></div>
+    </div>
+
+    <h2>Zranění a suspendovaní · celá liga</h2>
+    <table>
+      <thead><tr>
+        <th>Hráč</th><th class="hide-s">Tým</th><th>Poz</th>
+        <th class="n">Cena</th><th class="n hide-s">Vlastní %</th>
+        <th>Stav</th><th class="hide-s">Zpráva</th>
+      </tr></thead>
+      <tbody>${flagged.map(s => `<tr>
+        <td><b>${esc(s.p.web_name)}</b></td>
+        <td class="hide-s">${esc(s.team.short_name)}</td>
+        <td>${POS[s.p.element_type]}</td>
+        <td class="n">${(s.p.now_cost/10).toFixed(1)}</td>
+        <td class="n hide-s">${s.p.selected_by_percent}</td>
+        <td class="st ${S[s.p.status][1]}">${S[s.p.status][0]}${s.chance < 100 ? ' ' + s.chance + '%' : ''}</td>
+        <td class="hide-s" style="color:var(--mute);font-size:12.5px">${esc(s.p.news || '—')}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+
+    <h2>Program na 5 kol · nejlehčí nahoře</h2>
+    <table>
+      <thead><tr><th>Tým</th><th class="n">FDR</th><th class="n">Záp.</th><th>Soupeři</th></tr></thead>
+      <tbody>${fdrRows.map(r => `<tr>
+        <td><b>${esc(r.short)}</b></td>
+        <td class="n">${r.avg.toFixed(2)}</td>
+        <td class="n">${r.n}</td>
+        <td style="color:var(--mute);font-size:12.5px">${esc(r.prog)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
 }
 
 function render(entry, picks, startGw){
