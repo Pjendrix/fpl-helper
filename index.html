@@ -469,6 +469,39 @@ details.issue[open]>summary .more::after{content:' — sbalit'}
 
 /* projekce FPL v detailu hráče */
 .kpis.eprow .v.big{font-size:26px;color:var(--blue)}
+
+/* ---------- živé body v probíhajícím kole ---------- */
+.livebar{
+  display:flex;flex-wrap:wrap;align-items:center;gap:22px;
+  padding:14px 18px;margin-bottom:14px;
+  background:var(--white);border:1px solid var(--line);
+  border-left:3px solid var(--blue);border-radius:var(--r-card);
+}
+.livebar.done{border-left-color:var(--ok)}
+.livebar .big{font-family:var(--f-disp);font-size:34px;font-weight:700;line-height:1;
+  color:var(--blue)}
+.livebar.done .big{color:var(--ok)}
+.livebar b{font-family:var(--f-disp);font-size:20px;font-weight:700}
+.livebar span{display:block;font-size:11px;color:var(--mute);font-weight:500;margin-top:3px}
+.livebar .txt{flex:1 1 200px;font-size:12px;color:var(--mute);text-align:right}
+
+.shirt .pts{font-family:var(--f-mono);font-size:16px;font-weight:700;margin-top:3px}
+.shirt .pts small{display:block;font-size:9px;font-weight:400;color:var(--mute);
+  letter-spacing:0;margin-top:1px}
+.shirt .pts.hi{color:var(--ok)}
+.shirt .pts.md{color:var(--charcoal)}
+.shirt .pts.lo{color:var(--mute)}
+.shirt .pts.wait{color:var(--mute);font-weight:400}
+.shirt.done{border-color:rgba(0,0,0,.18)}
+
+td.gwpts b{font-family:var(--f-mono)}
+td.gwpts .wait{color:var(--mute)}
+
+@media (max-width:640px){
+  .livebar{gap:14px;padding:12px 14px}
+  .livebar .big{font-size:26px}
+  .livebar .txt{text-align:left;flex-basis:100%}
+}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#426188">
@@ -742,8 +775,19 @@ async function load(id){
       catch(e){ picks = null; }
     }
 
+    // Body, které hráči v probíhajícím kole reálně mají. Dokud kolo běží,
+    // je to zajímavější než projekce na to příští — projekci si člověk
+    // otevře v neděli večer, ale v sobotu chce vědět, jak na tom je.
+    let live = null;
+    if(cur){
+      try {
+        const data = await cached('event/' + pickGw + '/live/');
+        live = new Map(data.elements.map(e => [e.id, e.stats]));
+      } catch(e){ live = null; }
+    }
+
     if(picks){
-      render(entry, picks, startGw);
+      render(entry, picks, startGw, {live, gw: pickGw, finished: cur && cur.finished});
       $('msg').textContent = '';
     } else {
       renderPreseason(entry, startGw);
@@ -848,28 +892,65 @@ function renderPreseason(entry, startGw){
     </table>`;
 }
 
-function render(entry, picks, startGw){
+function render(entry, picks, startGw, liveCtx){
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
   const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
 
   MY_SQUAD = new Set(picks.picks.map(pk => pk.element));
 
+  const live = liveCtx && liveCtx.live;
+  const liveGw = liveCtx ? liveCtx.gw : null;
+
   const squad = picks.picks.map(pk => {
     const p = els[pk.element];
     const f = fdr(p.team, startGw, 5);
+
+    // Body, které hráč v probíhajícím kole opravdu má, včetně násobiče
+    // za kapitána. `played` odlišuje nulu od „ještě nenastoupil“ —
+    // to jsou dvě úplně jiné zprávy.
+    const st = live ? live.get(pk.element) : null;
+    const gwPts = st ? st.total_points * (pk.multiplier || 0) : null;
+
     return {p, pk, team: teams[p.team], f,
             starting: pk.position <= 11,
+            st, gwPts,
+            played: st ? st.minutes > 0 : false,
             chance: p.chance_of_playing_next_round === null ? 100 : p.chance_of_playing_next_round};
   });
 
   const rows = {1:[],2:[],3:[],4:[]};
   squad.filter(s => s.starting).forEach(s => rows[s.p.element_type].push(s));
 
-  const shirt = s => `<div class="shirt ${s.p.status}">
-      <div class="nm">${esc(s.p.web_name)}${s.pk.is_captain?'<span class="cap">C</span>':s.pk.is_vice_captain?'<span class="cap">V</span>':''}</div>
+  // Součet za kolo — to je číslo, kvůli kterému se člověk během soboty dívá.
+  const liveTotal = live
+    ? squad.reduce((a, s) => a + (s.gwPts || 0), 0)
+      - ((picks.entry_history && picks.entry_history.event_transfers_cost) || 0)
+    : null;
+  const benchTotal = live
+    ? squad.filter(s => !s.starting)
+        .reduce((a, s) => a + (s.st ? s.st.total_points : 0), 0)
+    : null;
+  const toPlay = live ? squad.filter(s => s.starting && !s.played).length : null;
+
+  /* Na dresu je během kola to, co hráč skutečně nasbíral. FDR na příští
+     kolo se vrátí, jakmile kolo skončí a začne se plánovat další. */
+  const shirt = s => {
+    const cap = s.pk.is_captain ? '<span class="cap">C</span>'
+              : s.pk.is_vice_captain ? '<span class="cap">V</span>' : '';
+
+    const foot = live
+      ? (s.played
+          ? `<div class="pts ${s.gwPts >= 6 ? 'hi' : s.gwPts >= 3 ? 'md' : 'lo'}">
+               ${s.gwPts}<small>b · ${s.st.minutes}′</small></div>`
+          : `<div class="pts wait">–<small>zatím nehrál</small></div>`)
+      : `<div class="fd">FDR ${s.f.avg ? s.f.avg.toFixed(1) : '–'}</div>`;
+
+    return `<div class="shirt ${s.p.status}${live && s.played ? ' done' : ''}">
+      <div class="nm">${esc(s.p.web_name)}${cap}</div>
       <div class="tm">${esc(s.team.short_name)}</div>
-      <div class="fd">FDR ${s.f.avg ? s.f.avg.toFixed(1) : '–'}</div>
+      ${foot}
     </div>`;
+  };
 
   /* --- kapitán, optimální jedenáctka a tvar programu ---
      Tohle je jediná část panelu, která něco doporučuje. Všechno ostatní
@@ -890,13 +971,24 @@ function render(entry, picks, startGw){
   const best = bestEleven(withXp);
 
   const capNow = withXp.find(s => s.pk.is_captain);
-  const capRank = [...withXp].sort((a, b) => b.xp - a.xp).slice(0, 3);
+
+  /* `ep_next` chodí od FPL zaokrouhlené na jedno desetinné místo, takže
+     shoda na setinu je běžná — Fernandes a Haaland mají oba 4.0. Prosté
+     řazení by pak pořadí určilo náhodně podle pozice v poli. Při shodě
+     rozhoduje můj model, pak odehrané minuty: to je aspoň důvod, ne los. */
+  const capRank = [...withXp]
+    .sort((a, b) => (b.xp - a.xp) || (b.model - a.model) || (b.p.minutes - a.p.minutes))
+    .slice(0, 3);
+
+  // Pod desetinu bodu jsou to z pohledu FPL stejná čísla.
+  const capTie = capNow && Math.abs(capRank[0].xp - capNow.xp) < 0.05;
 
   const capHtml = capRank.length ? `
     <h2>Kapitánská páska na GW${startGw}</h2>
     <div class="capbar">
       ${capRank.map((c, i) => `<div class="capopt${
-          capNow && c.p.id === capNow.p.id ? ' now' : ''}${i === 0 ? ' top' : ''}">
+          capNow && c.p.id === capNow.p.id ? ' now' : ''}${
+          i === 0 && !(capRank[1] && Math.abs(capRank[1].xp - c.xp) < 0.05) ? ' top' : ''}">
         <div class="rk">${i + 1}.</div>
         <div class="nm">${esc(c.p.web_name)}<span>${esc(c.team.short_name)}${
           gwFixtures(c.p.team, startGw).length > 1 ? ' · double' : ''}</span></div>
@@ -906,16 +998,21 @@ function render(entry, picks, startGw){
       </div>`).join('')}
     </div>
     <p class="note">${
-      capNow
-        ? (capNow.p.id === capRank[0].p.id
-            ? `Máš na pásce <b>${esc(capNow.p.web_name)}</b> — podle projekce sedí.`
-            : `Máš <b>${esc(capNow.p.web_name)}</b> (${(capNow.xp * 2).toFixed(1)} xP).
-               Model dává přednost <b>${esc(capRank[0].p.web_name)}</b>, rozdíl je
-               ${((capRank[0].xp - capNow.xp) * 2).toFixed(1)} bodu.`)
-        : 'Kapitán zatím není nastavený.'}
-      Rozdíl pod jeden bod je v šumu — v takovém případě je jedno, koho zvolíš.
+      !capNow
+        ? 'Kapitán zatím není nastavený.'
+        : capNow.p.id === capRank[0].p.id
+          ? `Máš na pásce <b>${esc(capNow.p.web_name)}</b> — podle projekce sedí.`
+          : capTie
+            ? `Máš <b>${esc(capNow.p.web_name)}</b> a
+               <b>${esc(capRank[0].p.web_name)}</b> má stejnou projekci
+               (${(capNow.xp * 2).toFixed(1)} bodu s páskou). Doporučit jednoho z nich
+               nemá čím — nech pásku tam, kde je.`
+            : `Máš <b>${esc(capNow.p.web_name)}</b> (${(capNow.xp * 2).toFixed(1)} bodu
+               s páskou). Výš je <b>${esc(capRank[0].p.web_name)}</b> o
+               ${((capRank[0].xp - capNow.xp) * 2).toFixed(1)} bodu.`}
       Základ je oficiální projekce FPL; u double kol beru vyšší z FPL a mého modelu,
-      protože <code>ep_next</code> počítá vždy jen jeden zápas.</p>` : '';
+      protože <code>ep_next</code> počítá vždy jen jeden zápas.
+      Rozdíl pod jeden bod ber jako šum.</p>` : '';
 
   // Kdo je v základu, ale podle projekce by tam být neměl (a naopak).
   let xiHtml = '';
@@ -989,6 +1086,8 @@ function render(entry, picks, startGw){
       <td class="n hide-s">${s.p.total_points}</td>
       <td class="n">${s.p.form}</td>
       <td class="n">${s.f.avg ? s.f.avg.toFixed(1) : '–'}</td>
+      ${live ? `<td class="n gwpts">${s.played
+        ? `<b>${s.gwPts}</b>` : '<span class="wait">–</span>'}</td>` : ''}
       <td class="n"><b>${epNext(s.p) === null ? '–' : epNext(s.p).toFixed(1)}</b></td>
       <td class="st ${S[s.p.status][1]}">${S[s.p.status][0]}${s.chance < 100 ? ' ' + s.chance + '%' : ''}</td>
     </tr>`;
@@ -1001,6 +1100,15 @@ function render(entry, picks, startGw){
       <div><div class="k">Pořadí</div><div class="v">${entry.summary_overall_rank ? entry.summary_overall_rank.toLocaleString('cs-CZ') : '–'}</div></div>
       <div><div class="k">Další kolo</div><div class="v">GW${startGw}</div></div>
     </div>
+
+    ${live ? `<div class="livebar${liveCtx.finished ? ' done' : ''}">
+      <div class="big">${liveTotal}<span>bodů v GW${liveGw}</span></div>
+      <div><b>${benchTotal}</b><span>na lavičce</span></div>
+      <div><b>${toPlay || '–'}</b><span>ještě nehrálo</span></div>
+      <div class="txt">${liveCtx.finished
+        ? 'Kolo je uzavřené, čísla jsou konečná.'
+        : 'Průběžně — bonusy se počítají z BPS a po zápase se ještě mohou změnit.'}</div>
+    </div>` : ''}
 
     <div class="pitch">
       ${[4,3,2,1].map(t => `<div class="row">${rows[t].map(shirt).join('')}</div>`).join('')}
@@ -1015,12 +1123,16 @@ function render(entry, picks, startGw){
     ${shapeHtml}
 
     <h2>Celý kádr · FDR = průměrná obtížnost dalších 5 kol</h2>
-    <p class="note">Sloupec xP&nbsp;FPL je oficiální projekce FPL na GW${startGw}.</p>
+    <p class="note">${live
+      ? `Sloupec GW${liveGw} jsou body, které hráč v tomhle kole opravdu má (u kapitána
+         už zdvojené). Pomlčka znamená, že ještě nenastoupil. `
+      : ''}Sloupec xP&nbsp;FPL je oficiální projekce FPL na GW${startGw}.</p>
     <table>
       <thead><tr>
         <th>Hráč</th><th class="hide-s">Tým</th><th>Poz</th>
         <th class="n">Cena</th><th class="n hide-s">Body</th><th class="n">Forma</th>
-        <th class="n">FDR</th><th class="n">xP&nbsp;FPL</th><th>Stav</th>
+        <th class="n">FDR</th>${live ? `<th class="n">GW${liveGw}</th>` : ''}
+        <th class="n">xP&nbsp;FPL</th><th>Stav</th>
       </tr></thead>
       <tbody>${squad.map(tRow).join('')}</tbody>
     </table>`;
