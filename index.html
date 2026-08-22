@@ -1249,7 +1249,7 @@ function render(entry, picks, startGw, liveCtx){
         out.push('<span class="blank" title="Blank — klub v tomhle kole nehraje">–<small>bl</small></span>');
       } else {
         // Double: obě zkratky do jedné buňky, ať kolo zůstane kolem.
-        out.push(fxs.map(f => gwCell({...f, od: ownFdr(p.team, f.opp, f.home)})).join(''));
+        out.push(fxs.map(f => gwCell({...f, od: ownFdr(p.team, f.opp, f.home, f.d)})).join(''));
       }
     }
     return `<span class="tick3">${out.join('')}</span>`;
@@ -1363,8 +1363,12 @@ function render(entry, picks, startGw, liveCtx){
       ? `Sloupec GW${liveGw} jsou body, které hráč v tomhle kole opravdu má (u kapitána
          už zdvojené). `
       : ''}Sloupec FDR je průměr přes dalších pět kol, barevný rozpis vedle něj ukazuje
-    konkrétní soupeře na tři kola. Obtížnost je relativní — nejtěžší pětina zápasů
-    v daném okně je červená.</p>
+    konkrétní soupeře na tři kola. ${strengthsReady()
+      ? 'Obtížnost počítám ze síly obou týmů a barvy jsou relativní — nejtěžší pětina '
+        + 'zápasů v daném okně je červená.'
+      : '<b>Používám oficiální FDR od FPL</b>, protože síly týmů zatím nejsou v datech '
+        + 'vyplněné. FPL je doplní po několika odehraných kolech; do té doby jsou '
+        + 'čísla hrubší.'}</p>
     ${squadTable}`;
 }
 
@@ -2913,7 +2917,7 @@ function renderTransfers(){
        2) Práh „dva ze tří těžkých“ flagoval prakticky každého hráče
           špičkového týmu. Teď rozhoduje průměr přes celý blok, ne počet
           jednotlivých zápasů — a musí být opravdu zlý. */
-    const withOwn = fx.map(f => ({...f, od: ownFdr(p.team, f.opp, f.home)}));
+    const withOwn = fx.map(f => ({...f, od: ownFdr(p.team, f.opp, f.home, f.d)}));
     const avgOwn = withOwn.length
       ? withOwn.reduce((a2, f) => a2 + f.od, 0) / withOwn.length : 3;
 
@@ -3568,20 +3572,41 @@ function planStartGw(){
    FDR z FPL je statické — nastaví se před sezónou a nemění se, i když
    tým mezitím spadne na dno. Počítáme proto vlastní z útočné a obranné
    síly obou týmů, které bootstrap poskytuje a nikdo je nepoužívá. */
-function ownFdr(teamId, oppId, home){
+/* Vrací null, dokud FPL síly týmů nedopočítá.
+
+   Na začátku sezóny jsou `strength_attack_*` a `strength_defence_*` nuly.
+   Poměr sil pak vyšel 0, vzorec spadl hluboko pod stupnici a `Math.max(1, …)`
+   všechno srovnal na 1.0 — celá liga vypadala jako samé lehké zápasy.
+   Tichý nesmysl, který vypadal jako platné číslo. */
+function teamStrengths(t, home){
+  const att = home ? t.strength_attack_home : t.strength_attack_away;
+  const def = home ? t.strength_defence_home : t.strength_defence_away;
+  const a = parseFloat(att), d = parseFloat(def);
+  if(!Number.isFinite(a) || !Number.isFinite(d) || a <= 0 || d <= 0) return null;
+  return {att: a, def: d};
+}
+
+function strengthsReady(){
+  return BOOT.teams.every(t => teamStrengths(t, true) && teamStrengths(t, false));
+}
+
+/* `fallback` je oficiální FDR z rozpisu. Použije se, dokud nejsou k dispozici
+   síly týmů — statická trojka od FPL je pořád lepší než vymyšlená jednička. */
+function ownFdr(teamId, oppId, home, fallback){
   const t = BOOT.teams.find(x => x.id === teamId);
   const o = BOOT.teams.find(x => x.id === oppId);
-  if(!t || !o) return 3;
+  const fb = Number.isFinite(fallback) ? fallback : 3;
+  if(!t || !o) return fb;
 
   // Jak silný je soupeř proti nám: jeho obrana brzdí náš útok a naopak.
-  const oppDef = home ? o.strength_defence_away : o.strength_defence_home;
-  const oppAtt = home ? o.strength_attack_away : o.strength_attack_home;
-  const myDef  = home ? t.strength_defence_home : t.strength_defence_away;
-  const myAtt  = home ? t.strength_attack_home  : t.strength_attack_away;
+  const me = teamStrengths(t, home);
+  const opp = teamStrengths(o, !home);
+  if(!me || !opp) return fb;
 
   // Poměr sil kolem 1.0 = vyrovnaný zápas. Škálujeme na známou stupnici 1–5.
-  const ratio = ((oppDef / Math.max(myAtt, 1)) + (oppAtt / Math.max(myDef, 1))) / 2;
+  const ratio = ((opp.def / me.att) + (opp.att / me.def)) / 2;
   const raw = 3 + (ratio - 1) * 7 + (home ? -0.35 : 0.35);
+  if(!Number.isFinite(raw)) return fb;
   return Math.max(1, Math.min(5, raw));
 }
 
@@ -3602,11 +3627,17 @@ function computeFdrCuts(startGw, n){
   for(const t of BOOT.teams)
     for(let gw = startGw; gw < startGw + n; gw++)
       for(const f of gwFixtures(t.id, gw))
-        all.push(ownFdr(t.id, f.opp, f.home));
+        all.push(ownFdr(t.id, f.opp, f.home, f.d));
 
-  if(all.length < 10){ FDR_CUTS = [2.2, 2.8, 3.4, 4.1]; return FDR_CUTS; }
+  const DEFAULT_CUTS = [1.5, 2.5, 3.5, 4.5];
+  if(all.length < 10){ FDR_CUTS = DEFAULT_CUTS; return FDR_CUTS; }
 
   all.sort((a, b) => a - b);
+
+  // Když se všechny hodnoty rovnají, kvintily nemají co rozdělit a celá
+  // mřížka by vyšla jednobarevně. Radši pevná stupnice než falešné odstíny.
+  if(all[all.length - 1] - all[0] < 0.4){ FDR_CUTS = DEFAULT_CUTS; return FDR_CUTS; }
+
   const q = p => all[Math.min(all.length - 1, Math.floor(all.length * p))];
   FDR_CUTS = [q(0.2), q(0.4), q(0.6), q(0.8)];
   return FDR_CUTS;
@@ -3640,7 +3671,7 @@ function buildTicker(){
       }
 
       const inner = fx.map(f => {
-        const d = ownFdr(t.id, f.opp, f.home);
+        const d = ownFdr(t.id, f.opp, f.home, f.d);
         sum += d; count++;
         const opp = teams[f.opp].short_name;
         return `<span class="${fdrClass(d)}">${esc(f.home ? opp.toUpperCase() : opp.toLowerCase())}</span>`;
@@ -3663,10 +3694,14 @@ function buildTicker(){
       <thead><tr><th>Klub</th>${head}<th>Ø</th></tr></thead>
       <tbody>${body}</tbody>
     </table>
-    <p class="note">Obtížnost počítám z útočné a obranné síly obou týmů, ne z pevného FDR,
-    které FPL nastaví v srpnu a pak už nemění. Barvy jsou <b>relativní</b> — každé pásmo
-    dostane zhruba pětinu zápasů, takže nejtěžší pětina je vždy červená bez ohledu na to,
-    jak vyrovnaná zrovna liga je. <b>VELKÁ</b> písmena znamenají domácí zápas,
+    <p class="note">${strengthsReady()
+      ? 'Obtížnost počítám z útočné a obranné síly obou týmů, ne z pevného FDR, které '
+        + 'FPL nastaví v srpnu a pak už nemění. Barvy jsou <b>relativní</b> — každé pásmo '
+        + 'dostane zhruba pětinu zápasů.'
+      : '<b>Zdroj obtížnosti: oficiální FDR od FPL.</b> Síly týmů, ze kterých počítám '
+        + 'vlastní hodnocení, zatím v datech nejsou vyplněné — FPL je doplní po několika '
+        + 'odehraných kolech a čísla se pak zjemní.'}
+    <b>VELKÁ</b> písmena znamenají domácí zápas,
     <b>malá</b> venkovní. Dvě zkratky v jednom políčku je double, pomlčka blank.
     Tabulka je seřazená od nejpříznivějšího programu.</p>`;
 }
