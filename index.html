@@ -430,6 +430,45 @@ table.funnel{margin-top:8px;font-size:12px}
 table.funnel td{padding:4px 10px 4px 0;border:0}
 table.funnel td.n{font-family:var(--f-mono);text-align:right;width:50px}
 table.funnel td.al{color:var(--alert);font-weight:700}
+
+/* ---------- rozbalovací karty transferů ---------- */
+details.issue{padding:0}
+details.issue>summary{
+  list-style:none;cursor:pointer;padding:14px 17px;
+  border-radius:var(--r-card);position:relative;
+}
+details.issue>summary::-webkit-details-marker{display:none}
+details.issue>summary:hover{background:rgba(0,0,0,.02)}
+details.issue>summary .hdr{margin:0}
+details.issue>summary .why{margin:7px 0 0}
+details.issue>summary .more{
+  display:inline-block;margin-top:9px;font-size:12px;color:var(--blue);font-weight:600;
+}
+details.issue>summary .more::before{content:'▸ '}
+details.issue[open]>summary .more::before{content:'▾ '}
+details.issue[open]>summary .more{color:var(--mute)}
+details.issue[open]>summary .more::after{content:' — sbalit'}
+.issue-body{padding:0 17px 16px;border-top:1px solid var(--line);margin-top:2px}
+.issue-body h4{
+  font-family:var(--f-disp);font-size:13px;text-transform:uppercase;
+  letter-spacing:.04em;color:var(--mute);margin:16px 0 8px;font-weight:700;
+}
+.tag.ep{background:rgba(43,127,255,.1);color:var(--blue);font-weight:700}
+
+/* ---------- mřížka statistik podle pozice ---------- */
+.pstats{
+  display:grid;gap:1px;background:var(--line);
+  grid-template-columns:repeat(auto-fit,minmax(112px,1fr));
+  border:1px solid var(--line);border-radius:var(--r-btn);overflow:hidden;margin:8px 0;
+}
+.pstats>div{background:var(--white);padding:9px 11px}
+.pstats .k{font-size:11px;color:var(--mute);line-height:1.3}
+.pstats .v{font-family:var(--f-mono);font-size:15px;font-weight:700;margin-top:2px}
+.pstats .nt{font-size:10px;color:var(--mute);margin-top:1px}
+.cand .l .pstats{margin-top:8px}
+
+/* projekce FPL v detailu hráče */
+.kpis.eprow .v.big{font-size:26px;color:var(--blue)}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#426188">
@@ -525,12 +564,13 @@ table.funnel td.al{color:var(--alert);font-weight:700}
         </select>
         <select id="fteam"><option value="">Všechny týmy</option></select>
         <select id="fsort">
-          <option value="xp">Řadit: projekce</option>
+          <option value="ep">Řadit: projekce FPL</option>
           <option value="total_points">Řadit: body celkem</option>
           <option value="form">Řadit: forma</option>
           <option value="value">Řadit: body za milion</option>
           <option value="xgi">Řadit: xGI/90</option>
           <option value="minutes">Řadit: minuty</option>
+          <option value="xp">Řadit: model (počítá doubly)</option>
         </select>
         <label class="chk"><input type="checkbox" id="fmine"> Jen moje</label>
       </div>
@@ -835,7 +875,18 @@ function render(entry, picks, startGw){
      Tohle je jediná část panelu, která něco doporučuje. Všechno ostatní
      jen popisuje stav; tady appka říká, co by udělala jinak. */
 
-  const withXp = squad.map(s => ({...s, xp: projectGw(s.p, startGw)}));
+  /* Hlavní číslo je oficiální projekce FPL (`ep_next`). Můj model slouží
+     jen jako druhý pohled a jako záloha, když FPL projekci nepošle —
+     a u double kol, která `ep_next` nezohledňuje, protože je vždy
+     za jedno kolo bez ohledu na počet zápasů. */
+  const withXp = squad.map(s => {
+    const ep = epNext(s.p);
+    const model = projectGw(s.p, startGw);
+    const games = gwFixtures(s.p.team, startGw).length;
+    return {...s, ep, model, games,
+            // v doublu má FPL projekce jen jeden zápas, model oba
+            xp: ep === null ? model : (games > 1 ? Math.max(ep, model) : ep)};
+  });
   const best = bestEleven(withXp);
 
   const capNow = withXp.find(s => s.pk.is_captain);
@@ -849,7 +900,9 @@ function render(entry, picks, startGw){
         <div class="rk">${i + 1}.</div>
         <div class="nm">${esc(c.p.web_name)}<span>${esc(c.team.short_name)}${
           gwFixtures(c.p.team, startGw).length > 1 ? ' · double' : ''}</span></div>
-        <div class="xp">${(c.xp * 2).toFixed(1)}<span>xP s páskou</span></div>
+        <div class="xp">${(c.xp * 2).toFixed(1)}<span>${
+          c.ep === null ? 'model, s páskou'
+          : c.games > 1 ? 'double, s páskou' : 'xP FPL, s páskou'}</span></div>
       </div>`).join('')}
     </div>
     <p class="note">${
@@ -860,7 +913,9 @@ function render(entry, picks, startGw){
                Model dává přednost <b>${esc(capRank[0].p.web_name)}</b>, rozdíl je
                ${((capRank[0].xp - capNow.xp) * 2).toFixed(1)} bodu.`)
         : 'Kapitán zatím není nastavený.'}
-      Rozdíl pod jeden bod je v šumu — v takovém případě je jedno, koho zvolíš.</p>` : '';
+      Rozdíl pod jeden bod je v šumu — v takovém případě je jedno, koho zvolíš.
+      Základ je oficiální projekce FPL; u double kol beru vyšší z FPL a mého modelu,
+      protože <code>ep_next</code> počítá vždy jen jeden zápas.</p>` : '';
 
   // Kdo je v základu, ale podle projekce by tam být neměl (a naopak).
   let xiHtml = '';
@@ -934,7 +989,7 @@ function render(entry, picks, startGw){
       <td class="n hide-s">${s.p.total_points}</td>
       <td class="n">${s.p.form}</td>
       <td class="n">${s.f.avg ? s.f.avg.toFixed(1) : '–'}</td>
-      <td class="n"><b>${projectGw(s.p, startGw).toFixed(1)}</b></td>
+      <td class="n"><b>${epNext(s.p) === null ? '–' : epNext(s.p).toFixed(1)}</b></td>
       <td class="st ${S[s.p.status][1]}">${S[s.p.status][0]}${s.chance < 100 ? ' ' + s.chance + '%' : ''}</td>
     </tr>`;
 
@@ -960,11 +1015,12 @@ function render(entry, picks, startGw){
     ${shapeHtml}
 
     <h2>Celý kádr · FDR = průměrná obtížnost dalších 5 kol</h2>
+    <p class="note">Sloupec xP&nbsp;FPL je oficiální projekce FPL na GW${startGw}.</p>
     <table>
       <thead><tr>
         <th>Hráč</th><th class="hide-s">Tým</th><th>Poz</th>
         <th class="n">Cena</th><th class="n hide-s">Body</th><th class="n">Forma</th>
-        <th class="n">FDR</th><th class="n">xP</th><th>Stav</th>
+        <th class="n">FDR</th><th class="n">xP&nbsp;FPL</th><th>Stav</th>
       </tr></thead>
       <tbody>${squad.map(tRow).join('')}</tbody>
     </table>`;
@@ -1801,6 +1857,120 @@ function bestEleven(squad){
   return best;
 }
 
+
+/* ------------------------------------------------------------
+   Oficiální čísla od FPL.
+
+   `ep_next` a `ep_this` jsou projekce, které počítá samo FPL a posílá je
+   v bootstrapu u každého hráče. Jsou to jediná projekční čísla, která
+   nejsou moje — a proto jsou v přehledech hlavní. Můj vlastní model
+   zůstává jen tam, kde FPL nic nedává (výhled na víc kol, double kola).
+   ------------------------------------------------------------ */
+function epNext(p){
+  const v = parseFloat(p.ep_next);
+  return Number.isFinite(v) ? v : null;
+}
+function epThis(p){
+  const v = parseFloat(p.ep_this);
+  return Number.isFinite(v) ? v : null;
+}
+
+/* Bezpečné čtení čísla z několika možných názvů pole.
+
+   FPL přidává statistiky mezi sezónami a názvy se občas mění (defenzivní
+   příspěvky přibyly nedávno). Tohle vrátí null, když pole neexistuje,
+   a volající pak řádek prostě nezobrazí — místo aby psal NaN. */
+function stat(p, ...keys){
+  for(const k of keys){
+    if(p[k] === undefined || p[k] === null || p[k] === '') continue;
+    const v = parseFloat(p[k]);
+    if(Number.isFinite(v)) return v;
+  }
+  return null;
+}
+
+/* Statistiky, které dávají smysl pro danou pozici.
+
+   Útočníka soudíš podle zapojení do gólů, obránce podle toho, kolik jeho
+   tým inkasuje, brankáře podle zákroků. Míchat je do jedné tabulky znamená
+   sloupce, které u půlky hráčů nic neříkají. */
+function positionStats(p){
+  const rows = [];
+  const add = (label, value, note) => {
+    if(value !== null && value !== undefined) rows.push({label, value, note});
+  };
+
+  const per90 = (a, b) => {
+    const v = stat(p, a);
+    return v === null ? null : v.toFixed(2);
+  };
+
+  // Společné pro všechny: kolik toho vůbec odehrál.
+  add('Odehrané minuty', p.minutes);
+  add('Starty', p.starts);
+
+  if(p.element_type === 1){
+    // Brankář: zákroky jsou jeho jediný vlastní bodovaný výkon.
+    add('Zákroky', stat(p, 'saves'), 'bod za každé 3');
+    add('Zákroky / 90', per90('saves_per_90'));
+    add('Chycené penalty', stat(p, 'penalties_saved'), '5 bodů za každou');
+    add('Čistá konta', stat(p, 'clean_sheets'));
+    add('Inkasované góly', stat(p, 'goals_conceded'));
+    add('xGC / 90', per90('expected_goals_conceded_per_90'), 'očekávané inkasované');
+  }
+
+  if(p.element_type === 2){
+    add('Čistá konta', stat(p, 'clean_sheets'));
+    add('Inkasované góly', stat(p, 'goals_conceded'));
+    add('xGC / 90', per90('expected_goals_conceded_per_90'), 'očekávané inkasované');
+    add('xGI / 90', per90('expected_goal_involvements_per_90'), 'góly + asistence');
+    // Defenzivní příspěvky přibyly nedávno; když je FPL neposílá, řádek zmizí.
+    add('Defenzivní příspěvky', stat(p, 'defensive_contribution'), '2 body za 10 akcí');
+    add('DefCon / 90', per90('defensive_contribution_per_90'));
+  }
+
+  if(p.element_type === 3){
+    add('xGI', stat(p, 'expected_goal_involvements'));
+    add('xGI / 90', per90('expected_goal_involvements_per_90'), 'góly + asistence');
+    add('xG / 90', per90('expected_goals_per_90'));
+    add('xA / 90', per90('expected_assists_per_90'));
+    add('xGC / 90', per90('expected_goals_conceded_per_90'), 'čisté konto = 1 bod');
+    add('Defenzivní příspěvky', stat(p, 'defensive_contribution'), '2 body za 12 akcí');
+  }
+
+  if(p.element_type === 4){
+    add('xGI', stat(p, 'expected_goal_involvements'));
+    add('xGI / 90', per90('expected_goal_involvements_per_90'), 'góly + asistence');
+    add('xG / 90', per90('expected_goals_per_90'));
+    add('xA / 90', per90('expected_assists_per_90'));
+    add('Góly', stat(p, 'goals_scored'));
+    add('Asistence', stat(p, 'assists'));
+  }
+
+  // Role na standardkách — FPL to říká přímo, není co odhadovat.
+  const sp = [];
+  if(p.penalties_order === 1) sp.push('penalty');
+  if(p.direct_freekicks_order === 1) sp.push('přímé kopy');
+  if(p.corners_and_indirect_freekicks_order === 1) sp.push('rohy');
+  if(sp.length) rows.push({label: 'Standardky', value: sp.join(', '), text: true});
+
+  add('ICT index', stat(p, 'ict_index'));
+  if(p.ict_index_rank_type) rows.push({
+    label: 'ICT v rámci pozice', value: '#' + p.ict_index_rank_type, text: true});
+
+  return rows;
+}
+
+function statGrid(p){
+  const rows = positionStats(p);
+  if(!rows.length) return '';
+  return `<div class="pstats">${rows.map(r => `<div>
+      <div class="k">${esc(r.label)}</div>
+      <div class="v">${esc(String(r.value))}</div>
+      ${r.note ? `<div class="nt">${esc(r.note)}</div>` : ''}
+    </div>`).join('')}</div>`;
+}
+
 function playerRows(){
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
   const cur = BOOT.events.find(e => e.is_current);
@@ -1815,7 +1985,8 @@ function playerRows(){
       p, team: teams[p.team], price,
       fdr: f.avg,
       gwCount: gwFx.length,          // 0 = blank, 2 = double
-      xp: projectGw(p, startGw),
+      ep: epNext(p),                 // oficiální projekce FPL na příští kolo
+      xp: projectGw(p, startGw),     // můj model — jen pro DGW a výhled
       xp5: projectRange(p, startGw, 5),
       value: p.total_points / price,
       xgi: parseFloat(p.expected_goal_involvements_per_90 || 0),
@@ -1859,6 +2030,7 @@ function drawPlayers(){
   });
 
   const key = {
+    ep: r => (r.ep === null ? -1 : r.ep),
     xp: r => r.xp,
     total_points: r => r.p.total_points,
     form: r => parseFloat(r.p.form || 0),
@@ -1873,13 +2045,15 @@ function drawPlayers(){
     ? '<p class="note">Nejdřív si načti sestavu v záložce Sestava — do té doby nevím, koho máš.</p>' : '';
 
   $('pout').innerHTML = warn + `
-    <p class="note">Klikni na hráče pro rozpis kolo po kole a formu z posledních 5 zápasů.</p>
+    <p class="note">Sloupec <b>xP&nbsp;FPL</b> je oficiální projekce na příští kolo, kterou
+    počítá samo FPL — není to můj odhad. Klikni na hráče pro statistiky podle jeho pozice
+    a rozpis kolo po kole.</p>
     <table>
       <thead><tr>
         <th>Hráč</th><th class="hide-s">Tým</th><th>Poz</th>
         <th class="n">Cena</th><th class="n">Body</th><th class="n hide-s">Za mil.</th>
         <th class="n">Forma</th><th class="n hide-s">xGI/90</th>
-        <th class="n hide-s">Min</th><th class="n">FDR</th><th class="n">xP</th>
+        <th class="n hide-s">Min</th><th class="n">FDR</th><th class="n">xP&nbsp;FPL</th>
       </tr></thead>
       <tbody>${rows.slice(0, 60).map(r => `<tr class="click" data-pid="${r.p.id}">
         <td><b>${esc(r.p.web_name)}</b>${r.chance < 100
@@ -1897,7 +2071,7 @@ function drawPlayers(){
         <td class="n hide-s">${r.xgi.toFixed(2)}</td>
         <td class="n hide-s">${r.p.minutes}</td>
         <td class="n">${r.fdr === null ? '–' : r.fdr.toFixed(1)}</td>
-        <td class="n"><b>${r.xp.toFixed(1)}</b></td>
+        <td class="n"><b>${r.ep === null ? '–' : r.ep.toFixed(1)}</b></td>
       </tr>`).join('')}</tbody>
     </table>
     ${rows.length > 60 ? `<p class="note">Zobrazeno 60 z ${rows.length} hráčů — zužuj filtry.</p>` : ''}`;
@@ -1945,6 +2119,11 @@ function drawCompare(){
 
   // Každý řádek: název, hodnota u obou, a jestli vyšší číslo znamená lepší.
   const metrics = [
+    ['Projekce FPL · příští kolo',
+      a.ep === null ? '–' : a.ep.toFixed(1), b.ep === null ? '–' : b.ep.toFixed(1),
+      a.ep || 0, b.ep || 0, true],
+    ['Body za zápas', a.p.points_per_game, b.p.points_per_game,
+      parseFloat(a.p.points_per_game), parseFloat(b.p.points_per_game), true],
     ['Cena', a.price.toFixed(1) + 'm', b.price.toFixed(1) + 'm', a.price, b.price, false],
     ['Body celkem', a.p.total_points, b.p.total_points, a.p.total_points, b.p.total_points, true],
     ['Forma', a.p.form, b.p.form, parseFloat(a.p.form), parseFloat(b.p.form), true],
@@ -1956,8 +2135,7 @@ function drawCompare(){
       parseFloat(a.p.selected_by_percent), parseFloat(b.p.selected_by_percent), true],
     ['FDR dalších 5', a.fdr === null ? '–' : a.fdr.toFixed(2),
       b.fdr === null ? '–' : b.fdr.toFixed(2), a.fdr || 3, b.fdr || 3, false],
-    [`xP GW${startGw}`, a.xp.toFixed(1), b.xp.toFixed(1), a.xp, b.xp, true],
-    ['xP dalších 5 kol', a.xp5.toFixed(1), b.xp5.toFixed(1), a.xp5, b.xp5, true],
+    ['Model · dalších 5 kol', a.xp5.toFixed(1), b.xp5.toFixed(1), a.xp5, b.xp5, true],
   ];
 
   const rows = metrics.map(([label, va, vb, na, nb, higher]) => {
@@ -2054,10 +2232,45 @@ async function showPlayer(pid){
       </tr>`;
     }).join('')}</tbody></table>` : '';
 
+  // Předchozí sezóny — jediná obrana proti malému vzorku u hráče,
+  // který letos odehrál pár set minut.
+  const past = (sum.history_past || []).slice(-4).reverse();
+  const pastHtml = past.length ? `
+    <h2>Předchozí sezóny</h2>
+    <table>
+      <thead><tr><th>Sezóna</th><th class="n">Body</th><th class="n">Minuty</th>
+        <th class="n hide-s">Cena start</th><th class="n hide-s">Cena konec</th></tr></thead>
+      <tbody>${past.map(x => `<tr>
+        <td>${esc(x.season_name)}</td>
+        <td class="n"><b>${x.total_points}</b></td>
+        <td class="n">${x.minutes}</td>
+        <td class="n hide-s">${(x.start_cost / 10).toFixed(1)}</td>
+        <td class="n hide-s">${(x.end_cost / 10).toFixed(1)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`
+    : '<p class="note">V Premier League zatím neodehrál žádnou předchozí sezónu.</p>';
+
   $('pdetail').innerHTML = `<div class="detail">
     <button class="close" id="pclose" aria-label="Zavřít">×</button>
     <h3>${esc(row.p.first_name)} ${esc(row.p.second_name)}</h3>
     <div class="who">${esc(row.team.name)} · ${POS[row.p.element_type]} · ${row.price.toFixed(1)}m</div>
+
+    <div class="kpis eprow">
+      <div><div class="k">Projekce FPL · příští kolo</div>
+        <div class="v big">${row.ep === null ? '–' : row.ep.toFixed(1)}</div></div>
+      <div><div class="k">Projekce FPL · toto kolo</div>
+        <div class="v">${epThis(row.p) === null ? '–' : epThis(row.p).toFixed(1)}</div></div>
+      <div><div class="k">Body za zápas</div><div class="v">${row.p.points_per_game}</div></div>
+      <div><div class="k">Forma</div><div class="v">${row.p.form}</div></div>
+    </div>
+
+    <h2>Statistiky podle pozice</h2>
+    ${statGrid(row.p)}
+    <p class="note">Všechno naměřená čísla z FPL, nic dopočítaného.
+    ${row.p.element_type === 1 ? 'U brankáře rozhodují zákroky a čistá konta.'
+      : row.p.element_type === 2 ? 'U obránce sleduj xGC — kolik jeho tým očekávaně inkasuje.'
+      : row.p.element_type === 3 ? 'Záložník bere body z obou stran: zapojení do gólů i čisté konto.'
+      : 'U útočníka je podstatné xGI — jak často se dostává ke gólovým situacím.'}</p>
 
     <h2 style="margin-top:16px">Posledních 5 kol</h2>
     ${pills}
@@ -2082,9 +2295,10 @@ async function showPlayer(pid){
       <div><div class="k">Minuty</div><div class="v">${season.min}</div></div>
       <div><div class="k">G + A</div><div class="v">${season.g}+${season.as}</div></div>
       <div><div class="k">Vlastní %</div><div class="v">${row.p.selected_by_percent}</div></div>
-      <div><div class="k">Projekce</div><div class="v">${row.xp.toFixed(1)}</div></div>
+      <div><div class="k">Model · 5 kol</div><div class="v">${row.xp5.toFixed(1)}</div></div>
     </div>
     ${upcoming ? `<p class="note">Program: ${esc(upcoming)}</p>` : ''}
+    ${pastHtml}
     ${table}
   </div>`;
 
@@ -2394,42 +2608,63 @@ function renderTransfers(){
 
     const {cands, diag} = findReplacements(it, budget, owned, clubCount, startGw, byId);
 
+    const epTag = c => c.ep === null ? '–' : c.ep.toFixed(1);
+
     const candHtml = cands.length ? cands.map(c => `<div class="cand">
         <div class="l">
           <b>${esc(c.p.web_name)}</b>
           <span>${esc(c.team.short_name)} · ${c.price.toFixed(1)}m · forma ${c.p.form}
             · ${c.p.total_points} b · ${c.f3.map(f =>
               (teams[f.opp] ? teams[f.opp].short_name : '?') + ' ' + f.d).join(' ')}</span>
+          ${statGrid(c.p)}
         </div>
-        <div class="r"><b>${c.xp.toFixed(1)}</b><br>xP</div>
+        <div class="r"><b>${epTag(c)}</b><br>xP FPL</div>
         <div class="r gain ${c.gain > 4 ? 'yes' : c.gain > 0 ? 'maybe' : 'no'}">
           <b>${c.gain > 0 ? '+' : ''}${c.gain.toFixed(1)}</b><br>za 5 kol
         </div>
       </div>`).join('')
-      + `<p class="note">Sloupec „za 5 kol“ je rozdíl projekcí proti hráči, kterého nahrazuješ.
-         Volný transfer se vyplatí od kladného čísla; za −4 body potřebuješ zisk
-         <b>nad 4</b>, jinak si prodělek jen odložíš.</p>`
+      + `<p class="note"><b>xP FPL</b> je oficiální projekce na příští kolo přímo od FPL.
+         Sloupec „za 5 kol“ je z mého modelu — rozdíl proti hráči, kterého nahrazuješ,
+         přes pět kol včetně případných blanků a doublů. Volný transfer se vyplatí od
+         kladného čísla; za −4 body potřebuješ zisk <b>nad 4</b>.</p>`
       : diag;
 
-    return `<div class="issue p${it.prio}">
-      <div class="hdr">
-        <b>${esc(it.p.web_name)}</b>
-        <span class="tag">${esc(teams[it.p.team].short_name)} · ${POS[it.p.element_type]}
-          · ${(it.p.now_cost / 10).toFixed(1)}m</span>
-        <span class="tag">${it.prio === 1 ? 'Priorita 1' : 'Priorita 2'}</span>
+    /* Karta je složená: v zavřeném stavu jen jméno, zařazení a důvod.
+       Statistiky a návrhy náhrad se rozbalí až na vyžádání — patnáct
+       rozbalených karet pod sebou nikdo nepřečte. */
+    const mineEp = byId[it.p.id] ? byId[it.p.id].ep : null;
+
+    return `<details class="issue p${it.prio}">
+      <summary>
+        <div class="hdr">
+          <b>${esc(it.p.web_name)}</b>
+          <span class="tag">${esc(teams[it.p.team].short_name)} · ${POS[it.p.element_type]}
+            · ${(it.p.now_cost / 10).toFixed(1)}m</span>
+          <span class="tag">${it.prio === 1 ? 'Priorita 1' : 'Priorita 2'}</span>
+          <span class="tag ep">xP FPL ${mineEp === null ? '–' : mineEp.toFixed(1)}</span>
+        </div>
+        <p class="why">${it.reasons.map(r => '• ' + esc(r)).join('<br>')}</p>
+        <span class="more">Rozbalit statistiky a náhrady</span>
+      </summary>
+
+      <div class="issue-body">
+        <h4>${esc(it.p.web_name)} — čísla za sezónu</h4>
+        ${statGrid(it.p)}
+
+        <div class="budget">
+          <label>Prodejní cena
+            <input class="pin" type="number" step="0.1" min="0" max="20"
+                   data-pid="${it.p.id}" value="${sell.toFixed(1)}">m
+          </label>
+          + banka ${bank.toFixed(1)}m = <b>${budget.toFixed(1)}m</b>
+          ${edited ? '<span class="edited">upraveno</span>'
+                   : '<span class="est">odhad z aktuální ceny</span>'}
+        </div>
+
+        <h4>Možné náhrady</h4>
+        ${candHtml}
       </div>
-      <p class="why">${it.reasons.map(r => '• ' + esc(r)).join('<br>')}</p>
-      <div class="budget">
-        <label>Prodejní cena
-          <input class="pin" type="number" step="0.1" min="0" max="20"
-                 data-pid="${it.p.id}" value="${sell.toFixed(1)}">m
-        </label>
-        + banka ${bank.toFixed(1)}m = <b>${budget.toFixed(1)}m</b>
-        ${edited ? '<span class="edited">upraveno</span>'
-                 : '<span class="est">odhad z aktuální ceny</span>'}
-      </div>
-      ${candHtml}
-    </div>`;
+    </details>`;
   });
 
   const p1 = issues.filter(i => i.prio === 1).length;
@@ -3079,6 +3314,8 @@ function buildChips(){
 
   const rows = [];
   for(let gw = start; gw < start + PLAN_GWS; gw++){
+    // Tady musí zůstat model: `ep_next` je vždy jen na nejbližší kolo,
+    // takže pro výhled na šest kol dopředu ho použít nejde.
     const withXp = squad.map(sq => ({...sq, xp: projectGw(sq.p, gw)}));
     const sorted = [...withXp].sort((a, b) => b.xp - a.xp);
 
