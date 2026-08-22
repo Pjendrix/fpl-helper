@@ -2177,6 +2177,96 @@ function bankValue(){
   return Number.isFinite(v) && v >= 0 ? v : (TR_STATE ? TR_STATE.apiBank : 0);
 }
 
+
+/* ------------------------------------------------------------
+   Hledání náhrad.
+
+   Filtry se aplikují v pořadí od nejtvrdšího po nejměkčí a průběžně se
+   počítá, kolik hráčů kde vypadlo. Když nezbude nikdo, víme přesně proč
+   a můžeme to říct — dřív appka v každém případě tvrdila „nevejde se do
+   rozpočtu“, i když skutečnou příčinou byl minutový práh.
+
+   Minutový práh se navíc škáluje podle toho, kolik kol se odehrálo.
+   Pevných 180 minut znamenalo, že v prvních dvou kolech neprošel nikdo
+   a záložka byla k ničemu přesně v době, kdy se transfery řeší nejvíc.
+   ------------------------------------------------------------ */
+function findReplacements(it, budget, owned, clubCount, startGw, byId){
+  const rounds = roundsPlayed();
+
+  // Po dvou kolech chceme 40 minut, po devíti 180. Nikdy víc než 180.
+  const minMinutes = Math.min(180, Math.max(0, rounds - 1) * 20);
+
+  const steps = [
+    ['pozice', r => r.p.element_type === it.p.element_type],
+    ['už ho máš', r => !owned.has(r.p.id)],
+    ['limit 3 hráčů z klubu', r => (clubCount[r.p.team] || 0) < 3],
+    ['rozpočet', r => r.price <= budget + 0.001],
+    ['dostupnost', r => r.chance >= 75 && r.p.status === 'a'],
+    ['odehrané minuty', r => r.p.minutes >= minMinutes],
+  ];
+
+  let pool = PLAYERS;
+  let blocker = null;
+
+  for(const [label, fn] of steps){
+    const next = pool.filter(fn);
+    // Zajímá nás první filtr, který pool vyprázdnil — ten je tím úzkým hrdlem.
+    if(!next.length && pool.length && !blocker) blocker = {label, before: pool.length};
+    pool = next;
+  }
+
+  const cands = pool
+    .map(r => {
+      const f3 = nextFixtures(r.p.team, startGw, 3);
+      const avgD = f3.length ? f3.reduce((s, x) => s + x.d, 0) / f3.length : 3;
+      // vazeny mix: projekce, nedavna forma a program
+      const score = r.xp * 1.0 + parseFloat(r.p.form || 0) * 0.5 + (3.5 - avgD) * 0.4;
+
+      // Rozdíl projekcí přes pět kol proti hráči, kterého nahrazuje.
+      // Tohle je jediné číslo, které rozhoduje, jestli se hit vyplatí.
+      const mineXp5 = byId[it.p.id] ? byId[it.p.id].xp5 : 0;
+      const gain = r.xp5 - mineXp5;
+
+      return {...r, f3, avgD, score, gain};
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  return {cands, pool, blocker: cands.length ? '' : explainBlocker(blocker, it, budget, minMinutes)};
+}
+
+/* Vysvětlení musí být konkrétní, jinak je horší než nic — uživatel na jeho
+   základě mění rozpočet, a když mu appka poradí špatný krok, ztratí čas. */
+function explainBlocker(blocker, it, budget, minMinutes){
+  if(!blocker) return 'Na téhle pozici nemám v datech koho nabídnout.';
+
+  switch(blocker.label){
+    case 'rozpočet':
+      return `Za <b>${budget.toFixed(1)}m</b> na téhle pozici nikdo není. Nejlevnější
+        ${POS[it.p.element_type]} stojí víc — uvolni peníze prodejem jiného hráče,
+        nebo si nahoře oprav prodejní cenu, pokud ti FPL ukazuje jinou.`;
+
+    case 'odehrané minuty':
+      return `Kandidáti do rozpočtu existují, ale nikdo z nich zatím neodehrál
+        ${minMinutes} minut. Po pár kolech se to spraví samo; do té doby ber projekci
+        na téhle pozici s rezervou.`;
+
+    case 'dostupnost':
+      return `Do rozpočtu se vejdou jen hráči, kteří jsou zranění nebo pod otazníkem.
+        Vyměnit problém za problém nemá smysl — zkus uvolnit víc peněz.`;
+
+    case 'limit 3 hráčů z klubu':
+      return `Levnější hráči na téhle pozici jsou z klubů, odkud už máš tři hráče.
+        FPL víc nedovolí.`;
+
+    case 'už ho máš':
+      return 'Všichni dostupní hráči na téhle pozici už jsou v tvém kádru.';
+
+    default:
+      return 'Na téhle pozici nemám koho nabídnout.';
+  }
+}
+
 function renderTransfers(){
   const {picks, summaries, startGw} = TR_STATE;
   const bank = bankValue();
@@ -2259,28 +2349,7 @@ function renderTransfers(){
       if(q) clubCount[q.team] = (clubCount[q.team] || 0) + 1;
     });
 
-    const cands = PLAYERS
-      .filter(r => r.p.element_type === it.p.element_type)
-      .filter(r => !owned.has(r.p.id))
-      .filter(r => (clubCount[r.p.team] || 0) < 3)
-      .filter(r => r.price <= budget + 0.001)
-      .filter(r => r.chance >= 75 && r.p.status === 'a')
-      .filter(r => r.p.minutes >= 180)
-      .map(r => {
-        const f3 = nextFixtures(r.p.team, startGw, 3);
-        const avgD = f3.length ? f3.reduce((s, x) => s + x.d, 0) / f3.length : 3;
-        // vazeny mix: projekce, nedavna forma a program
-        const score = r.xp * 1.0 + parseFloat(r.p.form || 0) * 0.5 + (3.5 - avgD) * 0.4;
-
-        // Rozdíl projekcí přes pět kol proti hráči, kterého nahrazuje.
-        // Tohle je jediné číslo, které rozhoduje, jestli se hit vyplatí.
-        const mineXp5 = byId[it.p.id] ? byId[it.p.id].xp5 : 0;
-        const gain = r.xp5 - mineXp5;
-
-        return {...r, f3, avgD, score, gain};
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3);
+    const {cands, blocker, pool} = findReplacements(it, budget, owned, clubCount, startGw, byId);
 
     const candHtml = cands.length ? cands.map(c => `<div class="cand">
         <div class="l">
@@ -2297,7 +2366,7 @@ function renderTransfers(){
       + `<p class="note">Sloupec „za 5 kol“ je rozdíl projekcí proti hráči, kterého nahrazuješ.
          Volný transfer se vyplatí od kladného čísla; za −4 body potřebuješ zisk
          <b>nad 4</b>, jinak si prodělek jen odložíš.</p>`
-      : '<p class="note">Do rozpočtu se nevejde nikdo lepší. Zvaž prodej jiného hráče, aby ti zbylo víc.</p>';
+      : `<p class="note">${blocker}</p>`;
 
     return `<div class="issue p${it.prio}">
       <div class="hdr">
