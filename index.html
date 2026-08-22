@@ -350,11 +350,11 @@ tr.click:hover td{background:var(--haze)}
   display:inline-block;min-width:42px;padding:4px 5px;margin:1px;
   border-radius:var(--r-in);font-family:var(--f-mono);font-size:11px;font-weight:700;
 }
-.ticker .f1{background:#c7f0d8;color:#0b5c36}
-.ticker .f2{background:#e2f5e9;color:#0f7d4a}
-.ticker .f3{background:var(--haze);color:#4b5563}
-.ticker .f4{background:#fbdcd9;color:#8f2119}
-.ticker .f5{background:#f3b7b1;color:#6d1710}
+.ticker .f1{background:#8fe0b0;color:#06301c}
+.ticker .f2{background:#cdeed9;color:#0b5c36}
+.ticker .f3{background:#ededed;color:#42474e}
+.ticker .f4{background:#f7cac5;color:#8f2119}
+.ticker .f5{background:#eb9a92;color:#5c120d}
 .ticker td.blank span{background:repeating-linear-gradient(45deg,
   var(--haze),var(--haze) 4px,#e4e4e4 4px,#e4e4e4 8px);color:var(--mute)}
 .ticker td.dbl{background:rgba(43,127,255,.07)}
@@ -556,6 +556,98 @@ button.info.on{background:var(--blue);border-color:var(--blue);color:var(--white
   .cand2 span:nth-child(5){grid-column:2;grid-row:3;text-align:right}
   .cand2 span:nth-child(6){grid-column:2;grid-row:4;text-align:right}
   .cand2 span:nth-child(7){grid-column:2;grid-row:1;text-align:right}
+}
+
+/* ---------- kádr po pozicích ---------- */
+.squadlist{
+  background:var(--white);border:1px solid var(--line);
+  border-radius:var(--r-card);overflow:hidden;margin-top:10px;
+}
+.phead,.prow{
+  display:grid;
+  grid-template-columns:minmax(0,1.7fr) 58px 46px 46px 44px 186px 62px;
+  gap:8px;align-items:center;padding:9px 14px;
+}
+.phead.live,.squadlist.live .prow{
+  grid-template-columns:minmax(0,1.6fr) 56px 44px 44px 42px 46px 186px 60px;
+}
+.phead{
+  background:var(--haze);font-size:10px;text-transform:uppercase;
+  letter-spacing:.05em;color:var(--mute);font-weight:600;
+}
+.prow{border-top:1px solid var(--line);font-size:13px}
+.prow.benched{color:var(--mute);background:rgba(0,0,0,.015)}
+.prow.diff{box-shadow:inset 2px 0 0 var(--warn)}
+.prow .n{font-family:var(--f-mono);text-align:right}
+.prow .n::before{content:''}
+.prow .own{color:var(--mute)}
+
+.prow .who{display:flex;align-items:center;gap:6px;min-width:0}
+.prow .who b{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .who em{font-style:normal;color:var(--mute);font-size:11px;font-family:var(--f-mono)}
+.dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.dot.ok{background:var(--ok)}
+.dot.warn{background:#d68b00}
+.dot.bad{background:var(--alert)}
+.badge{
+  font-size:9px;padding:1px 5px;border-radius:var(--r-in);
+  background:var(--haze);color:var(--mute);font-weight:700;white-space:nowrap;
+}
+.badge.cap{background:var(--charcoal);color:var(--white)}
+.badge.dif{background:rgba(43,127,255,.12);color:var(--blue)}
+.badge.warn{background:var(--warn-bg);color:var(--warn)}
+i.mv{font-style:normal;font-size:8px;margin-left:2px}
+i.mv.up{color:var(--ok)}
+i.mv.down{color:var(--alert)}
+
+.tick3{display:flex;gap:3px}
+.tick3>span{
+  flex:1;min-width:0;text-align:center;padding:3px 2px;border-radius:var(--r-in);
+  font-family:var(--f-mono);font-size:10px;font-weight:700;line-height:1.15;
+}
+.tick3>span small{display:block;font-size:8px;font-weight:400;opacity:.75}
+.tick3 .f1{background:#8fe0b0;color:#06301c}
+.tick3 .f2{background:#cdeed9;color:#0b5c36}
+.tick3 .f3{background:#ededed;color:#42474e}
+.tick3 .f4{background:#f7cac5;color:#8f2119}
+.tick3 .f5{background:#eb9a92;color:#5c120d}
+.tick3 .blank{background:repeating-linear-gradient(45deg,
+  #e8e8e8,#e8e8e8 3px,#d8d8d8 3px,#d8d8d8 6px);color:#5f5f5f}
+
+.pgroup{
+  display:flex;align-items:baseline;gap:9px;padding:7px 14px;
+  background:rgba(43,127,255,.07);border-top:1px solid var(--line);
+  font-family:var(--f-disp);font-size:12px;text-transform:uppercase;
+  letter-spacing:.05em;font-weight:700;color:var(--blue);
+}
+.pgroup span{
+  font-family:var(--f);font-size:11px;text-transform:none;
+  letter-spacing:0;font-weight:500;color:var(--mute);
+}
+.pgroup.bench-h{background:var(--haze);color:var(--mute)}
+
+.fdrleg{display:flex;flex-wrap:wrap;gap:12px;align-items:center;
+  margin-top:9px;font-size:11px;color:var(--mute)}
+.fdrleg span{display:flex;align-items:center;gap:4px}
+.fdrleg i{width:20px;height:11px;border-radius:3px;display:inline-block}
+.fdrleg .f1{background:#8fe0b0}.fdrleg .f2{background:#cdeed9}
+.fdrleg .f3{background:#ededed}.fdrleg .f4{background:#f7cac5}
+.fdrleg .f5{background:#eb9a92}
+.fdrleg .blank{background:repeating-linear-gradient(45deg,
+  #e8e8e8,#e8e8e8 3px,#d8d8d8 3px,#d8d8d8 6px)}
+.fdrleg .hint{margin-left:auto}
+
+@media (max-width:720px){
+  .phead{display:none}
+  .prow,.squadlist.live .prow{
+    grid-template-columns:1fr 1fr;gap:3px 10px;padding:11px 13px;
+  }
+  .prow .who{grid-column:1/-1;margin-bottom:3px}
+  .prow .n{text-align:left;font-size:11px;color:var(--mute)}
+  .prow .n::before{content:attr(data-l) ' ';font-family:var(--f)}
+  .prow .n b{color:var(--charcoal)}
+  .tick3{grid-column:1/-1;margin-top:5px}
+  .fdrleg .hint{margin-left:0;flex-basis:100%}
 }
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
@@ -1133,19 +1225,108 @@ function render(entry, picks, startGw, liveCtx){
     </div>`).join('')
     : '<div class="alert" style="border-left-color:var(--ok)"><div class="top"><span class="who">Nikdo není hlášený jako zraněný ani suspendovaný.</span></div></div>';
 
-  const tRow = s => `<tr class="${s.starting ? '' : 'bench'}">
-      <td><b>${esc(s.p.web_name)}</b></td>
-      <td class="hide-s">${esc(s.team.short_name)}</td>
-      <td>${POS[s.p.element_type]}</td>
-      <td class="n">${(s.p.now_cost/10).toFixed(1)}</td>
-      <td class="n hide-s">${s.p.total_points}</td>
-      <td class="n">${s.p.form}</td>
-      <td class="n">${s.f.avg ? s.f.avg.toFixed(1) : '–'}</td>
-      ${live ? `<td class="n gwpts">${s.played
-        ? `<b>${s.gwPts}</b>` : '<span class="wait">–</span>'}</td>` : ''}
-      <td class="n"><b>${epNext(s.p) === null ? '–' : epNext(s.p).toFixed(1)}</b></td>
-      <td class="st ${S[s.p.status][1]}">${S[s.p.status][0]}${s.chance < 100 ? ' ' + s.chance + '%' : ''}</td>
-    </tr>`;
+  /* --- přehled kádru po pozicích ---
+
+     Jedna dlouhá tabulka patnácti řádků nemá strukturu. Rozdělení podle
+     pozic dá součty za skupinu (kde mám zabité peníze) a hlavně umožní
+     dát ke každému hráči rozpis dalších tří kol — to je věc, kvůli které
+     lidi chodí na jiné weby. */
+
+  computeFdrCuts(startGw, 3);
+
+  const gwCell = f => {
+    const opp = teams[f.opp];
+    const label = opp ? (f.home ? opp.short_name.toUpperCase() : opp.short_name.toLowerCase()) : '?';
+    return `<span class="${fdrClass(f.od)}" title="${esc(opp ? opp.name : '')} ${
+      f.home ? 'doma' : 'venku'}">${esc(label)}<small>${f.od.toFixed(1)}</small></span>`;
+  };
+
+  const nextThree = p => {
+    const out = [];
+    for(let gw = startGw; gw < startGw + 3; gw++){
+      const fxs = gwFixtures(p.team, gw);
+      if(!fxs.length){
+        out.push('<span class="blank" title="Blank — klub v tomhle kole nehraje">–<small>bl</small></span>');
+      } else {
+        // Double: obě zkratky do jedné buňky, ať kolo zůstane kolem.
+        out.push(fxs.map(f => gwCell({...f, od: ownFdr(p.team, f.opp, f.home)})).join(''));
+      }
+    }
+    return `<span class="tick3">${out.join('')}</span>`;
+  };
+
+  const priceMove = p => {
+    const d = p.cost_change_start || 0;
+    if(!d) return '';
+    return `<i class="mv ${d > 0 ? 'up' : 'down'}" title="Od začátku sezóny ${
+      d > 0 ? 'zdražil' : 'zlevnil'} o ${Math.abs(d / 10).toFixed(1)}m">${d > 0 ? '▲' : '▼'}</i>`;
+  };
+
+  const pRow = s2 => {
+    const owned = parseFloat(s2.p.selected_by_percent) || 0;
+    const dot = s2.p.status !== 'a' || s2.chance <= 50 ? 'bad'
+              : s2.chance < 100 ? 'warn' : 'ok';
+
+    return `<div class="prow${s2.starting ? '' : ' benched'}${owned < 5 ? ' diff' : ''}">
+      <span class="who">
+        <i class="dot ${dot}" title="${esc(S[s2.p.status][0])}"></i>
+        <b>${esc(s2.p.web_name)}</b>
+        <em>${esc(s2.team.short_name)}</em>
+        ${s2.pk.is_captain ? '<span class="badge cap">C</span>'
+          : s2.pk.is_vice_captain ? '<span class="badge">V</span>' : ''}
+        ${owned < 5 ? '<span class="badge dif">diferenciál</span>' : ''}
+        ${s2.chance < 100 ? `<span class="badge warn">${s2.chance}&nbsp;%</span>` : ''}
+      </span>
+      <span class="n" data-l="Cena">${(s2.p.now_cost / 10).toFixed(1)}${priceMove(s2.p)}</span>
+      <span class="n" data-l="Body"><b>${s2.p.total_points}</b></span>
+      <span class="n" data-l="Forma">${s2.p.form}</span>
+      <span class="n" data-l="FDR">${s2.f.avg ? s2.f.avg.toFixed(1) : '–'}</span>
+      ${live ? `<span class="n gwpts" data-l="GW${liveGw}">${s2.played
+        ? `<b>${s2.gwPts}</b>` : '<span class="wait">–</span>'}</span>` : ''}
+      ${nextThree(s2.p)}
+      <span class="n own" data-l="Vlastní">${owned.toFixed(1)}&nbsp;%</span>
+    </div>`;
+  };
+
+  const GROUPS = [
+    [1, 'Brankáři'], [2, 'Obránci'], [3, 'Záložníci'], [4, 'Útočníci'],
+  ];
+
+  const head = `<div class="phead${live ? ' live' : ''}">
+    <span>Hráč</span><span class="n">Cena</span><span class="n">Body</span>
+    <span class="n">Forma</span><span class="n">FDR</span>
+    ${live ? `<span class="n">GW${liveGw}</span>` : ''}
+    <span class="tickhead">GW${startGw}–${startGw + 2}</span><span class="n">Vlastní</span>
+  </div>`;
+
+  const groupHtml = GROUPS.map(([type, label]) => {
+    const inGroup = squad.filter(x => x.p.element_type === type && x.starting);
+    if(!inGroup.length) return '';
+    const cost = inGroup.reduce((a2, x) => a2 + x.p.now_cost, 0) / 10;
+    return `<div class="pgroup">${esc(label)}
+        <span>${inGroup.length} nasazen${inGroup.length === 1 ? 'ý' : 'í'} · ${cost.toFixed(1)}m</span>
+      </div>
+      ${inGroup.map(pRow).join('')}`;
+  }).join('');
+
+  const benchList = squad.filter(x => !x.starting)
+    .sort((x, y) => x.pk.position - y.pk.position);
+  const benchXp = benchList.reduce((a2, x) => a2 + (x.xp || 0), 0);
+
+  const benchHtml = benchList.length ? `<div class="pgroup bench-h">Lavička
+      <span>${benchList.length} hráči · ${benchXp.toFixed(1)} xP${
+        live ? ` · ${benchTotal} bodů` : ''}</span>
+    </div>${benchList.map(pRow).join('')}` : '';
+
+  const squadTable = `<div class="squadlist${live ? ' live' : ''}">
+      ${head}${groupHtml}${benchHtml}
+    </div>
+    <div class="fdrleg">
+      <span><i class="f1"></i>snadný</span><span><i class="f2"></i></span>
+      <span><i class="f3"></i>průměr</span><span><i class="f4"></i></span>
+      <span><i class="f5"></i>těžký</span><span><i class="blank"></i>blank</span>
+      <span class="hint">VELKÁ = doma · malá = venku · dvě zkratky v poli = double</span>
+    </div>`;
 
   $('out').innerHTML = `
     <div class="meta">
@@ -1177,20 +1358,14 @@ function render(entry, picks, startGw, liveCtx){
 
     ${shapeHtml}
 
-    <h2>Celý kádr · FDR = průměrná obtížnost dalších 5 kol</h2>
+    <h2>Kádr po pozicích</h2>
     <p class="note">${live
       ? `Sloupec GW${liveGw} jsou body, které hráč v tomhle kole opravdu má (u kapitána
-         už zdvojené). Pomlčka znamená, že ještě nenastoupil. `
-      : ''}Sloupec xP&nbsp;FPL je oficiální projekce FPL na GW${startGw}.</p>
-    <table>
-      <thead><tr>
-        <th>Hráč</th><th class="hide-s">Tým</th><th>Poz</th>
-        <th class="n">Cena</th><th class="n hide-s">Body</th><th class="n">Forma</th>
-        <th class="n">FDR</th>${live ? `<th class="n">GW${liveGw}</th>` : ''}
-        <th class="n">xP&nbsp;FPL</th><th>Stav</th>
-      </tr></thead>
-      <tbody>${squad.map(tRow).join('')}</tbody>
-    </table>`;
+         už zdvojené). `
+      : ''}Sloupec FDR je průměr přes dalších pět kol, barevný rozpis vedle něj ukazuje
+    konkrétní soupeře na tři kola. Obtížnost je relativní — nejtěžší pětina zápasů
+    v daném okně je červená.</p>
+    ${squadTable}`;
 }
 
 /* ============ ZALOZKY ============ */
@@ -2725,39 +2900,65 @@ function renderTransfers(){
       prio = chance <= 50 ? 1 : Math.max(prio, 2);
     }
 
-    // --- priorita 1: tri tezke zapasy v rade ---
-    const hard = fx.filter(f => f.d >= 4);
-    if(fx.length === 3 && hard.length === 3){
-      reasons.push('Tři těžké zápasy v řadě: ' + fx.map(f =>
-        (teams[f.opp] ? teams[f.opp].short_name : '?') + (f.home ? ' (D)' : ' (V)') + ' ' + f.d).join(', '));
-      prio = 1;
-    } else if(hard.length === 2){
-      reasons.push('Dva ze tří dalších zápasů jsou těžké');
+    /* --- program ---
+
+       Dvě věci, na kterých staré pravidlo padalo:
+
+       1) Používalo statické FDR od FPL, které je symetrické — Arsenal
+          proti Chelsea má stejnou čtyřku jako Burnley proti Chelsea.
+          Pro Arsenal je to ale vyrovnaný zápas. `ownFdr()` počítá sílu
+          obou týmů, takže hráč silného klubu už není trestaný za to,
+          že hraje proti jiným silným klubům.
+
+       2) Práh „dva ze tří těžkých“ flagoval prakticky každého hráče
+          špičkového týmu. Teď rozhoduje průměr přes celý blok, ne počet
+          jednotlivých zápasů — a musí být opravdu zlý. */
+    const withOwn = fx.map(f => ({...f, od: ownFdr(p.team, f.opp, f.home)}));
+    const avgOwn = withOwn.length
+      ? withOwn.reduce((a2, f) => a2 + f.od, 0) / withOwn.length : 3;
+
+    const fxText = withOwn.map(f =>
+      (teams[f.opp] ? teams[f.opp].short_name : '?')
+      + (f.home ? ' (D)' : ' (V)') + ' ' + f.od.toFixed(1)).join(', ');
+
+    /* Hráč, který boduje, se neprodává kvůli rozpisu. Forma i body na
+       zápas jsou naměřená čísla od FPL — když jsou dobrá, program musí
+       být opravdu brutální, aby to přebilo. */
+    const form = parseFloat(p.form) || 0;
+    const ppg = parseFloat(p.points_per_game) || 0;
+    const performing = form >= 4 || ppg >= 4.5;
+
+    if(withOwn.length === 3 && avgOwn >= 4.3 && !performing){
+      reasons.push('Velmi těžký blok: ' + fxText);
+      prio = Math.max(prio, 1);
+    } else if(withOwn.length === 3 && avgOwn >= 3.9 && !performing){
+      reasons.push('Náročný program: ' + fxText);
       prio = Math.max(prio, 2);
     }
 
-    // --- priorita 2: bodova sucha ---
-    // Sucho počítáme jen ze zápasů, kde hráč reálně hrál. Tři pětiminutová
-    // střídání nejsou bodová krize, ale nedostatek příležitosti.
+    /* --- bodová sucha ---
+       Sucho počítáme jen ze zápasů, kde hráč reálně hrál. Tři pětiminutová
+       střídání nejsou bodová krize, ale nedostatek příležitosti. */
     const played = hist.filter(h => h.minutes >= 60);
     let dry = 0;
     for(let k = played.length - 1; k >= 0; k--){
       if(played[k].total_points <= 3) dry++; else break;
     }
-    if(dry >= 3){
+    if(dry >= 3 && !performing){
       const pts = played.slice(-dry).map(h => h.total_points).join(', ');
       reasons.push('Poslední ' + dry + ' zápasy pod 3 body (' + pts + ')');
       prio = prio === 1 ? 1 : 2;
     }
 
-    if(prio) issues.push({p, pk, prio, reasons, fx, dry, chance});
+    if(prio) issues.push({p, pk, prio, reasons, fx: withOwn, dry, chance, avgOwn});
   });
 
   if(!issues.length){
     $('trout').innerHTML = `<div class="ok-box">
       <b>Sestava je v pořádku.</b>
-      <p class="note">Nikdo není zraněný ani suspendovaný, nikoho nečeká série tří těžkých
-      zápasů a nikdo netrpí bodovým suchem. V bance máš ${bank.toFixed(1)}m.</p>
+      <p class="note">Nikdo není zraněný ani suspendovaný, nikoho nečeká vyloženě zlý
+      blok zápasů a nikdo netrpí bodovým suchem. Hráči, kteří bodují, se neflagují —
+      dobrá forma přebije i těžký program. V bance máš ${bank.toFixed(1)}m.</p>
     </div>`;
     return;
   }
@@ -3384,17 +3585,46 @@ function ownFdr(teamId, oppId, home){
   return Math.max(1, Math.min(5, raw));
 }
 
+/* Prahy pro obarvení se počítají z rozdělení, ne z pevných čísel.
+
+   Pevné hranice (pod 2.2 zelená, nad 4.1 červená) fungovaly jen náhodou.
+   Síly týmů v bootstrapu se u většiny klubů liší málo, takže se skoro
+   všechny zápasy vešly do jednoho pásma a ticker byl celý stejně zelený.
+   Barevné kódování, které nerozlišuje, je horší než žádné.
+
+   Kvintily napříč všemi zápasy v zobrazeném okně zaručí, že každé pásmo
+   dostane zhruba pětinu buněk — obtížnost je tím pádem vždy relativní
+   k tomu, co se v daných kolech reálně hraje. */
+let FDR_CUTS = null;
+
+function computeFdrCuts(startGw, n){
+  const all = [];
+  for(const t of BOOT.teams)
+    for(let gw = startGw; gw < startGw + n; gw++)
+      for(const f of gwFixtures(t.id, gw))
+        all.push(ownFdr(t.id, f.opp, f.home));
+
+  if(all.length < 10){ FDR_CUTS = [2.2, 2.8, 3.4, 4.1]; return FDR_CUTS; }
+
+  all.sort((a, b) => a - b);
+  const q = p => all[Math.min(all.length - 1, Math.floor(all.length * p))];
+  FDR_CUTS = [q(0.2), q(0.4), q(0.6), q(0.8)];
+  return FDR_CUTS;
+}
+
 function fdrClass(d){
-  if(d < 2.2) return 'f1';
-  if(d < 2.8) return 'f2';
-  if(d < 3.4) return 'f3';
-  if(d < 4.1) return 'f4';
+  const c = FDR_CUTS || [2.2, 2.8, 3.4, 4.1];
+  if(d <= c[0]) return 'f1';
+  if(d <= c[1]) return 'f2';
+  if(d <= c[2]) return 'f3';
+  if(d <= c[3]) return 'f4';
   return 'f5';
 }
 
 function buildTicker(){
   const start = planStartGw();
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  computeFdrCuts(start, PLAN_GWS);
 
   const rows = BOOT.teams.map(t => {
     const cells = [];
@@ -3434,7 +3664,9 @@ function buildTicker(){
       <tbody>${body}</tbody>
     </table>
     <p class="note">Obtížnost počítám z útočné a obranné síly obou týmů, ne z pevného FDR,
-    které FPL nastaví v srpnu a pak už nemění. <b>VELKÁ</b> písmena znamenají domácí zápas,
+    které FPL nastaví v srpnu a pak už nemění. Barvy jsou <b>relativní</b> — každé pásmo
+    dostane zhruba pětinu zápasů, takže nejtěžší pětina je vždy červená bez ohledu na to,
+    jak vyrovnaná zrovna liga je. <b>VELKÁ</b> písmena znamenají domácí zápas,
     <b>malá</b> venkovní. Dvě zkratky v jednom políčku je double, pomlčka blank.
     Tabulka je seřazená od nejpříznivějšího programu.</p>`;
 }
