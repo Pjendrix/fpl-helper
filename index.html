@@ -502,6 +502,61 @@ td.gwpts .wait{color:var(--mute)}
   .livebar .big{font-size:26px}
   .livebar .txt{text-align:left;flex-basis:100%}
 }
+
+/* ---------- tabulka náhrad ---------- */
+.candhead,.cand2{
+  display:grid;
+  grid-template-columns:1.6fr .7fr .7fr .8fr .9fr .7fr 40px;
+  align-items:center;gap:8px;padding:8px 4px;
+}
+.candhead{
+  font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+  color:var(--mute);font-weight:600;border-bottom:1px solid var(--line);padding-bottom:6px;
+}
+.cand2{border-bottom:1px solid var(--line);font-size:13px}
+.cand2:last-of-type{border-bottom:0}
+.cand2 .n{font-family:var(--f-mono);text-align:right}
+.cand2 .n::before{content:''}
+.cand2 .tm{color:var(--mute);font-size:12px}
+.cand2 .own b{color:var(--blue)}
+.cand2.own-row{background:rgba(0,0,0,.02);border-radius:var(--r-in)}
+.cand2.own-row .own b{color:var(--charcoal)}
+
+button.info{
+  width:22px;height:22px;border-radius:50%;
+  border:1px solid var(--line);background:var(--white);color:var(--mute);
+  font-family:var(--f-disp);font-size:12px;font-weight:700;line-height:1;
+  cursor:pointer;padding:0;
+}
+button.info:hover{border-color:var(--blue);color:var(--blue)}
+button.info.on{background:var(--blue);border-color:var(--blue);color:var(--white)}
+
+.statpop{
+  margin:2px 0 10px;padding:11px 13px;
+  background:var(--haze);border-radius:var(--r-btn);
+}
+.statpop h5{
+  margin:0 0 8px;font-family:var(--f-disp);font-size:12px;
+  text-transform:uppercase;letter-spacing:.04em;color:var(--mute);font-weight:700;
+}
+.statpop .note{margin-bottom:0}
+
+@media (max-width:640px){
+  .candhead{display:none}
+  .cand2{
+    grid-template-columns:1fr auto;gap:2px 8px;
+    padding:10px 4px;
+  }
+  .cand2 .nm{grid-column:1}
+  .cand2 .tm{grid-column:1;grid-row:2}
+  .cand2 .n{text-align:left;font-size:12px;color:var(--mute)}
+  .cand2 .n::before{content:attr(data-l) ' '}
+  .cand2 span:nth-child(3){grid-column:1;grid-row:3}
+  .cand2 span:nth-child(4){grid-column:1;grid-row:4}
+  .cand2 span:nth-child(5){grid-column:2;grid-row:3;text-align:right}
+  .cand2 span:nth-child(6){grid-column:2;grid-row:4;text-align:right}
+  .cand2 span:nth-child(7){grid-column:2;grid-row:1;text-align:right}
+}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#426188">
@@ -2534,16 +2589,20 @@ function findReplacements(it, budget, owned, clubCount, startGw, byId){
   // Pevných 180 znamenalo, že na začátku sezóny neprošel nikdo.
   const minMinutes = Math.min(180, Math.max(0, rounds - 1) * 20);
 
-  const enrich = r => {
-    const f3 = nextFixtures(r.p.team, startGw, 3);
-    const avgD = f3.length ? f3.reduce((s, x) => s + x.d, 0) / f3.length : 3;
-    // vazeny mix: projekce, nedavna forma a program
-    const score = r.xp * 1.0 + parseFloat(r.p.form || 0) * 0.5 + (3.5 - avgD) * 0.4;
-    // Rozdíl projekcí přes pět kol proti hráči, kterého nahrazuje.
-    // Tohle je jediné číslo, které rozhoduje, jestli se hit vyplatí.
-    const mineXp5 = byId[it.p.id] ? byId[it.p.id].xp5 : 0;
-    return {...r, f3, avgD, score, gain: r.xp5 - mineXp5};
-  };
+  /* Pořadí návrhů určuje jedno jediné číslo: kolik procent hráčů v FPL
+     daného hráče vlastní. Žádná projekce, žádná forma, žádný rozpis.
+
+     Je to vědomá volba, ne zjednodušení z lenosti. Vysoké vlastnictví
+     znamená, že se od zbytku pole neodchýlíš — když ten hráč zaboduje,
+     zabodujou i ostatní a ty neztrácíš. Opačná strana mince: takhle se
+     náskok nezískává, jen nepropadá. Statistiky zůstávají dostupné pod
+     tlačítkem, ale do pořadí nemluví. */
+  const enrich = r => ({
+    ...r,
+    f3: nextFixtures(r.p.team, startGw, 3),
+    owned: parseFloat(r.p.selected_by_percent) || 0,
+    lastWeek: r.p.event_points,
+  });
 
   const steps = [
     ['stejná pozice',        r => r.p.element_type === it.p.element_type],
@@ -2563,7 +2622,9 @@ function findReplacements(it, budget, owned, clubCount, startGw, byId){
     counts.push({label, left: pool.length});
   }
 
-  const cands = pool.map(enrich).sort((a, b) => b.score - a.score).slice(0, 3);
+  const cands = pool.map(enrich)
+    .sort((a, b) => b.owned - a.owned)
+    .slice(0, 5);
 
   // Kdo prošel vším kromě ceny — a o kolik peněz jde. Tohle je odpověď
   // na otázku „a kdybych sehnal ještě půl milionu?“, kterou si člověk
@@ -2574,7 +2635,7 @@ function findReplacements(it, budget, owned, clubCount, startGw, byId){
   const nearMiss = affordable
     .filter(r => r.price > budget + 0.001)
     .map(enrich)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => b.owned - a.owned)
     .slice(0, 3)
     .map(r => ({...r, missing: r.price - budget}));
 
@@ -2621,7 +2682,7 @@ function explainNoCandidates({counts, cheapest, nearMiss, budget, minMinutes, po
         ${nearMiss.map(r => `<span class="chip">
           <b>${esc(r.p.web_name)}</b>
           <span class="ct">${esc(r.team.short_name)} · ${r.price.toFixed(1)}m
-            · chybí ${r.missing.toFixed(1)}m</span></span>`).join('')}
+            · vlastní ${r.owned.toFixed(1)} % · chybí ${r.missing.toFixed(1)}m</span></span>`).join('')}
       </div>` : '';
 
   const table = `<details class="why">
@@ -2720,25 +2781,35 @@ function renderTransfers(){
 
     const {cands, diag} = findReplacements(it, budget, owned, clubCount, startGw, byId);
 
-    const epTag = c => c.ep === null ? '–' : c.ep.toFixed(1);
-
-    const candHtml = cands.length ? cands.map(c => `<div class="cand">
-        <div class="l">
-          <b>${esc(c.p.web_name)}</b>
-          <span>${esc(c.team.short_name)} · ${c.price.toFixed(1)}m · forma ${c.p.form}
-            · ${c.p.total_points} b · ${c.f3.map(f =>
-              (teams[f.opp] ? teams[f.opp].short_name : '?') + ' ' + f.d).join(' ')}</span>
-          ${statGrid(c.p)}
-        </div>
-        <div class="r"><b>${epTag(c)}</b><br>xP FPL</div>
-        <div class="r gain ${c.gain > 4 ? 'yes' : c.gain > 0 ? 'maybe' : 'no'}">
-          <b>${c.gain > 0 ? '+' : ''}${c.gain.toFixed(1)}</b><br>za 5 kol
-        </div>
-      </div>`).join('')
-      + `<p class="note"><b>xP FPL</b> je oficiální projekce na příští kolo přímo od FPL.
-         Sloupec „za 5 kol“ je z mého modelu — rozdíl proti hráči, kterého nahrazuješ,
-         přes pět kol včetně případných blanků a doublů. Volný transfer se vyplatí od
-         kladného čísla; za −4 body potřebuješ zisk <b>nad 4</b>.</p>`
+    const candHtml = cands.length ? `
+      <div class="candhead">
+        <span>Hráč</span><span>Tým</span><span class="n">Cena</span>
+        <span class="n">Vlastní</span><span class="n">Body min. kolo</span>
+        <span class="n">Minuty</span><span></span>
+      </div>
+      ${cands.map(c => `<div class="cand2">
+        <span class="nm"><b>${esc(c.p.web_name)}</b></span>
+        <span class="tm">${esc(c.team.short_name)}</span>
+        <span class="n" data-l="Cena">${c.price.toFixed(1)}m</span>
+        <span class="n own" data-l="Vlastní"><b>${c.owned.toFixed(1)}&nbsp;%</b></span>
+        <span class="n" data-l="Min. kolo">${c.lastWeek} b</span>
+        <span class="n" data-l="Minut">${c.p.minutes}</span>
+        <span class="n">
+          <button class="info" type="button" aria-expanded="false"
+                  data-stats="${it.p.id}-${c.p.id}"
+                  aria-label="Statistiky hráče ${esc(c.p.web_name)}">i</button>
+        </span>
+      </div>
+      <div class="statpop" id="stats-${it.p.id}-${c.p.id}" hidden>
+        <h5>${esc(c.p.web_name)} · ${esc(c.team.short_name)} · ${POS[c.p.element_type]}</h5>
+        ${statGrid(c.p)}
+        <p class="note">Program: ${c.f3.map(f =>
+          (teams[f.opp] ? esc(teams[f.opp].short_name) : '?') + ' ' + f.d).join(' · ') || '–'}
+          · projekce FPL ${c.ep === null ? '–' : c.ep.toFixed(1)}</p>
+      </div>`).join('')}
+      <p class="note">Seřazeno <b>výhradně podle vlastnictví</b> — kolik procent
+      hráčů FPL je má v týmu. Statistiky jsou pod tlačítkem <b>i</b> a do pořadí
+      nemluví. Vysoké vlastnictví tě drží s polem; náskok se takhle nezískává.</p>`
       : diag;
 
     /* Karta je složená: v zavřeném stavu jen jméno, zařazení a důvod.
@@ -2760,8 +2831,28 @@ function renderTransfers(){
       </summary>
 
       <div class="issue-body">
-        <h4>${esc(it.p.web_name)} — čísla za sezónu</h4>
-        ${statGrid(it.p)}
+        <div class="candhead">
+          <span>Hráč</span><span>Tým</span><span class="n">Cena</span>
+          <span class="n">Vlastní</span><span class="n">Body min. kolo</span>
+          <span class="n">Minuty</span><span></span>
+        </div>
+        <div class="cand2 own-row">
+          <span class="nm"><b>${esc(it.p.web_name)}</b></span>
+          <span class="tm">${esc(teams[it.p.team].short_name)}</span>
+          <span class="n" data-l="Cena">${(it.p.now_cost / 10).toFixed(1)}m</span>
+          <span class="n own" data-l="Vlastní"><b>${parseFloat(it.p.selected_by_percent).toFixed(1)}&nbsp;%</b></span>
+          <span class="n" data-l="Min. kolo">${it.p.event_points} b</span>
+          <span class="n" data-l="Minut">${it.p.minutes}</span>
+          <span class="n">
+            <button class="info" type="button" aria-expanded="false"
+                    data-stats="self-${it.p.id}"
+                    aria-label="Statistiky hráče ${esc(it.p.web_name)}">i</button>
+          </span>
+        </div>
+        <div class="statpop" id="stats-self-${it.p.id}" hidden>
+          <h5>${esc(it.p.web_name)} · ${POS[it.p.element_type]}</h5>
+          ${statGrid(it.p)}
+        </div>
 
         <div class="budget">
           <label>Prodejní cena
@@ -2798,6 +2889,21 @@ function renderTransfers(){
     <p class="note" style="margin-top:18px">Nevyplněné ceny jsou odhad z aktuální ceny hráče.
     Když ti hráč zdražil, FPL vrací jen polovinu zisku, takže skutečná prodejní cena bývá nižší.</p>
     <button class="lnk" id="sellreset" style="margin-top:10px">Zahodit všechny ruční ceny</button>`;
+
+  /* Tlačítko „i“ místo hover tooltipu — na dotykovém displeji se hover
+     nedá vyvolat a tooltip by tam byl nedostupný. */
+  $('trout').querySelectorAll('button.info').forEach(btn => {
+    btn.addEventListener('click', ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const box = $('stats-' + btn.dataset.stats);
+      if(!box) return;
+      const show = box.hidden;
+      box.hidden = !show;
+      btn.setAttribute('aria-expanded', String(show));
+      btn.classList.toggle('on', show);
+    });
+  });
 
   // prepocet po uprave — bez novych dotazu na API
   $('trout').querySelectorAll('input.pin[data-pid]').forEach(inp => {
