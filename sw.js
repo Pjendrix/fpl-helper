@@ -1,21 +1,34 @@
-// Service worker pro Squadcheck.
+// Service worker pro Minileague Squad Check.
 //
-// Záměrně cachuje jen skořápku aplikace — HTML, manifest, ikonu.
-// Odpovědi z /api/* se nikdy neukládají: zastaralá tabulka miniligy nebo
+// Záměrně cachuje jen skořápku aplikace — HTML, manifest, ikony, značky klubů.
+// Odpovědi z /api/fpl se nikdy neukládají: zastaralá tabulka miniligy nebo
 // stará sestava vypadají jako pravda, a to je horší než čestná chyba.
 // Pro čerstvost dat máme edge cache na serveru.
+//
+// Výjimka jsou odznaky klubů z /api/badge. Ty se mění jednou za sezónu
+// (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
+// nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v1';
-const FILES = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg'];
+const SHELL = 'squadcheck-shell-v3';
+const BADGES = 'squadcheck-badges-v1';
+const FILES = ['/', '/index.html', '/manifest.webmanifest',
+               '/icon.svg', '/favicon.svg', '/club-marks.svg'];
 
 self.addEventListener('install', ev => {
-  ev.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  ev.waitUntil(
+    caches.open(SHELL)
+      // addAll je all-or-nothing: jeden chybějící soubor by shodil celou
+      // instalaci a appka by zůstala bez service workeru. Radši po jednom.
+      .then(c => Promise.all(FILES.map(f => c.add(f).catch(() => {}))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', ev => {
   ev.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== SHELL).map(k => caches.delete(k))))
+      .then(keys => Promise.all(
+        keys.filter(k => k !== SHELL && k !== BADGES).map(k => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -25,6 +38,19 @@ self.addEventListener('fetch', ev => {
 
   if(ev.request.method !== 'GET') return;
   if(url.origin !== location.origin) return;
+
+  // Odznaky: cache first. Obrázek klubu se během sezóny nemění.
+  if(url.pathname === '/api/badge'){
+    ev.respondWith(
+      caches.open(BADGES).then(c =>
+        c.match(ev.request).then(hit => hit || fetch(ev.request).then(res => {
+          if(res.ok) c.put(ev.request, res.clone());
+          return res;
+        }).catch(() => hit)))
+    );
+    return;
+  }
+
   if(url.pathname.startsWith('/api/')) return;   // data vždy ze sítě
 
   // Skořápka: nejdřív síť, cache je záložní plán pro offline.
@@ -36,5 +62,16 @@ self.addEventListener('fetch', ev => {
         return res;
       })
       .catch(() => caches.match(ev.request).then(hit => hit || caches.match('/')))
+  );
+});
+
+// Klik na připomínku deadlinu otevře appku, ne prázdnou záložku.
+self.addEventListener('notificationclick', ev => {
+  ev.notification.close();
+  ev.waitUntil(
+    self.clients.matchAll({type: 'window', includeUncontrolled: true}).then(list => {
+      for(const c of list) if(c.url.includes(location.origin)) return c.focus();
+      return self.clients.openWindow('/');
+    })
   );
 });

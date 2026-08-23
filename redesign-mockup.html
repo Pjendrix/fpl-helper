@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Minileague Squad Check — návrh redesignu</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;800&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* ---- barvy: paleta Premier League, ne obecná modrá ---- */
+  --ink:#1F0A24;
+  --aubergine:#37003C;
+  --aubergine-lift:#4B0F52;
+  --plum:#6B3D74;
+  --paper:#F4F1F5;
+  --card:#FFFFFF;
+  --line:rgba(55,0,60,.12);
+  --line-soft:rgba(55,0,60,.06);
+
+  --mint:#00A862;        /* text/ikony na bílé — projde AA */
+  --mint-fill:#00FF87;   /* výplně, nikdy text */
+  --rose:#E90052;
+  --amber:#B0700A;
+  --cyan:#0090A8;
+
+  /* ---- JEDNA stupnice obtížnosti pro celou appku ---- */
+  --f1:#3FCF7F; --f1i:#06301C;
+  --f2:#A8E6C4; --f2i:#0B5C36;
+  --f3:#E7E3E9; --f3i:#42474E;
+  --f4:#F5B3AB; --f4i:#8F2119;
+  --f5:#E0574B; --f5i:#FFFFFF;
+
+  --f-disp:Archivo,'Arial Narrow',system-ui,sans-serif;
+  --f:Inter,ui-sans-serif,system-ui,sans-serif;
+  --f-mono:'Space Mono',ui-monospace,monospace;
+  --r:12px; --r-sm:6px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f);
+  font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1060px;margin:0 auto;padding:0 20px}
+
+/* ============ hlavička: tmavá, dává appce páteř ============ */
+.bar{background:var(--aubergine);color:#fff;position:sticky;top:0;z-index:20}
+.bar .wrap{display:flex;align-items:center;gap:18px;height:58px}
+.mark{display:flex;align-items:center;gap:10px;min-width:0}
+.mark svg{width:22px;height:22px;flex:none}
+.mark .t{font-family:var(--f-disp);font-weight:800;font-size:15px;
+  letter-spacing:-.2px;white-space:nowrap}
+.mark .t small{display:block;font-family:var(--f-mono);font-size:8.5px;
+  font-weight:700;letter-spacing:3.2px;color:#B98FC2;margin-bottom:-2px}
+.cd{margin-left:auto;font-family:var(--f-mono);font-size:12px;font-weight:700;
+  background:rgba(255,255,255,.1);padding:5px 11px;border-radius:99px;white-space:nowrap}
+.cd.soon{background:var(--rose)}
+.me{font-size:12.5px;color:#D9C4DE;white-space:nowrap}
+.me b{color:#fff}
+
+/* ============ PODPIS: kolejnice sezóny ============
+   38 čárek = 38 kol. Odehraná plná, aktuální mátová a plní se
+   do deadlinu, budoucí vlásek. Prázdné/dvojité kolo tvého kádru
+   dostane tečku. Jediné místo v appce, kde vidíš celou sezónu naráz. */
+.rail{background:var(--aubergine-lift);padding:9px 0 11px}
+.rail .wrap{display:flex;align-items:flex-end;gap:2px;height:26px}
+.gw{flex:1;position:relative;height:100%;display:flex;align-items:flex-end}
+.gw i{display:block;width:100%;height:4px;border-radius:2px;background:rgba(255,255,255,.16)}
+.gw.past i{background:rgba(255,255,255,.42)}
+.gw.now i{height:11px;background:linear-gradient(90deg,var(--mint-fill) 62%,rgba(0,255,135,.22) 62%)}
+.gw.now::after{content:'GW1';position:absolute;bottom:15px;left:0;
+  font-family:var(--f-mono);font-size:8.5px;font-weight:700;color:var(--mint-fill)}
+.gw b{position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--rose)}
+.gw.dbl b{background:var(--mint-fill)}
+
+/* ============ navigace: podtržení, ne sedm bublin ============ */
+.nav{background:var(--aubergine);border-bottom:1px solid rgba(255,255,255,.1)}
+.nav .wrap{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.nav button{background:none;border:0;color:#C7A8CE;font-family:var(--f);
+  font-size:13px;font-weight:600;padding:11px 15px 10px;cursor:pointer;
+  white-space:nowrap;border-bottom:2px solid transparent}
+.nav button:hover{color:#fff}
+.nav button[aria-selected=true]{color:#fff;border-bottom-color:var(--mint-fill)}
+
+/* ============ karty ============ */
+.panel{background:var(--card);border-radius:var(--r);padding:24px;margin:18px 0}
+h2{font-family:var(--f-disp);font-size:15px;font-weight:800;letter-spacing:.4px;
+  text-transform:uppercase;margin:0 0 3px}
+.sub{color:var(--plum);font-size:12.5px;margin:0 0 18px}
+h3{font-family:var(--f-disp);font-size:12px;font-weight:800;letter-spacing:1.4px;
+  text-transform:uppercase;color:var(--plum);margin:26px 0 10px}
+
+/* ============ přehled kádru ============ */
+.grp{display:flex;align-items:baseline;gap:9px;padding:8px 14px;margin-top:14px;
+  background:var(--paper);border-radius:var(--r-sm) var(--r-sm) 0 0;
+  font-family:var(--f-disp);font-size:11px;font-weight:800;letter-spacing:1.4px;
+  text-transform:uppercase;color:var(--aubergine)}
+.grp span{font-family:var(--f-mono);font-size:10.5px;letter-spacing:0;
+  font-weight:400;color:var(--plum);margin-left:auto;text-transform:none}
+.row{display:grid;grid-template-columns:minmax(0,1.6fr) 52px 46px 44px 150px;
+  gap:10px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line-soft)}
+.row:last-child{border-bottom:0}
+.who{display:flex;align-items:center;gap:8px;min-width:0}
+.who svg{width:21px;height:21px;flex:none;border-radius:5px}
+.who b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who em{font-style:normal;color:var(--plum);font-family:var(--f-mono);font-size:10.5px}
+.n{font-family:var(--f-mono);font-size:12.5px;text-align:right}
+.n u{text-decoration:none;color:var(--plum);font-size:10px;display:block}
+.tag{font-family:var(--f-mono);font-size:8.5px;font-weight:700;letter-spacing:.4px;
+  padding:1.5px 5px;border-radius:3px;background:var(--aubergine);color:#fff}
+.tag.dif{background:var(--mint-fill);color:#06301C}
+.tag.out{background:var(--rose);color:#fff}
+
+/* ticker: JEDNA definice stupnice, používá proměnné z :root */
+.tick{display:flex;gap:3px}
+.tick>span{flex:1;text-align:center;padding:4px 2px;border-radius:var(--r-sm);
+  font-family:var(--f-mono);font-size:10px;font-weight:700;line-height:1.2}
+.tick .f1{background:var(--f1);color:var(--f1i)}
+.tick .f2{background:var(--f2);color:var(--f2i)}
+.tick .f3{background:var(--f3);color:var(--f3i)}
+.tick .f4{background:var(--f4);color:var(--f4i)}
+.tick .f5{background:var(--f5);color:var(--f5i)}
+.tick>span u{display:block;text-decoration:none;font-size:8px;font-weight:400;opacity:.72}
+.tick .blank{background:repeating-linear-gradient(45deg,#EDE9EE,#EDE9EE 3px,#DCD5DE 3px,#DCD5DE 6px);color:var(--plum)}
+
+/* ============ karta přestupu ============ */
+.issue{border:1px solid var(--line);border-left:3px solid var(--rose);
+  border-radius:var(--r-sm);padding:14px 16px;margin-bottom:10px}
+.issue .hd{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.issue .hd b{font-family:var(--f-disp);font-size:17px;font-weight:800}
+.issue .why{color:var(--plum);font-size:12.5px;margin:7px 0 0}
+.cands{margin-top:13px;border-top:1px solid var(--line);padding-top:4px}
+.cand{display:grid;grid-template-columns:minmax(0,1.5fr) 50px 60px 46px 26px;
+  gap:9px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line-soft);
+  font-size:13px}
+.cand:last-child{border-bottom:0}
+.cand .own{font-family:var(--f-mono);font-size:12.5px;text-align:right;color:var(--aubergine);font-weight:700}
+.i{width:21px;height:21px;border-radius:50%;border:1px solid var(--line);
+  background:none;color:var(--plum);font-family:var(--f-disp);font-size:11px;
+  font-weight:800;cursor:pointer;padding:0}
+.i:hover{border-color:var(--cyan);color:var(--cyan)}
+
+.legend{display:flex;gap:11px;flex-wrap:wrap;align-items:center;
+  margin-top:11px;font-size:11px;color:var(--plum)}
+.legend span{display:flex;align-items:center;gap:5px}
+.legend i{width:18px;height:10px;border-radius:3px;display:inline-block}
+
+.note{background:var(--paper);border-radius:var(--r-sm);padding:13px 15px;
+  font-size:12.5px;color:var(--plum);margin-top:16px}
+.note b{color:var(--ink)}
+
+@media (max-width:720px){
+  .row{grid-template-columns:1fr auto;gap:3px 10px}
+  .row .n{text-align:left;font-size:11px;color:var(--plum)}
+  .who{grid-column:1/-1;margin-bottom:4px}
+  .tick{grid-column:1/-1;margin-top:6px}
+  .cand{grid-template-columns:1fr auto auto}
+  .me{display:none}
+  .rail .wrap{gap:1px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="bar"><div class="wrap">
+  <span class="mark">
+    <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="15" fill="#4B0F52"/><path d="M17 33.5 L27.5 44 L48 20" fill="none" stroke="#00FF87" stroke-width="8" stroke-linecap="square"/></svg>
+    <span class="t"><small>MINILEAGUE</small>SQUAD CHECK</span>
+  </span>
+  <span class="cd soon">DEADLINE ZA 2:14:07</span>
+  <span class="me">Chytráci z Karlína · <b>60480</b></span>
+</div></div>
+
+<div class="rail"><div class="wrap" id="rail"></div></div>
+
+<div class="nav"><div class="wrap">
+  <button aria-selected="true">Sestava</button>
+  <button aria-selected="false">Miniliga</button>
+  <button aria-selected="false">Hub ligy</button>
+  <button aria-selected="false">Hráči</button>
+  <button aria-selected="false">Transfery</button>
+  <button aria-selected="false">Program</button>
+</div></div>
+
+<div class="wrap">
+
+  <div class="panel">
+    <h2>Kádr · GW1</h2>
+    <p class="sub">Odznaky, stav, rozpis na tři kola a vlastnictví v jednom řádku.</p>
+
+    <div class="grp">Brankáři <span>6.0m · 1 hráč v základu</span></div>
+    <div class="row">
+      <span class="who"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#EF0107"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-family="Space Mono,monospace" font-size="10.5" font-weight="700">ARS</text></svg><b>Raya</b><em>6.0</em></span>
+      <span class="n">37.7%<u>vlastn.</u></span><span class="n">6<u>body</u></span><span class="n">90<u>min</u></span>
+      <span class="tick"><span class="f2">COV<u>D</u></span><span class="f3">LEE<u>V</u></span><span class="f4">CHE<u>D</u></span></span>
+    </div>
+
+    <div class="grp">Obránci <span>21.5m · 4 v základu</span></div>
+    <div class="row">
+      <span class="who"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#EF0107"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-family="Space Mono,monospace" font-size="10.5" font-weight="700">ARS</text></svg><b>Calafiori</b><em>5.5</em><span class="tag">K</span></span>
+      <span class="n">39.9%<u>vlastn.</u></span><span class="n">9<u>body</u></span><span class="n">80<u>min</u></span>
+      <span class="tick"><span class="f2">COV<u>D</u></span><span class="f3">LEE<u>V</u></span><span class="f4">CHE<u>D</u></span></span>
+    </div>
+    <div class="row">
+      <span class="who"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6CABDD"/><text x="16" y="21" text-anchor="middle" fill="#12264F" font-family="Space Mono,monospace" font-size="10.5" font-weight="700">MCI</text></svg><b>Gvardiol</b><em>6.0</em><span class="tag dif">DIF 3.1%</span></span>
+      <span class="n">3.1%<u>vlastn.</u></span><span class="n">2<u>body</u></span><span class="n">90<u>min</u></span>
+      <span class="tick"><span class="f5">LIV<u>V</u></span><span class="f1">HUL<u>D</u></span><span class="blank">—<u>blank</u></span></span>
+    </div>
+    <div class="row">
+      <span class="who"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#241F20"/><g fill="#fff" opacity=".92"><rect x="9" width="6" height="32"/><rect x="23" width="6" height="32"/></g><text x="16" y="21" text-anchor="middle" fill="#fff" font-family="Space Mono,monospace" font-size="10.5" font-weight="700">NEW</text></svg><b>Hall</b><em>4.5</em><span class="tag out">ZRANĚNÝ</span></span>
+      <span class="n">8.4%<u>vlastn.</u></span><span class="n">0<u>body</u></span><span class="n">0<u>min</u></span>
+      <span class="tick"><span class="f3">BOU<u>D</u></span><span class="f4">TOT<u>V</u></span><span class="f2">IPS<u>D</u></span></span>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--f1)"></i><i style="background:var(--f2)"></i>snadný</span>
+      <span><i style="background:var(--f3)"></i>průměr</span>
+      <span><i style="background:var(--f4)"></i><i style="background:var(--f5)"></i>těžký</span>
+      <span><i class="blank" style="background:repeating-linear-gradient(45deg,#EDE9EE,#EDE9EE 3px,#DCD5DE 3px,#DCD5DE 6px)"></i>volno</span>
+    </div>
+
+    <div class="note"><b>Co se změnilo.</b> Stupnice obtížnosti je teď jedna sada
+    proměnných v <code>:root</code> místo tří kopií v CSS. Odznak klubu nahradil
+    textovou zkratku ve sloupci navíc — řádek je užší a čitelnější.</div>
+  </div>
+
+  <div class="panel">
+    <h2>Transfery</h2>
+    <p class="sub">Problém, důvod, a náhrady seřazené podle vlastnictví.</p>
+
+    <div class="issue">
+      <div class="hd"><b>Hall</b><span class="tag out">ZRANĚNÝ</span>
+        <span class="n" style="margin-left:auto">prodáš za 4.5m</span></div>
+      <p class="why">Bez data návratu už dvě kola. V dalších třech kolech
+        má Newcastle rozpis kolem průměru — čekání se nevyplácí.</p>
+
+      <div class="cands">
+        <div class="cand">
+          <span class="who"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#EF0107"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-family="Space Mono,monospace" font-size="10.5" font-weight="700">ARS</text></svg><b>Mosquera</b></span>
+          <span class="n">5.5m</span><span class="own">6.3 %</span><span class="n">6 b</span>
+          <button class="i" aria-label="Detailní statistiky">i</button>
+        </div>
+        <div class="cand">
+          <span class="who"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#034694"/><text x="16" y="21" text-anchor="middle" fill="#fff" font-family="Space Mono,monospace" font-size="10.5" font-weight="700">CHE</text></svg><b>Cucurella</b></span>
+          <span class="n">5.5m</span><span class="own">5.8 %</span><span class="n">4 b</span>
+          <button class="i" aria-label="Detailní statistiky">i</button>
+        </div>
+        <div class="cand">
+          <span class="who"><svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#FFCD00"/><text x="16" y="21" text-anchor="middle" fill="#1D428A" font-family="Space Mono,monospace" font-size="10.5" font-weight="700">LEE</text></svg><b>Bogle</b></span>
+          <span class="n">4.5m</span><span class="own">4.4 %</span><span class="n">5 b</span>
+          <button class="i" aria-label="Detailní statistiky">i</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="note"><b>Kolejnice nahoře</b> ukazuje celou sezónu: odehraná kola
+    plná, aktuální se plní do deadlinu, červená tečka je blank tvého kádru,
+    zelená double. Jedna informace, kterou appka měla jen schovanou v Programu.</div>
+  </div>
+
+</div>
+
+<script>
+// Kolejnice sezóny — v ostré appce se plní z events[] a fixtures[].
+const rail = document.getElementById('rail');
+const blanks = {12:1, 29:1}, doubles = {25:1, 34:1};
+for(let g = 1; g <= 38; g++){
+  const d = document.createElement('span');
+  d.className = 'gw' + (g < 1 ? ' past' : g === 1 ? ' now' : '')
+              + (blanks[g] ? ' bl' : '') + (doubles[g] ? ' dbl' : '');
+  d.title = 'GW' + g;
+  d.innerHTML = '<i></i>' + (blanks[g] || doubles[g] ? '<b></b>' : '');
+  rail.appendChild(d);
+}
+</script>
+</body>
+</html>

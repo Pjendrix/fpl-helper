@@ -3,33 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Squad Check — Fantasy Premier League</title>
+<title>Minileague Squad Check</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Oswald:wght@700&family=Space+Mono:wght@400;700&family=Dancing+Script:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
-  --sky:#426188;
-  --sky-deep:#33506f;
-  --blue:#2b7fff;
-  --ink:#000000;
-  --white:#ffffff;
-  --charcoal:#1b1b1b;
-  --haze:#f5f5f5;
-  --line:rgba(0,0,0,.1);
-  --mute:#6b7280;
+  /* ---------------------------------------------------------------
+     Paleta Premier League. Auberginová #37003C a mátová #00FF87 jsou
+     barvy té soutěže, o které appka je — a skoro nikdo jiný je nepoužívá,
+     protože jsou tak specifické. Předchozí #2b7fff byla systémová modrá,
+     která navíc kolidovala s modrozelenou stupnicí obtížnosti.
+     --------------------------------------------------------------- */
+  --aubergine:#37003C;
+  --aubergine-lift:#4B0F52;
+  --sky:#37003C;            /* plátno a hřiště */
+  --sky-deep:#2B0030;
 
-  --ok:#0f7d4a;
-  --ok-bg:#e6f5ed;
-  --warn:#8a5a00;
-  --warn-bg:#fdf2dc;
-  --alert:#b32218;
-  --alert-bg:#fceceb;
+  --blue:#0086A8;           /* interaktivní prvky; mimo stupnici obtížnosti */
+  --ink:#1F0A24;
+  --charcoal:#1F0A24;
+  --white:#ffffff;
+  --haze:#F4F1F5;           /* papír s auberginovým nádechem */
+  --line:rgba(55,0,60,.12);
+  --line-soft:rgba(55,0,60,.06);
+  --mute:#6B3D74;
+
+  --mint-fill:#00FF87;      /* jen výplně, nikdy text — na bílé neprojde */
+  --ok:#00874F;    --ok-bg:#E2F7EC;
+  --warn:#9A6200;  --warn-bg:#FDF3E0;   --warn-line:#C98400;
+  --alert:#C4004A; --alert-bg:#FDEBF1;
+
+  /* ---------------------------------------------------------------
+     Stupnice obtížnosti rozpisu — JEDNA definice pro celou appku.
+     Dřív existovala ve třech kopiích (.ticker, .tick3, .fdrleg) a každá
+     barva byla napsaná třikrát. Změna odstínu znamenala hledat na třech
+     místech; teď stačí přepsat tady.
+     --------------------------------------------------------------- */
+  --f1:#3FCF7F; --f1i:var(--f1i);
+  --f2:#A8E6C4; --f2i:var(--f2i);
+  --f3:#E7E3E9; --f3i:var(--f3i);
+  --f4:#F5B3AB; --f4i:var(--f4i);
+  --f5:#E0574B; --f5i:#FFFFFF;
+  --blank:repeating-linear-gradient(45deg,#EDE9EE,#EDE9EE 3px,#DCD5DE 3px,#DCD5DE 6px);
+  --blank-i:#5F5F5F;
 
   --f:'Inter',ui-sans-serif,system-ui,sans-serif;
-  --f-disp:'Oswald',var(--f);
+  --f-disp:'Archivo','Arial Narrow',ui-sans-serif,sans-serif;
   --f-mono:'Space Mono',ui-monospace,monospace;
-  --f-cur:'Dancing Script',cursive;
 
   --r-card:14px; --r-btn:8px; --r-in:4px; --r-img:11px;
 }
@@ -47,20 +69,22 @@ body{
 .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
 
 /* ---------- horní lišta ---------- */
-.bar{
-  position:sticky;top:0;z-index:20;
-  background:rgba(255,255,255,.82);
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
-  border-bottom:1px solid var(--line);
-}
-.bar .wrap{display:flex;align-items:center;gap:16px;height:60px;flex-wrap:wrap}
-.brand{font-family:var(--f-disp);font-weight:700;font-size:22px;letter-spacing:.01em;
-  text-transform:uppercase;color:var(--charcoal);white-space:nowrap}
-.brand em{font-family:var(--f-cur);font-style:normal;font-weight:500;
-  text-transform:none;color:var(--blue);font-size:24px;margin-left:2px}
-.who{margin-left:auto;display:flex;align-items:center;gap:8px;
-  font-family:var(--f-mono);font-size:12px;color:var(--mute)}
-.who b{color:var(--charcoal);font-weight:700}
+/* Tmavá lišta dává appce páteř: bílé karty pak čtou jako papír na stole.
+   Dřív byla hlavička bílá karta na modrém pozadí a splývala s obsahem. */
+.bar{position:sticky;top:0;z-index:20;background:var(--aubergine);color:#fff}
+.bar .wrap{display:flex;align-items:center;gap:14px;height:58px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none}
+.brand svg{width:23px;height:23px;flex:none}
+.brand .tx{font-family:var(--f-disp);font-weight:800;font-size:15px;
+  letter-spacing:-.2px;color:#fff;white-space:nowrap;line-height:1.15}
+.brand .tx small{display:block;font-family:var(--f-mono);font-size:8.5px;
+  font-weight:700;letter-spacing:3.2px;color:#B98FC2;margin-bottom:-1px}
+.bar .who{margin-left:auto;display:flex;align-items:center;gap:9px;
+  font-family:var(--f-mono);font-size:11.5px;color:#D9C4DE;min-width:0}
+.bar .who b{color:#fff;font-weight:700;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.bar .who button{border-color:rgba(255,255,255,.35);color:#fff;background:none}
+.bar .who button:hover{background:rgba(255,255,255,.12)}
 
 /* ---------- vstupní obrazovka ---------- */
 .hero{padding:80px 0 120px;text-align:center}
@@ -70,9 +94,9 @@ body{
   letter-spacing:-.01em;text-transform:uppercase;
   color:var(--white);margin:0;
 }
-.hero h1 em{font-family:var(--f-cur);font-style:normal;font-weight:500;
-  text-transform:none;letter-spacing:0;font-size:.52em;
-  display:block;margin-top:6px;color:var(--white);opacity:.92}
+.hero h1 em{font-family:var(--f-mono);font-style:normal;font-weight:700;
+  text-transform:uppercase;letter-spacing:.42em;font-size:.15em;
+  display:block;margin-bottom:14px;color:var(--mint-fill);opacity:1}
 .hero .lede{color:rgba(255,255,255,.86);font-size:16px;max-width:440px;
   margin:20px auto 0;line-height:1.5}
 
@@ -106,13 +130,17 @@ button.wide{width:100%}
 button.small{font-size:13px;padding:7px 14px}
 
 /* ---------- navigace v appce ---------- */
-.nav{display:flex;gap:6px;overflow-x:auto;padding:14px 0 0}
-.nav button{
-  border-color:var(--line);color:var(--charcoal);background:rgba(255,255,255,.72);
-  font-size:13px;padding:7px 15px;white-space:nowrap;
-}
-.nav button:hover{background:var(--white)}
-.nav button[aria-selected="true"]{background:var(--white);border-color:var(--charcoal)}
+/* Podtržené záložky místo šesti bublin: na mobilu se dřív zalamovaly
+   do dvou řádků a braly celou obrazovku. */
+.navbar{background:var(--aubergine);border-bottom:1px solid rgba(255,255,255,.1)}
+.nav{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.nav::-webkit-scrollbar{display:none}
+.nav button{background:none;border:0;border-radius:0;color:#C7A8CE;
+  font-family:var(--f);font-size:13px;font-weight:600;padding:11px 15px 9px;
+  white-space:nowrap;border-bottom:2px solid transparent}
+.nav button:hover{color:#fff;background:rgba(255,255,255,.06)}
+.nav button[aria-selected="true"]{color:#fff;border-bottom-color:var(--mint-fill)}
+.nav button:focus-visible{outline-offset:-3px}
 
 .panel{
   background:var(--white);border-radius:var(--r-card);
@@ -122,12 +150,13 @@ button.small{font-size:13px;padding:7px 14px}
 #app[hidden]{display:none}
 #landing[hidden]{display:none}
 
-h2{font-size:20px;line-height:1.1;font-weight:600;margin:32px 0 12px}
+h2{font-family:var(--f-disp);font-size:15px;font-weight:800;letter-spacing:.4px;
+  text-transform:uppercase;line-height:1.2;margin:30px 0 10px}
 h2:first-child{margin-top:0}
 .hint{color:var(--mute);font-size:13px;margin:0}
 .hint code{font-family:var(--f-mono);font-size:12px;color:var(--charcoal)}
 .note{color:var(--mute);font-size:13px;margin:8px 0 0;line-height:1.5}
-#msg,#lmsg,#amsg,#trmsg,#hubmsg{margin:16px 0;color:var(--warn);font-size:13px}
+#msg,#lmsg,#trmsg,#hubmsg,#plmsg{margin:16px 0;color:var(--warn);font-size:13px}
 
 /* ---------- podsekce ---------- */
 .subnav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 20px}
@@ -146,7 +175,7 @@ h2:first-child{margin-top:0}
 .row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
 .shirt{width:88px;background:rgba(255,255,255,.93);border-radius:var(--r-btn);
   padding:9px 5px 8px;text-align:center;border-top:4px solid var(--ok)}
-.shirt.d{border-top-color:#d99400}
+.shirt.d{border-top-color:var(--warn-line)}
 .shirt.i,.shirt.s,.shirt.u{border-top-color:var(--alert)}
 .shirt .nm{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .shirt .tm{font-family:var(--f-mono);font-size:10px;color:var(--mute)}
@@ -165,14 +194,13 @@ th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;
   color:var(--mute);padding:8px;border-bottom:1px solid var(--line);font-weight:600}
 td{padding:9px 8px;border-bottom:1px solid rgba(0,0,0,.05)}
 td.n,th.n{text-align:right;font-family:var(--f-mono)}
-.bench td{opacity:.5}
 tr.click{cursor:pointer}
 tr.click:hover td{background:var(--haze)}
 .ok{color:var(--ok)} .wn{color:var(--warn)} .al{color:var(--alert)}
 .st{font-family:var(--f-mono);font-size:11.5px}
 
 .alerts{display:flex;flex-direction:column;gap:8px}
-.alert{background:var(--haze);border-radius:12px;padding:12px 16px;border-left:3px solid #d99400}
+.alert{background:var(--haze);border-radius:12px;padding:12px 16px;border-left:3px solid var(--warn-line)}
 .alert.bad{border-left-color:var(--alert)}
 .alert .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
 .alert .who{font-weight:600;margin:0;font-family:var(--f);font-size:14px;color:var(--charcoal)}
@@ -186,7 +214,7 @@ tr.click:hover td{background:var(--haze)}
   padding:5px 12px;font-size:12.5px;display:flex;align-items:center;gap:7px}
 .chip .ct{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
 .chip.mine{border-color:var(--ok)}
-.chip.unique{border-color:#d99400}
+.chip.unique{border-color:var(--warn-line)}
 .chip.miss{border-color:var(--alert)}
 
 .bar-w{height:6px;background:var(--haze);border-radius:3px;overflow:hidden;min-width:52px}
@@ -204,18 +232,6 @@ tr.click:hover td{background:var(--haze)}
 .legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
 .legend b{color:var(--charcoal);font-weight:600}
 
-/* ---------- před deadlinem ---------- */
-.match{background:var(--haze);border-radius:12px;padding:14px 16px;margin-bottom:10px;
-  border-left:3px solid var(--line)}
-.match h3{margin:0 0 4px;font-size:15px;font-weight:600}
-.match .ko{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
-.risk{border-left-color:var(--alert)}
-.safe{border-left-color:var(--ok)}
-.pend{border-left-color:var(--line)}
-.setup{background:var(--warn-bg);border-radius:12px;padding:16px 20px;margin:16px 0}
-.setup h3{margin:0 0 8px;font-size:14px;font-weight:600;color:var(--warn)}
-.setup ol{margin:0;padding-left:20px;color:var(--charcoal);font-size:13px;line-height:1.8}
-.setup code{font-family:var(--f-mono);font-size:12px}
 
 /* ---------- detail hráče ---------- */
 .detail{background:var(--haze);border-radius:12px;padding:20px 22px;margin:16px 0}
@@ -242,7 +258,7 @@ tr.click:hover td{background:var(--haze)}
 .issue{background:var(--haze);border-radius:12px;padding:16px 18px;margin-bottom:12px;
   border-left:3px solid var(--line)}
 .issue.p1{border-left-color:var(--alert)}
-.issue.p2{border-left-color:#d99400}
+.issue.p2{border-left-color:var(--warn-line)}
 .issue .hdr{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .issue .hdr b{font-size:16px}
 .issue .why{color:var(--mute);font-size:13px;margin:8px 0 0;line-height:1.6}
@@ -274,7 +290,7 @@ tr.click:hover td{background:var(--haze)}
   border-left:3px solid var(--line)}
 .news.good{border-left-color:var(--ok)}
 .news.bad{border-left-color:var(--alert)}
-.news.warn{border-left-color:#d99400}
+.news.warn{border-left-color:var(--warn-line)}
 .news .kicker{font-size:10.5px;letter-spacing:.11em;text-transform:uppercase;
   color:var(--mute);margin-bottom:5px}
 .news .head{font-size:17px;font-weight:600;line-height:1.25}
@@ -299,25 +315,14 @@ tr.click:hover td{background:var(--haze)}
 .capmap .ct2{width:74px;text-align:right;font-family:var(--f-mono);
   font-size:11.5px;color:var(--mute);flex:none}
 
-@media (max-width:640px){
-  .hero{padding:48px 0 72px}
-  .gate{padding:24px}
-  .panel{padding:20px 16px}
-  .shirt{width:74px}
-  td,th{padding:7px 5px}
-  .hide-s{display:none}
-}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
 
 /* ---------- odpočet do deadlinu ---------- */
-.cd{
-  font-family:var(--f-mono);font-size:12px;font-weight:700;
-  padding:5px 10px;border-radius:999px;
-  background:var(--haze);color:var(--charcoal);
-  border:1px solid var(--line);white-space:nowrap;
-}
-.cd.soon{background:var(--warn-bg);color:var(--warn);border-color:transparent}
-.cd.late{background:var(--alert-bg);color:var(--alert);border-color:transparent}
+.cd{font-family:var(--f-mono);font-size:11.5px;font-weight:700;
+  padding:5px 11px;border-radius:999px;white-space:nowrap;
+  background:rgba(255,255,255,.12);color:#fff;border:0}
+.cd.soon{background:#C98400;color:#fff}
+.cd.late{background:var(--alert);color:#fff}
 
 /* ---------- kapitánská doporučení ---------- */
 .capbar{display:grid;gap:8px;margin:12px 0}
@@ -350,13 +355,12 @@ tr.click:hover td{background:var(--haze)}
   display:inline-block;min-width:42px;padding:4px 5px;margin:1px;
   border-radius:var(--r-in);font-family:var(--f-mono);font-size:11px;font-weight:700;
 }
-.ticker .f1{background:#8fe0b0;color:#06301c}
-.ticker .f2{background:#cdeed9;color:#0b5c36}
-.ticker .f3{background:#ededed;color:#42474e}
-.ticker .f4{background:#f7cac5;color:#8f2119}
-.ticker .f5{background:#eb9a92;color:#5c120d}
-.ticker td.blank span{background:repeating-linear-gradient(45deg,
-  var(--haze),var(--haze) 4px,#e4e4e4 4px,#e4e4e4 8px);color:var(--mute)}
+.ticker .f1{background:var(--f1);color:var(--f1i)}
+.ticker .f2{background:var(--f2);color:var(--f2i)}
+.ticker .f3{background:var(--f3);color:var(--f3i)}
+.ticker .f4{background:var(--f4);color:var(--f4i)}
+.ticker .f5{background:var(--f5);color:var(--f5i)}
+.ticker td.blank span{background:var(--blank) 4px,#e4e4e4 4px,#e4e4e4 8px);color:var(--mute)}
 .ticker td.dbl{background:rgba(43,127,255,.07)}
 
 /* ---------- blanky a doubly ---------- */
@@ -396,28 +400,19 @@ button.cmp.on{background:var(--blue);border-color:var(--blue);color:var(--white)
   align-items:center;gap:12px;text-align:center;margin-bottom:14px}
 .compare .chead b{display:block;font-family:var(--f-disp);font-size:19px;text-transform:uppercase}
 .compare .chead span{color:var(--mute);font-size:12px}
-.compare .vs{font-family:var(--f-cur);font-size:20px;color:var(--blue)}
+.compare .vs{font-family:var(--f-disp);font-size:13px;font-weight:800;
+  letter-spacing:.12em;color:var(--mute);text-transform:uppercase}
 .ctab td{text-align:center;font-family:var(--f-mono);font-size:13px}
 .ctab td.lbl{font-family:var(--f);color:var(--mute);font-size:12px;width:40%}
 .ctab td.win{font-weight:700;color:var(--ok);background:var(--ok-bg)}
 
 /* ---------- drobnosti ---------- */
-button:disabled{cursor:not-allowed}
 .bench td{opacity:1;color:var(--mute)}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 
-@media (prefers-reduced-motion: reduce){
-  *{animation-duration:.01ms !important;transition-duration:.01ms !important;
-    scroll-behavior:auto !important}
-}
 
-@media (max-width:640px){
-  .bar .wrap{height:auto;padding-top:10px;padding-bottom:10px}
-  .capopt{grid-template-columns:24px 1fr auto;gap:8px;padding:9px 11px}
-  .ticker td.fx span{min-width:34px;font-size:10px}
-  .compare .chead{grid-template-columns:1fr}
-  .compare .vs{display:none}
-}
+
+
 
 
 /* ---------- diagnostika hledání náhrad ---------- */
@@ -497,11 +492,7 @@ details.issue[open]>summary .more::after{content:' — sbalit'}
 td.gwpts b{font-family:var(--f-mono)}
 td.gwpts .wait{color:var(--mute)}
 
-@media (max-width:640px){
-  .livebar{gap:14px;padding:12px 14px}
-  .livebar .big{font-size:26px}
-  .livebar .txt{text-align:left;flex-basis:100%}
-}
+
 
 /* ---------- tabulka náhrad ---------- */
 .candhead,.cand2{
@@ -541,22 +532,7 @@ button.info.on{background:var(--blue);border-color:var(--blue);color:var(--white
 }
 .statpop .note{margin-bottom:0}
 
-@media (max-width:640px){
-  .candhead{display:none}
-  .cand2{
-    grid-template-columns:1fr auto;gap:2px 8px;
-    padding:10px 4px;
-  }
-  .cand2 .nm{grid-column:1}
-  .cand2 .tm{grid-column:1;grid-row:2}
-  .cand2 .n{text-align:left;font-size:12px;color:var(--mute)}
-  .cand2 .n::before{content:attr(data-l) ' '}
-  .cand2 span:nth-child(3){grid-column:1;grid-row:3}
-  .cand2 span:nth-child(4){grid-column:1;grid-row:4}
-  .cand2 span:nth-child(5){grid-column:2;grid-row:3;text-align:right}
-  .cand2 span:nth-child(6){grid-column:2;grid-row:4;text-align:right}
-  .cand2 span:nth-child(7){grid-column:2;grid-row:1;text-align:right}
-}
+
 
 /* ---------- kádr po pozicích ---------- */
 .squadlist{
@@ -587,7 +563,7 @@ button.info.on{background:var(--blue);border-color:var(--blue);color:var(--white
 .prow .who em{font-style:normal;color:var(--mute);font-size:11px;font-family:var(--f-mono)}
 .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
 .dot.ok{background:var(--ok)}
-.dot.warn{background:#d68b00}
+.dot.warn{background:var(--warn-line)}
 .dot.bad{background:var(--alert)}
 .badge{
   font-size:9px;padding:1px 5px;border-radius:var(--r-in);
@@ -606,13 +582,12 @@ i.mv.down{color:var(--alert)}
   font-family:var(--f-mono);font-size:10px;font-weight:700;line-height:1.15;
 }
 .tick3>span small{display:block;font-size:8px;font-weight:400;opacity:.75}
-.tick3 .f1{background:#8fe0b0;color:#06301c}
-.tick3 .f2{background:#cdeed9;color:#0b5c36}
-.tick3 .f3{background:#ededed;color:#42474e}
-.tick3 .f4{background:#f7cac5;color:#8f2119}
-.tick3 .f5{background:#eb9a92;color:#5c120d}
-.tick3 .blank{background:repeating-linear-gradient(45deg,
-  #e8e8e8,#e8e8e8 3px,#d8d8d8 3px,#d8d8d8 6px);color:#5f5f5f}
+.tick3 .f1{background:var(--f1);color:var(--f1i)}
+.tick3 .f2{background:var(--f2);color:var(--f2i)}
+.tick3 .f3{background:var(--f3);color:var(--f3i)}
+.tick3 .f4{background:var(--f4);color:var(--f4i)}
+.tick3 .f5{background:var(--f5);color:var(--f5i)}
+.tick3 .blank{background:var(--blank);color:#5f5f5f}
 
 .pgroup{
   display:flex;align-items:baseline;gap:9px;padding:7px 14px;
@@ -630,12 +605,17 @@ i.mv.down{color:var(--alert)}
   margin-top:9px;font-size:11px;color:var(--mute)}
 .fdrleg span{display:flex;align-items:center;gap:4px}
 .fdrleg i{width:20px;height:11px;border-radius:3px;display:inline-block}
-.fdrleg .f1{background:#8fe0b0}.fdrleg .f2{background:#cdeed9}
-.fdrleg .f3{background:#ededed}.fdrleg .f4{background:#f7cac5}
-.fdrleg .f5{background:#eb9a92}
-.fdrleg .blank{background:repeating-linear-gradient(45deg,
-  #e8e8e8,#e8e8e8 3px,#d8d8d8 3px,#d8d8d8 6px)}
+.fdrleg .f1{background:var(--f1)}.fdrleg .f2{background:var(--f2)}
+.fdrleg .f3{background:var(--f3)}.fdrleg .f4{background:var(--f4)}
+.fdrleg .f5{background:var(--f5)}
+.fdrleg .blank{background:var(--blank)}
 .fdrleg .hint{margin-left:auto}
+
+/* ============================================================
+   Responzivita a preference — jeden blok na podmínku.
+   Dřív byly čtyři samostatné bloky max-width:640px a dva
+   prefers-reduced-motion (jeden s mezerou v podmínce, druhý bez).
+   ============================================================ */
 
 @media (max-width:720px){
   .phead{display:none}
@@ -649,9 +629,161 @@ i.mv.down{color:var(--alert)}
   .tick3{grid-column:1/-1;margin-top:5px}
   .fdrleg .hint{margin-left:0;flex-basis:100%}
 }
+
+@media (max-width:640px){
+  .hero{padding:48px 0 72px}
+  .gate{padding:24px}
+  .panel{padding:20px 16px}
+  .shirt{width:74px}
+  td,th{padding:7px 5px}
+  .hide-s{display:none}
+  .bar .wrap{height:auto;padding-top:10px;padding-bottom:10px}
+  .capopt{grid-template-columns:24px 1fr auto;gap:8px;padding:9px 11px}
+  .ticker td.fx span{min-width:34px;font-size:10px}
+  .compare .chead{grid-template-columns:1fr}
+  .compare .vs{display:none}
+  .livebar{gap:14px;padding:12px 14px}
+  .livebar .big{font-size:26px}
+  .livebar .txt{text-align:left;flex-basis:100%}
+  .candhead{display:none}
+  .cand2{
+    grid-template-columns:1fr auto;gap:2px 8px;
+    padding:10px 4px;
+  }
+  .cand2 .nm{grid-column:1}
+  .cand2 .tm{grid-column:1;grid-row:2}
+  .cand2 .n{text-align:left;font-size:12px;color:var(--mute)}
+  .cand2 .n::before{content:attr(data-l) ' '}
+  .cand2 span:nth-child(3){grid-column:1;grid-row:3}
+  .cand2 span:nth-child(4){grid-column:1;grid-row:4}
+  .cand2 span:nth-child(5){grid-column:2;grid-row:3;text-align:right}
+  .cand2 span:nth-child(6){grid-column:2;grid-row:4;text-align:right}
+  .cand2 span:nth-child(7){grid-column:2;grid-row:1;text-align:right}
+}
+
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important;
+    scroll-behavior:auto !important}
+}
+
+/* ============================================================
+   PODPIS: kolejnice sezóny
+   38 čárek, jedna na kolo. Odehraná plná, aktuální mátová a plní
+   se do deadlinu, budoucí vlásek. Prázdné kolo tvého kádru dostane
+   červenou tečku, dvojité mátovou. Jediné místo, kde je celá sezóna
+   vidět naráz — dřív byly blanky schované v Programu.
+   ============================================================ */
+.rail{background:var(--aubergine-lift)}
+.rail .wrap{display:flex;align-items:flex-end;gap:2px;height:30px;padding-top:9px;
+  padding-bottom:7px}
+.gw{flex:1;position:relative;height:100%;display:flex;align-items:flex-end;
+  min-width:0;border:0;background:none;padding:0;cursor:default}
+.gw i{display:block;width:100%;height:4px;border-radius:2px;
+  background:rgba(255,255,255,.16)}
+.gw.past i{background:rgba(255,255,255,.42)}
+.gw.now i{height:11px;background:linear-gradient(90deg,
+  var(--mint-fill) var(--fill,0%),rgba(0,255,135,.22) var(--fill,0%))}
+.gw.now::after{content:attr(data-gw);position:absolute;bottom:15px;left:0;
+  font-family:var(--f-mono);font-size:8.5px;font-weight:700;color:var(--mint-fill)}
+.gw b{position:absolute;top:1px;left:50%;transform:translateX(-50%);
+  width:5px;height:5px;border-radius:50%;background:var(--alert)}
+.gw.dbl b{background:var(--mint-fill)}
+.railkey{display:flex;gap:14px;flex-wrap:wrap;align-items:center;
+  padding:0 0 8px;font-size:10.5px;color:#B98FC2}
+.railkey span{display:flex;align-items:center;gap:5px}
+.railkey i{width:6px;height:6px;border-radius:50%;display:inline-block}
+
+/* ---------- odznaky klubů ---------- */
+.crest{width:21px;height:21px;flex:0 0 auto;border-radius:5px;
+  object-fit:contain;background:var(--haze)}
+.crest.sm{width:17px;height:17px;border-radius:4px}
+.shirt .crest{width:24px;height:24px;margin:0 auto 3px;display:block}
+
+/* ---------- ukazatel pohybu ceny ---------- */
+.meter{display:inline-block;width:54px;height:6px;border-radius:3px;
+  background:var(--haze);overflow:hidden;vertical-align:middle;margin-right:6px}
+.meter i{display:block;height:100%}
+.meter.up i{background:var(--ok)}
+.meter.down i{background:var(--alert)}
+
+/* ---------- kostra při načítání ----------
+   Načtení ligy trvá vteřiny a dřív se do té doby nedělo nic. */
+.skel{display:flex;flex-direction:column;gap:9px;margin:14px 0}
+.skel i{display:block;height:14px;border-radius:var(--r-in);
+  background:linear-gradient(90deg,var(--haze) 25%,#EAE4EC 37%,var(--haze) 63%);
+  background-size:400% 100%;animation:shimmer 1.3s ease-in-out infinite}
+.skel i:nth-child(2){width:82%} .skel i:nth-child(3){width:64%}
+.skel i:nth-child(4){width:74%} .skel i:nth-child(5){width:50%}
+@keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
+
+/* ---------- plánovač přestupů ---------- */
+.plan-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
+  margin:14px 0}
+.pgw{border:1px solid var(--line);border-radius:var(--r-card);background:var(--white);
+  padding:12px 13px}
+.pgw.hit{border-color:var(--alert)}
+.pgw h4{margin:0 0 2px;font-family:var(--f-disp);font-size:12px;font-weight:800;
+  letter-spacing:1px;text-transform:uppercase;color:var(--aubergine)}
+.pgw .ft{font-family:var(--f-mono);font-size:11px;color:var(--mute);margin:0 0 9px}
+.pgw .ft b{color:var(--charcoal)}
+.pgw .ft.neg b{color:var(--alert)}
+.pmove{display:flex;align-items:center;gap:7px;padding:6px 0;
+  border-top:1px solid var(--line-soft);font-size:12.5px}
+.pmove .ar{font-family:var(--f-mono);color:var(--mute);flex:none}
+.pmove .rm{margin-left:auto;border:0;background:none;color:var(--mute);
+  cursor:pointer;font-size:15px;line-height:1;padding:0 3px}
+.pmove .rm:hover{color:var(--alert)}
+.pempty{font-size:12px;color:var(--mute);padding:8px 0 2px}
+.padd{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-top:9px}
+.padd select{font-size:12px;padding:6px 7px}
+.padd button{font-size:12px;padding:6px 11px}
+.psum{display:flex;gap:22px;flex-wrap:wrap;padding:14px 16px;margin:14px 0;
+  background:var(--haze);border-radius:var(--r-card)}
+.psum div{min-width:82px}
+.psum .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--mute)}
+.psum .v{font-family:var(--f-disp);font-size:22px;font-weight:800;line-height:1.1}
+.psum .v.neg{color:var(--alert)} .psum .v.pos{color:var(--ok)}
+
+/* ---------- snapshoty a měsíční tabulky ---------- */
+.delta{font-family:var(--f-mono);font-size:11px;font-weight:700;margin-left:6px}
+.delta.up{color:var(--ok)} .delta.down{color:var(--alert)} .delta.same{color:var(--mute)}
+.phasenav{display:flex;gap:5px;flex-wrap:wrap;margin:0 0 14px}
+
+/* ---------- upozornění na deadline ---------- */
+.notifbar{display:flex;align-items:center;gap:11px;flex-wrap:wrap;
+  padding:12px 15px;margin:14px 0;border-radius:var(--r-card);
+  background:var(--warn-bg);font-size:13px}
+.notifbar.on{background:var(--ok-bg)}
+.notifbar p{margin:0;flex:1 1 220px;color:var(--charcoal)}
+
+/* ---------- tmavý režim ----------
+   Možný jedině díky tomu, že barvy jsou teď v tokenech. S literály
+   rozesetými po CSS by to znamenalo přepsat celý soubor. */
+@media (prefers-color-scheme:dark){
+  :root{
+    --sky:#1A0620; --sky-deep:#120416;
+    --white:#241029; --haze:#2E1634; --charcoal:#F2E9F4; --ink:#F2E9F4;
+    --mute:#B291BA; --line:rgba(255,255,255,.14); --line-soft:rgba(255,255,255,.07);
+    --blue:#4FD1E8;
+    --ok:#3FD98C;    --ok-bg:#12321F;
+    --warn:#E8B44A;  --warn-bg:#332612;   --warn-line:#E8B44A;
+    --alert:#FF6B9D; --alert-bg:#3A1224;
+    --f1:#2E9E62; --f1i:#EAFBF1;
+    --f2:#4E7D64; --f2i:#EAFBF1;
+    --f3:#3E2C45; --f3i:#D6C9DA;
+    --f4:#8C4A44; --f4i:#FDECEA;
+    --f5:#C2483C; --f5i:#FFFFFF;
+    --blank:repeating-linear-gradient(45deg,#33203A,#33203A 3px,#3E2A45 3px,#3E2A45 6px);
+    --blank-i:#B291BA;
+  }
+  body{background:var(--sky)}
+  .crest{background:var(--haze)}
+  .skel i{background:linear-gradient(90deg,var(--haze) 25%,#3A1E42 37%,var(--haze) 63%);
+    background-size:400% 100%}
+}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
-  <meta name="theme-color" content="#426188">
+  <meta name="theme-color" content="#37003C">
   <link rel="manifest" href="/manifest.webmanifest">
 </head>
 <body>
@@ -666,7 +798,7 @@ i.mv.down{color:var(--alert)}
 <div id="landing">
   <div class="wrap">
     <div class="hero">
-      <h1>Squad<em>check</em></h1>
+      <h1><em>Minileague</em>Squad Check</h1>
       <p class="lede">Zadej svoje ID a uvidíš, kdo ti nenastoupí, kdo v lize vede
         a koho vyměnit. Data se stahují až když si o ně řekneš.</p>
     </div>
@@ -696,43 +828,65 @@ i.mv.down{color:var(--alert)}
 <div id="app" hidden>
   <div class="bar">
     <div class="wrap">
-      <span class="brand">Squad<em>check</em></span>
+      <span class="brand">
+        <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <rect width="64" height="64" rx="15" fill="#4B0F52"/>
+          <path d="M17 33.5 L27.5 44 L48 20" fill="none" stroke="#00FF87"
+                stroke-width="8" stroke-linecap="square"/>
+        </svg>
+        <span class="tx"><small>MINILEAGUE</small>SQUAD CHECK</span>
+      </span>
       <span class="cd" id="countdown" hidden></span>
       <span class="who"><b id="whoName">—</b><button class="small" id="logout">Změnit ID</button></span>
     </div>
   </div>
 
-  <div class="wrap">
-    <div class="nav" role="tablist">
+  <div class="rail" id="rail" hidden>
+    <div class="wrap" id="railTrack" role="img" aria-label="Průběh sezóny"></div>
+  </div>
+
+  <div class="navbar">
+    <div class="wrap">
+      <div class="nav" role="tablist" aria-label="Sekce aplikace">
       <button id="t-squad" role="tab" aria-selected="true" aria-controls="p-squad">Sestava</button>
       <button id="t-league" role="tab" aria-selected="false" aria-controls="p-league">Miniliga</button>
       <button id="t-hub" role="tab" aria-selected="false" aria-controls="p-hub">Hub ligy</button>
       <button id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Hráči</button>
       <button id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
       <button id="t-plan" role="tab" aria-selected="false" aria-controls="p-plan">Program</button>
-      <button id="t-live" role="tab" aria-selected="false" aria-controls="p-live">Před deadlinem</button>
+      <button id="t-planner" role="tab" aria-selected="false" aria-controls="p-planner">Plánovač</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="railkey" id="railKey" hidden>
+      <span><i style="background:#00FF87"></i>dvojité kolo</span>
+      <span><i style="background:#C4004A"></i>volné kolo</span>
+      <span>tvůj kádr, {n} kol dopředu</span>
     </div>
 
-    <div class="panel" id="p-squad" role="tabpanel" aria-labelledby="t-squad">
-      <div id="msg"></div>
+    <div class="panel" id="p-squad" role="tabpanel" tabindex="-1" aria-labelledby="t-squad">
+      <div id="msg" role="status" aria-live="polite"></div>
+      <div id="notifhost"></div>
       <div id="out"></div>
     </div>
 
-    <div class="panel" id="p-league" role="tabpanel" aria-labelledby="t-league" hidden>
+    <div class="panel" id="p-league" role="tabpanel" tabindex="-1" aria-labelledby="t-league" hidden>
       <p class="hint">Pořadí, vývoj v tabulce, rozdíly proti soupeřům a kdo koho vlastní.</p>
       <button id="lgo" style="margin-top:14px">Načíst ligu</button>
-      <div id="lmsg"></div>
+      <div id="lmsg" role="status" aria-live="polite"></div>
       <div id="lout"></div>
     </div>
 
-    <div class="panel" id="p-hub" role="tabpanel" aria-labelledby="t-hub" hidden>
+    <div class="panel" id="p-hub" role="tabpanel" tabindex="-1" aria-labelledby="t-hub" hidden>
       <p class="hint">Novinky po kole, sezónní žebříčky, zdraví kádrů a pohled na celou ligu.</p>
       <button id="hubgo" style="margin-top:14px">Načíst hub</button>
-      <div id="hubmsg"></div>
+      <div id="hubmsg" role="status" aria-live="polite"></div>
       <div id="hubout"></div>
     </div>
 
-    <div class="panel" id="p-players" role="tabpanel" aria-labelledby="t-players" hidden>
+    <div class="panel" id="p-players" role="tabpanel" tabindex="-1" aria-labelledby="t-players" hidden>
       <div class="filters">
         <input id="q" placeholder="Hledat hráče…" style="flex:2 1 180px">
         <select id="fpos">
@@ -758,26 +912,25 @@ i.mv.down{color:var(--alert)}
       <div id="pdetail"></div>
     </div>
 
-    <div class="panel" id="p-tr" role="tabpanel" aria-labelledby="t-tr" hidden>
+    <div class="panel" id="p-tr" role="tabpanel" tabindex="-1" aria-labelledby="t-tr" hidden>
       <p class="hint">Najdu problémové hráče a navrhnu náhrady, které se vejdou do rozpočtu.</p>
       <button id="trgo" style="margin-top:14px">Analyzovat sestavu</button>
-      <div id="trmsg"></div>
+      <div id="trmsg" role="status" aria-live="polite"></div>
       <div id="trout"></div>
     </div>
 
-    <div class="panel" id="p-plan" role="tabpanel" aria-labelledby="t-plan" hidden>
-      <p class="hint">Rozpis na šest kol dopředu, blanky a doubly, kdo dnes v noci zdraží
-        a kdy má smysl vyhořet čip.</p>
-      <div id="plmsg"></div>
-      <div id="plout"></div>
+    <div class="panel" id="p-planner" role="tabpanel" tabindex="-1" aria-labelledby="t-planner" hidden>
+      <p class="hint">Rozplánuj přestupy na několik kol dopředu. Appka hlídá rozpočet,
+        volné přestupy i body za hity.</p>
+      <div id="plnmsg" role="status" aria-live="polite"></div>
+      <div id="plnout"></div>
     </div>
 
-    <div class="panel" id="p-live" role="tabpanel" aria-labelledby="t-live" hidden>
-      <p class="hint">Potvrzené sestavy vycházejí zhruba hodinu před výkopem. Porovnám je s tím,
-        koho vlastní tvoje miniliga.</p>
-      <button id="ago" style="margin-top:14px">Zkontrolovat dnešní zápasy</button>
-      <div id="amsg"></div>
-      <div id="aout"></div>
+    <div class="panel" id="p-plan" role="tabpanel" tabindex="-1" aria-labelledby="t-plan" hidden>
+      <p class="hint">Rozpis na šest kol dopředu, blanky a doubly, kdo dnes v noci zdraží
+        a kdy má smysl vyhořet čip.</p>
+      <div id="plmsg" role="status" aria-live="polite"></div>
+      <div id="plout"></div>
     </div>
   </div>
 </div>
@@ -795,9 +948,6 @@ const CONFIG = {
 
   // Název, který se zobrazí v hlavičce. Prázdné = vezme se z FPL.
   leagueName: '',
-
-  // Sezóna pro API-Football (rok, ve kterém sezóna začíná).
-  season: '2026',
 };
 
 const S = {a:['OK','ok'],d:['Pochybný','wn'],i:['Zraněný','al'],
@@ -904,10 +1054,12 @@ let ENTRY_ID = null;   // aktuálně otevřený tým; klíčuje localStorage i c
 async function load(id){
   ENTRY_ID = parseInt(id, 10);
   $('msg').textContent = 'Načítám…';
-  $('out').innerHTML = '';
+  $('out').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';
   try{
     if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
     startCountdown();
+    drawRail();
+    renderNotifBar();
 
     const cur = BOOT.events.find(e => e.is_current);
     const nxt = BOOT.events.find(e => e.is_next);
@@ -1044,6 +1196,8 @@ function render(entry, picks, startGw, liveCtx){
   const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
 
   MY_SQUAD = new Set(picks.picks.map(pk => pk.element));
+  // Teď teprve víme, kdo má v kterém kole volno — kolejnice dostane tečky.
+  drawRail();
 
   const live = liveCtx && liveCtx.live;
   const liveGw = liveCtx ? liveCtx.gw : null;
@@ -1093,6 +1247,7 @@ function render(entry, picks, startGw, liveCtx){
       : `<div class="fd">FDR ${s.f.avg ? s.f.avg.toFixed(1) : '–'}</div>`;
 
     return `<div class="shirt ${s.p.status}${live && s.played ? ' done' : ''}">
+      ${crest(s.p.team)}
       <div class="nm">${esc(s.p.web_name)}${cap}</div>
       <div class="tm">${esc(s.team.short_name)}</div>
       ${foot}
@@ -1270,6 +1425,7 @@ function render(entry, picks, startGw, liveCtx){
     return `<div class="prow${s2.starting ? '' : ' benched'}${owned < 5 ? ' diff' : ''}">
       <span class="who">
         <i class="dot ${dot}" title="${esc(S[s2.p.status][0])}"></i>
+        ${crest(s2.p.team, 'sm')}
         <b>${esc(s2.p.web_name)}</b>
         <em>${esc(s2.team.short_name)}</em>
         ${s2.pk.is_captain ? '<span class="badge cap">C</span>'
@@ -1364,21 +1520,24 @@ function render(entry, picks, startGw, liveCtx){
          už zdvojené). `
       : ''}Sloupec FDR je průměr přes dalších pět kol, barevný rozpis vedle něj ukazuje
     konkrétní soupeře na tři kola. ${strengthsReady()
-      ? 'Obtížnost počítám ze síly obou týmů a barvy jsou relativní — nejtěžší pětina '
-        + 'zápasů v daném okně je červená.'
+      ? 'Obtížnost počítám z útočné a obranné síly obou týmů a barvy jsou relativní — '
+        + 'nejtěžší pětina zápasů v daném okně je červená.'
+      : strengthsUsable()
+      ? 'Útočná a obranná síla zatím v datech není, takže počítám z <b>celkové síly '
+        + 'týmů</b> (stupnice 1–5). Domácí a venkovní zápas rozliším, ale čísla jsou '
+        + 'hrubší, než budou za pár kol.'
       : '<b>Používám oficiální FDR od FPL</b>, protože síly týmů zatím nejsou v datech '
-        + 'vyplněné. FPL je doplní po několika odehraných kolech; do té doby jsou '
-        + 'čísla hrubší.'}</p>
+        + 'vyplněné vůbec.'}</p>
     ${squadTable}`;
 }
 
 /* ============ ZALOZKY ============ */
 const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-hub','p-hub'],
               ['t-players','p-players'], ['t-tr','p-tr'], ['t-plan','p-plan'],
-              ['t-live','p-live']];
+              ['t-planner','p-planner']];
 
 // Co se má spustit při prvním otevření záložky (lazy načítání).
-const TAB_INIT = {'t-plan': () => loadPlan()};
+const TAB_INIT = {'t-plan': () => loadPlan(), 't-planner': () => loadPlanner()};
 const TAB_DONE = new Set();
 
 function selectTab(tid){
@@ -1389,6 +1548,12 @@ function selectTab(tid){
     $(p).hidden = !on;
   });
   $(tid).focus();
+
+  /* Panely mají tabindex="-1", takže se dá fokus přesunout na obsah.
+     Bez tohohle zůstala klávesnice na tlačítku a odečítač se o změně
+     obsahu nedozvěděl. */
+  const pid = (TABS.find(([t]) => t === tid) || [])[1];
+  if(pid && $(pid)) $(pid).setAttribute('aria-busy', 'false');
 
   if(TAB_INIT[tid] && !TAB_DONE.has(tid)){ TAB_DONE.add(tid); TAB_INIT[tid](); }
 }
@@ -1588,6 +1753,10 @@ function rankChart(members, hist){
 
 function renderLeague(st, members, hist, picks, cur, truncated){
   const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+
+  /* Snapshot pořadí. Ukládá se jen jednou za kolo a jen pro dohraná kola —
+     průběžné pořadí by za pár minut bylo zastaralé a zkreslilo by posun. */
+  if(cur && cur.finished) saveSnap(cur.id, members);
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
   const myId = ENTRY_ID || parseInt(localStorage.getItem('fpl_entry') || '0', 10);
 
@@ -1599,8 +1768,8 @@ function renderLeague(st, members, hist, picks, cur, truncated){
     </tr></thead>
     <tbody>${members.map(m => {
       const move = m.last_rank ? m.last_rank - m.rank : 0;
-      return `<tr${m.entry === myId ? ' style="background:rgba(63,191,127,.08)"' : ''}>
-        <td class="n">${m.rank}</td>
+      return `<tr${m.entry === myId ? ' class="me"' : ''}>
+        <td class="n">${m.rank}${deltaChip(m.rank, rankDelta(m.entry, cur ? cur.id : 0))}</td>
         <td><b>${esc(m.player_name)}</b></td>
         <td class="hide-s" style="color:var(--mute)">${esc(m.entry_name)}</td>
         <td class="n">${m.event_total}</td>
@@ -1644,7 +1813,7 @@ function renderLeague(st, members, hist, picks, cur, truncated){
       <th class="n">V lize</th><th style="width:90px">Podíl</th>
       <th class="hide-s">Kdo</th><th class="n">Kapitán</th></tr></thead>
     <tbody>${ranked.slice(0, 40).map(o => `<tr>
-      <td><b>${esc(o.p.web_name)}</b></td>
+      <td><span class="who">${crest(o.p.team, 'sm')}<b>${esc(o.p.web_name)}</b></span></td>
       <td class="hide-s">${esc(teams[o.p.team].short_name)}</td>
       <td class="n">${o.list.length}/${n}</td>
       <td><div class="bar-w"><i style="width:${o.pct}%"></i></div></td>
@@ -1687,6 +1856,7 @@ function renderLeague(st, members, hist, picks, cur, truncated){
 
   const SECTIONS = [
     ['Pořadí', table],
+    ['Měsíc', `<div id="phasebox"><p class="note">Vyber měsíc…</p></div>`],
     ['Živě', `<div id="livebox"><p class="note">Načítám průběžné body…</p></div>`],
     ['Vývoj', rankChart(members, hist)],
     ['Rozdíly', diffHtml],
@@ -1718,8 +1888,7 @@ function renderLeague(st, members, hist, picks, cur, truncated){
     });
   });
 
-  // sestavy si schovame pro zalozku "Pred deadlinem"
-  LEAGUE_OWNERS = {owners, els, teams, n};
+  mountPhases(st.league.id, cur, myId);
 
   // Živá tabulka se dopočítá až po vykreslení — nezdržuje zbytek panelu.
   renderLive(members, picks, cur, myId);
@@ -1801,283 +1970,16 @@ async function renderLive(members, picks, cur, myId){
     Sloupec „Nehrálo“ říká, kolik hráčů ze sestavy ještě nenastoupilo.</p>`;
 }
 
-/* ============ PRED DEADLINEM (API-Football) ============ */
-let LEAGUE_OWNERS = null;
-
-// Prevod jmen mezi FPL a API-Football. Jmena se lisi diakritikou a formatem,
-// tak porovnavame zjednodusenou podobu prijmeni.
-function normName(s){
-  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase().replace(/[^a-z ]/g, '').trim();
-}
-
-function lastName(s){
-  const parts = normName(s).split(' ').filter(Boolean);
-  return parts.length ? parts[parts.length - 1] : '';
-}
-
-/* ------------------------------------------------------------
-   Párování klubů mezi FPL a API-Football.
-
-   Tohle vypadá jako otravná tabulka, ale je to nutnost. FPL používá
-   zkratky („Man Utd“, „Spurs“, „Nott'm Forest“), API-Football plné názvy
-   („Manchester United“, „Tottenham“, „Nottingham Forest“). Porovnávání
-   přes `includes` u nich selže — a selhalo tiše: pro takový klub se
-   nenašel žádný hráč a panel napsal „všichni jsou v základu“, i když
-   tam půlka týmu chyběla. Falešně uklidňující výstup je horší než chyba.
-
-   Klíčem je `short_name` z FPL, protože ten se mezi sezónami nemění
-   (na rozdíl od `team.id`, které se každý srpen přečísluje podle abecedy).
-   ------------------------------------------------------------ */
-const CLUB_MAP = {
-  ARS: {id: 42,   names: ['arsenal']},
-  AVL: {id: 66,   names: ['aston villa']},
-  BOU: {id: 35,   names: ['bournemouth', 'afc bournemouth']},
-  BRE: {id: 55,   names: ['brentford']},
-  BHA: {id: 51,   names: ['brighton', 'brighton hove albion']},
-  BUR: {id: 44,   names: ['burnley']},
-  CHE: {id: 49,   names: ['chelsea']},
-  CRY: {id: 52,   names: ['crystal palace']},
-  EVE: {id: 45,   names: ['everton']},
-  FUL: {id: 36,   names: ['fulham']},
-  IPS: {id: 1504, names: ['ipswich', 'ipswich town']},
-  LEE: {id: 63,   names: ['leeds', 'leeds united']},
-  LEI: {id: 46,   names: ['leicester', 'leicester city']},
-  LIV: {id: 40,   names: ['liverpool']},
-  LUT: {id: 1359, names: ['luton', 'luton town']},
-  MCI: {id: 50,   names: ['manchester city', 'man city']},
-  MUN: {id: 33,   names: ['manchester united', 'man utd', 'man united']},
-  NEW: {id: 34,   names: ['newcastle', 'newcastle united']},
-  NFO: {id: 65,   names: ['nottingham forest', 'nottm forest', 'forest']},
-  SHU: {id: 62,   names: ['sheffield united', 'sheffield utd']},
-  SOU: {id: 41,   names: ['southampton']},
-  SUN: {id: 746,  names: ['sunderland']},
-  TOT: {id: 47,   names: ['tottenham', 'tottenham hotspur', 'spurs']},
-  WHU: {id: 48,   names: ['west ham', 'west ham united']},
-  WOL: {id: 39,   names: ['wolves', 'wolverhampton wanderers', 'wolverhampton']},
-};
-
-/* Najde FPL tým odpovídající jednomu týmu z API-Football.
-   Zkouší postupně: id → název ze slovníku → volné porovnání názvů.
-   Poslední krok je pojistka pro nováčky, které slovník ještě nezná. */
-function matchClub(afTeam){
-  const afId = afTeam && afTeam.id;
-  const afName = normName((afTeam && afTeam.name) || '');
-
-  for(const t of BOOT.teams){
-    const m = CLUB_MAP[t.short_name];
-    if(!m) continue;
-    if(afId && m.id === afId) return t;
-  }
-
-  for(const t of BOOT.teams){
-    const m = CLUB_MAP[t.short_name];
-    if(m && m.names.includes(afName)) return t;
-  }
-
-  // Nouzový režim: klub není ve slovníku (čerstvě postoupivší tým).
-  for(const t of BOOT.teams){
-    const a = normName(t.name), b = normName(t.short_name);
-    if(afName === a || afName.startsWith(a + ' ') || afName.endsWith(' ' + a)) return t;
-    if(afName.split(' ')[0] === b) return t;
-  }
-
-  return null;
-}
-
-/* Párování hráčů uvnitř jednoho klubu.
-
-   API-Football píše jména různě: „B. Fernandes“, „Bruno Fernandes“, někdy
-   jen přezdívku („Rodri“). Porovnáváme proto sadu možných klíčů z obou
-   stran a hlásíme shodu jen tehdy, když je jednoznačná. Když má klub dva
-   hráče se stejným příjmením, radši neřekneme nic než něco špatně. */
-function nameKeys(full, web){
-  const keys = new Set();
-  const n = normName(full);
-  if(n) keys.add(n);
-  const ln = lastName(full);
-  if(ln) keys.add(ln);
-  if(web){
-    const w = normName(web);
-    if(w) keys.add(w);
-    const wl = lastName(web);
-    if(wl) keys.add(wl);
-  }
-  return keys;
-}
-
-/* Vrátí Set klíčů hráčů, kteří jsou v základní sestavě. */
-function starterKeys(lineup){
-  const set = new Set();
-  (lineup || []).forEach(side => (side.startXI || []).forEach(x => {
-    const nm = (x.player && x.player.name) || '';
-    nameKeys(nm).forEach(k => set.add(k));
-  }));
-  return set;
-}
-
-async function apiFootball(params){
-  const qs = new URLSearchParams(params).toString();
-  const r = await fetch('/api/football?' + qs);
-  const ct = r.headers.get('content-type') || '';
-  if(!ct.includes('application/json'))
-    throw new Error('Funkce /api/football neodpovídá (' + r.status + ').');
-  const data = await r.json();
-  if(!r.ok){
-    const e = new Error(data.error || 'Chyba');
-    e.setup = data.setup;
-    throw e;
-  }
-  return data;
-}
-
-const SETUP_HTML = `<div class="setup">
-  <h3>Chybí API klíč</h3>
-  <ol>
-    <li>Zaregistruj se na <code>dashboard.api-football.com</code> — free plán je 100 dotazů denně</li>
-    <li>Zkopíruj si API klíč z dashboardu</li>
-    <li>Ve Vercelu: Settings → Environment Variables → přidej <code>APIFOOTBALL_KEY</code></li>
-    <li>Deployments → poslední → Redeploy, aby se proměnná načetla</li>
-  </ol>
-</div>`;
-
-async function loadLineups(){
-  $('amsg').textContent = 'Načítám zápasy…';
-  $('aout').innerHTML = '';
-  try{
-    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
-
-    const today = new Date().toISOString().slice(0, 10);
-    const fx = await apiFootball({route: 'fixtures', date: today, season: CONFIG.season});
-
-    if(!fx.response || !fx.response.length){
-      $('amsg').textContent = 'Dnes se v Premier League nehraje.';
-      return;
-    }
-
-    // Sestavy se zveřejňují asi hodinu před výkopem. Tahat je pro večerní
-    // zápasy v poledne znamená jen pálit denní kvótu za prázdné odpovědi.
-    const soon = Date.now() + 2 * 3600 * 1000;
-    const games = fx.response.filter(f => new Date(f.fixture.date).getTime() < soon);
-
-    if(!games.length){
-      const first = fx.response
-        .map(f => new Date(f.fixture.date))
-        .sort((a, b) => a - b)[0];
-      $('amsg').textContent = 'Dnes se hraje, ale sestavy ještě nejsou. První výkop '
-        + first.toLocaleTimeString('cs-CZ', {hour: '2-digit', minute: '2-digit'})
-        + ' — vrať se hodinu předtím.';
-      return;
-    }
-
-    $('amsg').textContent = 'Načítám sestavy ' + games.length + ' zápasů…';
-
-    const lineups = await pooled(games, f =>
-      apiFootball({route: 'lineups', fixture: String(f.fixture.id)}).then(r => r.response),
-      3,
-      (done, total) => { $('amsg').textContent = `Načítám sestavy… ${done}/${total}`; }
-    );
-
-    renderLineups(games, lineups);
-    $('amsg').textContent = '';
-  }catch(e){
-    $('amsg').textContent = e.setup ? '' : e.message;
-    if(e.setup) $('aout').innerHTML = SETUP_HTML;
-  }
-}
-
-function renderLineups(fixtures, lineups){
-  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
-  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
-  const owners = LEAGUE_OWNERS ? LEAGUE_OWNERS.owners : null;
-
-  const blocks = fixtures.map((f, i) => {
-    const lu = lineups[i];
-    const ko = new Date(f.fixture.date).toLocaleTimeString('cs-CZ',
-      {hour: '2-digit', minute: '2-digit'});
-    const head = `${esc(f.teams.home.name)} — ${esc(f.teams.away.name)}`;
-
-    if(!lu || !lu.length){
-      return `<div class="match pend">
-        <h3>${head}</h3>
-        <div class="ko">Výkop ${ko} · sestava zatím není potvrzená</div>
-      </div>`;
-    }
-
-    // Klíče hráčů v základní sestavě obou týmů.
-    const starters = starterKeys(lu);
-
-    // FPL kluby, které v tomhle zápase hrají.
-    const clubs = [matchClub(f.teams.home), matchClub(f.teams.away)].filter(Boolean);
-
-    // Klub se nepodařilo spárovat — to je potřeba říct nahlas, ne mlčet.
-    if(clubs.length < 2){
-      return `<div class="match pend">
-        <h3>${head}</h3>
-        <div class="ko">Výkop ${ko} · sestava potvrzená</div>
-        <p class="note">Tenhle klub neumím spárovat s FPL, takže o něm nic neřeknu.
-        Doplň ho do tabulky CLUB_MAP v index.html.</p>
-      </div>`;
-    }
-
-    const clubIds = new Set(clubs.map(t => t.id));
-
-    // Hráči, kteří v základu nejsou. Bereme jen ty, u kterých má smysl
-    // se ptát: hlášeně zdravé a s reálnou minutovou stopou. Bez toho
-    // seznam zaplaví dlouhodobě zranění a třetí brankáři.
-    const relevant = BOOT.elements.filter(p =>
-      clubIds.has(p.team) &&
-      (p.chance_of_playing_next_round === null || p.chance_of_playing_next_round >= 50) &&
-      p.minutes >= 180
-    );
-
-    const benched = relevant
-      .filter(p => {
-        const keys = nameKeys(p.first_name + ' ' + p.second_name, p.web_name);
-        return ![...keys].some(k => starters.has(k));
-      })
-      .filter(p => !owners || owners[p.id])
-      .map(p => ({p, list: owners ? owners[p.id] : []}))
-      .sort((a, b) => b.list.length - a.list.length);
-
-    const cls = benched.length ? 'risk' : 'safe';
-    const body = benched.length
-      ? `<div class="own" style="margin-top:9px">${benched.map(b =>
-          `<span class="chip miss"><b>${esc(b.p.web_name)}</b>${
-            b.list.length ? `<span class="ct">${esc(b.list.join(', '))}</span>` : ''}</span>`
-        ).join('')}</div>`
-      : '<p class="note">Všichni vlastnění hráči jsou v základní sestavě.</p>';
-
-    return `<div class="match ${cls}">
-      <h3>${head}</h3>
-      <div class="ko">Výkop ${ko} · sestava potvrzená</div>
-      ${body}
-    </div>`;
-  });
-
-  const hint = owners
-    ? ''
-    : '<p class="note">Načti si nejdřív minligu, ať u každého hráče vidíš, koho v lize trefí.</p>';
-
-  $('aout').innerHTML = `<h2>Kdo nezačíná · ${new Date().toLocaleDateString('cs-CZ')}</h2>
-    ${hint}${blocks.join('')}
-    <p class="note">Kluby se párují přes pevnou tabulku, jména hráčů přes kombinaci
-    celého jména a příjmení. U dvou stejných příjmení v jednom klubu se to může splést —
-    ber to jako upozornění, ne jako důkaz. Vypsaní jsou jen hráči s aspoň 180 odehranými
-    minutami, kteří nemají hlášené zranění.</p>`;
-}
-
-$('ago').addEventListener('click', async () => {
-  $('ago').disabled = true;
-  await loadLineups();
-  $('ago').disabled = false;
-});
-
 /* ============ HRÁČI + PROJEKCE ============ */
 
 // Kolik bodů dá FPL za gól a čisté konto podle pozice.
 const GOAL_PTS = {1: 10, 2: 6, 3: 5, 4: 4};
 const CS_PTS   = {1: 4,  2: 4, 3: 1, 4: 0};
+
+// Defenzivní příspěvky (bootstrap: game_config.scoring.defensive_contribution).
+// Práh je počet akcí za zápas, po jehož překročení padnou body.
+const DC_PTS       = {1: 0,  2: 2,  3: 2,  4: 2};
+const DC_THRESHOLD = {1: 0,  2: 10, 3: 12, 4: 12};
 
 /*
   Odhad bodů pro jedno kolo. Je to hrubý model, ne předpověď — staví na tom,
@@ -2147,7 +2049,24 @@ function perMatchXp(p, difficulty, isHome){
 
   const bonus = pPlay * ((p.bonus || 0) / rounds);
 
-  return Math.max(0, appearance + attack + defence + conceded + bonus);
+  // Defenzivní příspěvky: 2 body za dosažení prahu (10 akcí u obránců,
+  // 12 u záložníků a útočníků). Brankáři je nedostávají.
+  // Bez tohohle model systematicky podhodnocoval defenzivní záložníky —
+  // u nich to bývá klidně třetina reálného zisku za kolo.
+  const dcT = DC_THRESHOLD[p.element_type];
+  let defcon = 0;
+  if(dcT && DC_PTS[p.element_type]){
+    const dc90 = parseFloat(p.defensive_contribution_per_90 || 0);
+    if(dc90 > 0){
+      // Sezónní průměr sám o sobě neříká, jak často práh padne: hráč
+      // s průměrem přesně na prahu ho trefí zhruba v půlce zápasů, ne vždy.
+      // Logistická křivka kolem prahu je hrubá, ale poctivější než ostrý krok.
+      const pHit = 1 / (1 + Math.exp(-(dc90 - dcT) / (dcT * .22)));
+      defcon = share * pHit * DC_PTS[p.element_type];
+    }
+  }
+
+  return Math.max(0, appearance + attack + defence + conceded + bonus + defcon);
 }
 
 /* Body za celé kolo = součet přes všechny zápasy, které tým v tom kole má.
@@ -2676,7 +2595,7 @@ function nextFixtures(teamId, startGw, n){
 
 async function analyzeTransfers(){
   $('trmsg').textContent = 'Načítám sestavu…';
-  $('trout').innerHTML = '';
+  $('trout').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';
   try{
     if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
     if(!PLAYERS) PLAYERS = playerRows();
@@ -2695,6 +2614,14 @@ async function analyzeTransfers(){
 
     const picks = await api('entry/' + entryId + '/event/' + cur.id + '/picks/');
     const bank = (picks.entry_history.bank || 0) / 10;
+
+    // Nákupní ceny. Když endpoint selže, spadneme na cenu na začátku sezóny —
+    // to je pořád lepší než ruční zadávání, jen to nezachytí pozdější nákupy.
+    try{
+      BUY_COST = buildBuyCost(await cached('entry/' + entryId + '/transfers/'));
+    }catch(e){
+      BUY_COST = null;
+    }
 
     $('trmsg').textContent = 'Procházím ' + picks.picks.length + ' hráčů…';
 
@@ -2734,15 +2661,66 @@ function loadSell(){
 }
 function saveSell(o){ localStorage.setItem(SELL_KEY(), JSON.stringify(o)); }
 
+/* ------------------------------------------------------------
+   Nákupní ceny z entry/{id}/transfers/.
+
+   Dřív se prodejní ceny zadávaly ručně, protože FPL je v picks
+   neposílá. Endpoint transfers/ ale posílá u každého přestupu
+   `element_in_cost` — nákupní cenu v desetinách milionu.
+
+   Hráč, kterého jsi nikdy nekupoval, je z původního kádru: jeho
+   nákupní cena je `now_cost - cost_change_start`.
+
+   Klíčem je poslední přestup dovnitř. Když hráče prodáš a za tři
+   kola koupíš zpátky dráž, platí ta novější cena.
+   ------------------------------------------------------------ */
+let BUY_COST = null;   // {playerId: cena v desetinách} nebo null = nenačteno
+
+function buildBuyCost(transfers){
+  const map = {};
+  const byPlayer = {};
+  for(const t of (transfers || [])){
+    const prev = byPlayer[t.element_in];
+    // event může chybět u přestupů udělaných před prvním kolem
+    const ev = Number.isFinite(t.event) ? t.event : 0;
+    if(!prev || ev >= prev.ev) byPlayer[t.element_in] = {ev, cost: t.element_in_cost};
+  }
+  for(const [pid, v] of Object.entries(byPlayer))
+    if(Number.isFinite(v.cost)) map[pid] = v.cost;
+  return map;
+}
+
+/* Nákupní cena v desetinách. Vrací null, když ji nedokážeme určit. */
+function buyCost(p){
+  if(BUY_COST && Number.isFinite(BUY_COST[p.id])) return BUY_COST[p.id];
+  // Hráč z původního kádru: odečteme celkový pohyb ceny od začátku sezóny.
+  const start = p.now_cost - (p.cost_change_start || 0);
+  return Number.isFinite(start) && start > 0 ? start : null;
+}
+
+/* Pravidlo FPL: ze zisku dostaneš zpátky polovinu, zaokrouhlenou dolů
+   na desetinu milionu. Ztráta se naopak promítne celá. */
+function sellFromBuy(nowCost, buy){
+  if(!Number.isFinite(buy)) return nowCost;
+  if(nowCost <= buy) return nowCost;
+  return buy + Math.floor((nowCost - buy) / 2);
+}
+
 function sellPrice(p){
-  const o = loadSell();
-  const v = parseFloat(o[p.id]);
-  return Number.isFinite(v) && v > 0 ? v : p.now_cost / 10;
-}
-function isOverridden(p){
   const v = parseFloat(loadSell()[p.id]);
-  return Number.isFinite(v) && v > 0 && Math.abs(v - p.now_cost / 10) > 0.001;
+  if(Number.isFinite(v) && v > 0) return v;              // ruční přepis vyhrává
+  return sellFromBuy(p.now_cost, buyCost(p)) / 10;
 }
+
+/* Odkud číslo je: 'manual' | 'api' | 'start'. Řídí popisek v UI —
+   „upraveno“ a „spočítáno z nákupní ceny“ nejsou totéž. */
+function sellSource(p){
+  const v = parseFloat(loadSell()[p.id]);
+  if(Number.isFinite(v) && v > 0) return 'manual';
+  if(BUY_COST && Number.isFinite(BUY_COST[p.id])) return 'api';
+  return 'start';
+}
+function isOverridden(p){ return sellSource(p) === 'manual'; }
 function bankValue(){
   const v = parseFloat(localStorage.getItem(BANK_KEY()));
   return Number.isFinite(v) && v >= 0 ? v : (TR_STATE ? TR_STATE.apiBank : 0);
@@ -3065,8 +3043,11 @@ function renderTransfers(){
                    data-pid="${it.p.id}" value="${sell.toFixed(1)}">m
           </label>
           + banka ${bank.toFixed(1)}m = <b>${budget.toFixed(1)}m</b>
-          ${edited ? '<span class="edited">upraveno</span>'
-                   : '<span class="est">odhad z aktuální ceny</span>'}
+          ${{manual: '<span class="edited">upraveno ručně</span>',
+             api:    '<span class="est">z nákupní ceny ' +
+                     (buyCost(it.p) / 10).toFixed(1) + 'm</span>',
+             start:  '<span class="est">z ceny na startu sezóny</span>'
+            }[sellSource(it.p)]}
         </div>
 
         <h4>Možné náhrady</h4>
@@ -3088,12 +3069,15 @@ function renderTransfers(){
       ${bankEdited ? `<span class="edited">upraveno</span>
         <button class="lnk" id="bankreset">vrátit ${TR_STATE.apiBank.toFixed(1)}m z FPL</button>` : ''}
     </div>
-    <p class="note">Prodejní cenu si u každého hráče přepiš podle toho, co ti FPL ukazuje
-    ve tvé sestavě — návrhy se hned přepočítají. Uloží se v prohlížeči.</p>
+    <p class="note">${BUY_COST
+      ? 'Prodejní ceny počítám z <b>tvých skutečných nákupních cen</b> (endpoint '
+        + 'transfers/). Ze zisku ti FPL vrací polovinu zaokrouhlenou dolů — to je '
+        + 'v čísle zahrnuté. Přepsat je můžeš, ale většinou nebudeš muset.'
+      : '<b>Historii přestupů se nepodařilo načíst</b>, takže počítám z ceny na '
+        + 'začátku sezóny. U hráčů koupených během sezóny to bude vedle — přepiš je '
+        + 'ručně.'}</p>
     ${blocks.join('')}
-    <p class="note" style="margin-top:18px">Nevyplněné ceny jsou odhad z aktuální ceny hráče.
-    Když ti hráč zdražil, FPL vrací jen polovinu zisku, takže skutečná prodejní cena bývá nižší.</p>
-    <button class="lnk" id="sellreset" style="margin-top:10px">Zahodit všechny ruční ceny</button>`;
+    <button class="lnk" id="sellreset" style="margin-top:14px">Zahodit ruční přepisy</button>`;
 
   /* Tlačítko „i“ místo hover tooltipu — na dotykovém displeji se hover
      nedá vyvolat a tooltip by tam byl nedostupný. */
@@ -3582,11 +3566,32 @@ function teamStrengths(t, home){
   const att = home ? t.strength_attack_home : t.strength_attack_away;
   const def = home ? t.strength_defence_home : t.strength_defence_away;
   const a = parseFloat(att), d = parseFloat(def);
-  if(!Number.isFinite(a) || !Number.isFinite(d) || a <= 0 || d <= 0) return null;
-  return {att: a, def: d};
+  if(Number.isFinite(a) && Number.isFinite(d) && a > 0 && d > 0) return {att: a, def: d};
+
+  // Záloha: strength_overall_* na stupnici 1–5. FPL je vyplňuje i v době,
+  // kdy jsou strength_attack_* a strength_defence_* ještě nuly — což platí
+  // celý začátek sezóny. Dřív se v tu chvíli zahodila i tahle čísla a appka
+  // spadla na statické FDR, které nerozliší domácí zápas od venkovního.
+  const o = parseFloat(home ? t.strength_overall_home : t.strength_overall_away);
+  if(!Number.isFinite(o) || o <= 0) return null;
+
+  // Převod na stejné měřítko jako strength_attack_* (kolem 1000–1400),
+  // aby poměr sil v ownFdr() vycházel ve stejném řádu jako s ostrými daty.
+  const scaled = 1000 + (o - 3) * 110;
+  return {att: scaled, def: scaled, approx: true};
 }
 
+/* Máme ostrá čísla útoku a obrany, nebo jedeme na hrubší náhradě?
+   Rozlišujeme to proto, že hláška pod rozpisem má říkat pravdu. */
 function strengthsReady(){
+  return BOOT.teams.every(t => {
+    const h = teamStrengths(t, true), a = teamStrengths(t, false);
+    return h && a && !h.approx && !a.approx;
+  });
+}
+
+/* Dá se z toho vůbec počítat vlastní FDR? Stačí i hrubá záloha. */
+function strengthsUsable(){
   return BOOT.teams.every(t => teamStrengths(t, true) && teamStrengths(t, false));
 }
 
@@ -3698,6 +3703,10 @@ function buildTicker(){
       ? 'Obtížnost počítám z útočné a obranné síly obou týmů, ne z pevného FDR, které '
         + 'FPL nastaví v srpnu a pak už nemění. Barvy jsou <b>relativní</b> — každé pásmo '
         + 'dostane zhruba pětinu zápasů.'
+      : strengthsUsable()
+      ? 'Útočná a obranná síla zatím v datech není, tak počítám z <b>celkové síly týmů</b> '
+        + '(stupnice 1–5) — pořád to rozliší domácí zápas od venkovního, jen hruběji. '
+        + 'Barvy jsou relativní, každé pásmo dostane zhruba pětinu zápasů.'
       : '<b>Zdroj obtížnosti: oficiální FDR od FPL.</b> Síly týmů, ze kterých počítám '
         + 'vlastní hodnocení, zatím v datech nejsou vyplněné — FPL je doplní po několika '
         + 'odehraných kolech a čísla se pak zjemní.'}
@@ -3744,42 +3753,100 @@ function buildShape(){
    FPL nezveřejňuje algoritmus, ale směr je spolehlivý: rozhoduje čistý
    příliv převodů vážený tím, kolik lidí hráče drží. Přesný práh neznáme,
    tak ukazujeme pořadí tlaku, ne jistotu. */
-function buildPrices(){
-  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+/* Oficiální predikce zdražení a zlevnění.
+
+   Dřív se směr odhadoval z čistého přílivu transferů dělených vlastnictvím.
+   Byla to rozumná aproximace, ale FPL to dneska počítá samo a posílá to
+   v bootstrapu:
+
+     price_change_percent        naplněnost ukazatele v procentech
+     price_change_hourly_rate    jak rychle se plní právě teď
+     price_change_projections    [{offset, projected_percent, likelihood}]
+                                 offset 0/1/2 = dnes / zítra / pozítří,
+                                 likelihood −5…+5 = jistota pohybu
+     price_change_locked_until   hráč se do daného času hýbat nemůže
+
+   Bereme oficiální číslo, když existuje — stejně jako u ep_next. */
+function priceMoves(){
+  const projFor = (p, offset) =>
+    (p.price_change_projections || []).find(x => x.offset === offset) || null;
 
   const scored = BOOT.elements.map(p => {
-    const net = (p.transfers_in_event || 0) - (p.transfers_out_event || 0);
-    const owned = Math.max(parseFloat(p.selected_by_percent) || 0.1, 0.1);
-    // Tlak na cenu je čistý příliv v poměru k velikosti vlastnické základny.
-    const pressure = net / (owned * 1000);
-    return {p, net, pressure, owned};
-  }).filter(x => Math.abs(x.net) > 3000);
+    const now = parseFloat(p.price_change_percent);
+    const today = projFor(p, 0);
+    const in3 = projFor(p, 2);
+    if(!Number.isFinite(now) || !today) return null;
 
-  const up = [...scored].sort((a, b) => b.pressure - a.pressure).slice(0, 8);
-  const down = [...scored].sort((a, b) => a.pressure - b.pressure).slice(0, 8);
+    return {
+      p,
+      pct: now,
+      rate: p.price_change_hourly_rate || 0,
+      likeToday: today.likelihood || 0,
+      like3: in3 ? (in3.likelihood || 0) : (today.likelihood || 0),
+      pct3: in3 ? parseFloat(in3.projected_percent) : now,
+      locked: p.price_change_locked_until || null,
+    };
+  }).filter(Boolean);
 
-  const row = (x, dir) => `<tr${MY_SQUAD && MY_SQUAD.has(x.p.id) ? ' class="me"' : ''}>
+  const up = scored.filter(x => x.likeToday > 0 || x.like3 > 0)
+    .sort((a, b) => (b.likeToday - a.likeToday) || (b.pct - a.pct)).slice(0, 10);
+  const down = scored.filter(x => x.likeToday < 0 || x.like3 < 0)
+    .sort((a, b) => (a.likeToday - b.likeToday) || (a.pct - b.pct)).slice(0, 10);
+
+  return {up, down, ok: scored.length > 0};
+}
+
+/* Ukazatel naplněnosti. 100 % = pohyb dnes v noci. */
+function priceMeter(pct, dir){
+  const w = Math.max(3, Math.min(100, Math.abs(pct)));
+  return `<span class="meter ${dir}" role="img"
+    aria-label="naplněno ${Math.round(Math.abs(pct))} procent"><i style="width:${w}%"></i></span>`;
+}
+
+function buildPrices(){
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const mv = priceMoves();
+
+  if(!mv.ok) return `<h3>Pohyby cen</h3>
+    <p class="note">FPL zatím predikce cen neposílá — pole
+    <code>price_change_projections</code> je v datech prázdné. Objeví se
+    obvykle po prvním kole.</p>`;
+
+  const dl = (BOOT.game_config && BOOT.game_config.settings
+              && BOOT.game_config.settings.price_change_deadlines) || [];
+  const nextDl = dl.map(d => new Date(d)).filter(d => d > new Date()).sort((a, b) => a - b)[0];
+
+  const row = (x, dir) => {
+    const mine = MY_SQUAD && MY_SQUAD.has(x.p.id);
+    const lock = x.locked && new Date(x.locked) > new Date();
+    return `<tr${mine ? ' class="me"' : ''}>
       <td>${esc(x.p.web_name)}<span class="sub">${esc(teams[x.p.team].short_name)}</span></td>
-      <td>${(x.p.now_cost / 10).toFixed(1)}m</td>
-      <td>${x.owned.toFixed(1)} %</td>
-      <td class="${dir}">${x.net > 0 ? '+' : ''}${Math.round(x.net / 1000)}k</td>
+      <td class="n">${(x.p.now_cost / 10).toFixed(1)}m</td>
+      <td>${priceMeter(x.pct, dir)}<span class="sub">${x.pct.toFixed(0)} %${
+        lock ? ' · zamčeno' : ''}</span></td>
+      <td class="n ${dir}">${'●'.repeat(Math.min(5, Math.abs(x.likeToday))) || '–'}</td>
+      <td class="n ${dir}">${'●'.repeat(Math.min(5, Math.abs(x.like3))) || '–'}</td>
     </tr>`;
+  };
 
   const tbl = (rows, dir, title, note) => `
     <h3>${title}</h3>
-    ${rows.length ? `<table><thead><tr><th>Hráč</th><th>Cena</th><th>Vlastní</th>
-      <th>Čistý pohyb</th></tr></thead><tbody>${rows.map(x => row(x, dir)).join('')}</tbody></table>`
+    ${rows.length
+      ? `<table><thead><tr><th>Hráč</th><th class="n">Cena</th><th>Ukazatel</th>
+         <th class="n">Dnes</th><th class="n">Do 3 dnů</th></tr></thead>
+         <tbody>${rows.map(x => row(x, dir)).join('')}</tbody></table>`
       : '<p class="note">Nic výrazného.</p>'}
     <p class="note">${note}</p>`;
 
-  return tbl(up, 'up', 'Nejblíž ke zdražení',
-      'Čím výš v seznamu, tím větší tlak. Když ho chceš, kup ho dřív — po zdražení '
-      + 'zaplatíš o 0,1m víc a při prodeji dostaneš jen půlku zisku zpátky.')
-    + tbl(down, 'down', 'Nejblíž ke zlevnění',
+  return tbl(mv.up, 'up', 'Nejblíž ke zdražení',
+      'Když ho chceš, kup ho dřív — po zdražení zaplatíš o 0,1m víc a při prodeji '
+      + 'dostaneš zpátky jen půlku zisku.')
+    + tbl(mv.down, 'down', 'Nejblíž ke zlevnění',
       'Zlevnění ti sebere z hodnoty týmu. Pokud ho stejně plánuješ pustit, udělej to teď.')
-    + `<p class="note">Zvýrazněné řádky jsou hráči, které máš v sestavě. Změny cen probíhají
-       kolem 2:30 našeho času. Přesný práh FPL nezveřejňuje, takže tohle je pořadí tlaku,
-       ne jistota.</p>`;
+    + `<p class="note">Tečky jsou jistota pohybu podle FPL (1–5), ukazatel je naplněnost
+       v procentech. Zvýrazněné řádky jsou hráči z tvé sestavy.${
+       nextDl ? ' Nejbližší změna cen: <b>' + nextDl.toLocaleString('cs-CZ',
+         {weekday: 'short', hour: '2-digit', minute: '2-digit'}) + '</b>.' : ''}</p>`;
 }
 
 /* --- 4. Plánovač čipů ---
@@ -3885,6 +3952,565 @@ async function loadPlan(){
 }
 
 
+
+/* ============================================================
+   MĚSÍČNÍ TABULKY MINILIGY
+
+   Bootstrap posílá `phases[]` — Overall a pak jednotlivé měsíce
+   s rozsahem kol. Standings endpoint na ně umí filtrovat přes
+   ?phase=N.
+
+   Proč to stojí za to: v lize, kterou někdo vede o dvě stě bodů,
+   dá měsíční pořadí ostatním důvod hrát dál. Implementačně je to
+   jeden dotaz navíc.
+   ============================================================ */
+function mountPhases(leagueId, cur, myId){
+  const box = $('phasebox');
+  if(!box || !BOOT.phases) return;
+
+  // Overall (id 1) přeskakujeme — to je tabulka v sekci Pořadí.
+  // A měsíce, které ještě nezačaly, taky: prázdná tabulka nikomu nepomůže.
+  const done = (BOOT.phases || []).filter(ph =>
+    ph.id !== 1 && cur && ph.start_event <= cur.id);
+
+  if(!done.length){
+    box.innerHTML = '<p class="note">Měsíční tabulky se objeví po prvním dohraném měsíci.</p>';
+    return;
+  }
+
+  const cache = {};
+  const draw = async (ph) => {
+    box.innerHTML = nav(ph.id)
+      + '<div class="skel"><i></i><i></i><i></i><i></i></div>';
+
+    try{
+      if(!cache[ph.id])
+        cache[ph.id] = await cached(
+          'leagues-classic/' + leagueId + '/standings/?phase=' + ph.id);
+
+      const rows = ((cache[ph.id].standings || {}).results || []);
+      box.innerHTML = nav(ph.id) + (rows.length
+        ? `<table><thead><tr><th class="n">#</th><th>Manažer</th>
+             <th class="hide-s">Tým</th><th class="n">Body za měsíc</th></tr></thead>
+           <tbody>${rows.map(m => `<tr${m.entry === myId ? ' class="me"' : ''}>
+             <td class="n">${m.rank}</td>
+             <td><b>${esc(m.player_name)}</b></td>
+             <td class="hide-s" style="color:var(--mute)">${esc(m.entry_name)}</td>
+             <td class="n">${m.total}</td></tr>`).join('')}</tbody></table>
+           <p class="note">${esc(ph.name)} = kola ${ph.start_event}–${ph.stop_event}.
+             Body jsou jen za tenhle úsek, ne od začátku sezóny.</p>`
+        : '<p class="note">Pro tenhle měsíc zatím žádná data nejsou.</p>');
+    }catch(e){
+      box.innerHTML = nav(ph.id)
+        + `<p class="note">Měsíční tabulku se nepodařilo načíst: ${esc(e.message)}</p>`;
+    }
+    bind();
+  };
+
+  const nav = sel => `<div class="phasenav" role="tablist">${done.map(ph =>
+    `<button class="sub-btn" role="tab" aria-selected="${ph.id === sel}"
+      data-ph="${ph.id}">${esc(ph.name)}</button>`).join('')}</div>`;
+
+  const bind = () => box.querySelectorAll('button[data-ph]').forEach(b =>
+    b.addEventListener('click', () =>
+      draw(done.find(x => x.id === Number(b.dataset.ph)))));
+
+  draw(done[done.length - 1]);   // výchozí je poslední rozehraný měsíc
+}
+
+/* ============================================================
+   KOLEJNICE SEZÓNY
+
+   38 čárek pod hlavičkou, jedna na kolo. Odehraná plná, aktuální
+   mátová a plní se do deadlinu, budoucí vlásek. Prázdné kolo tvého
+   kádru dostane červenou tečku, dvojité mátovou.
+
+   Stojí to jen na datech, která už appka stahuje (events, fixtures),
+   a je to jediné místo, kde je celá sezóna vidět naráz. Blanky
+   a doubly byly dřív schované v Programu, takže je člověk viděl,
+   jen když si o ně řekl.
+   ============================================================ */
+let RAIL_TIMER = null;
+
+/* Kolik hráčů z kádru má v daném kole 0 nebo 2+ zápasy.
+   Bez načteného kádru vrací prázdno — kolejnice pak jede bez teček. */
+function railShape(){
+  if(!BOOT || !FIX) return {};
+  const out = {};
+  const teams = MY_SQUAD
+    ? new Set(BOOT.elements.filter(p => MY_SQUAD.has(p.id)).map(p => p.team))
+    : null;
+  if(!teams || !teams.size) return out;
+
+  for(let gw = 1; gw <= 38; gw++){
+    let blank = 0, dbl = 0;
+    for(const t of teams){
+      const c = gwFixtures(t, gw).length;
+      if(c === 0) blank++;
+      else if(c > 1) dbl++;
+    }
+    if(blank || dbl) out[gw] = {blank, dbl};
+  }
+  return out;
+}
+
+function drawRail(){
+  const track = $('railTrack');
+  if(!track || !BOOT) return;
+
+  const cur = BOOT.events.find(e => e.is_current);
+  const nxt = BOOT.events.find(e => e.is_next);
+  const live = cur ? cur.id : (nxt ? nxt.id : 1);
+  const shape = railShape();
+
+  // Naplněnost aktuální čárky = kolik uplynulo od minulého deadlinu
+  // k tomu nadcházejícímu. Bez nadcházejícího (poslední kolo) je plná.
+  let fill = 100;
+  if(nxt){
+    const to = new Date(nxt.deadline_time).getTime();
+    const prev = BOOT.events.filter(e => e.id < nxt.id).pop();
+    const from = prev ? new Date(prev.deadline_time).getTime() : to - 7 * 864e5;
+    fill = Math.max(0, Math.min(100, ((Date.now() - from) / (to - from)) * 100));
+  }
+
+  const html = [];
+  for(let g = 1; g <= 38; g++){
+    const sh = shape[g];
+    const cls = ['gw'];
+    if(g < live) cls.push('past');
+    if(g === live) cls.push('now');
+    if(sh && sh.dbl && !sh.blank) cls.push('dbl');
+
+    const label = 'GW' + g
+      + (sh && sh.blank ? ' · ' + sh.blank + '× volno' : '')
+      + (sh && sh.dbl ? ' · ' + sh.dbl + '× dvojité' : '');
+
+    html.push(`<span class="${cls.join(' ')}" data-gw="GW${g}" title="${esc(label)}"
+      ${g === live ? `style="--fill:${fill.toFixed(1)}%"` : ''}
+      ><i></i>${sh ? '<b></b>' : ''}</span>`);
+  }
+  track.innerHTML = html.join('');
+  track.setAttribute('aria-label',
+    `Sezóna: kolo ${live} z 38` + (Object.keys(shape).length
+      ? `, ${Object.keys(shape).length} kol s volnem nebo dvojitým zápasem` : ''));
+
+  $('rail').hidden = false;
+  const key = $('railKey');
+  if(key){
+    key.hidden = !Object.keys(shape).length;
+    const last = key.lastElementChild;
+    if(last) last.textContent = MY_SQUAD ? 'podle tvého kádru' : 'kádr zatím nenačtený';
+  }
+
+  // Přepočet po minutě, ať se aktuální čárka plní i při otevřené appce.
+  if(RAIL_TIMER) clearInterval(RAIL_TIMER);
+  RAIL_TIMER = setInterval(drawRail, 60000);
+}
+
+/* ============================================================
+   ODZNAKY KLUBŮ
+
+   Klíčem je teams[].code z bootstrapu, ne id — code přežívá mezi
+   sezónami, id se přehazuje podle abecedy. Obrázek jde přes vlastní
+   /api/badge, protože CSP má img-src 'self' a cizí doménu zablokuje.
+
+   Když odznak na CDN není (typicky čerstvý nováček), spadneme na
+   vlastní barevnou značku z club-marks.svg. Proto onerror.
+   ============================================================ */
+function crest(teamId, cls){
+  const t = BOOT && BOOT.teams.find(x => x.id === teamId);
+  if(!t) return '';
+  const sn = esc(t.short_name);
+  const fb = `this.onerror=null;this.outerHTML='<svg class=&quot;crest ${cls || ''}&quot;`
+    + ` role=&quot;img&quot; aria-label=&quot;${sn}&quot;><use href=&quot;#club-${sn}&quot;/></svg>'`;
+  return `<img class="crest ${cls || ''}" src="/api/badge?code=${t.code}&size=50"
+    alt="" width="21" height="21" loading="lazy" decoding="async" onerror="${fb}">`;
+}
+
+/* ============================================================
+   PŘIPOMÍNKA DEADLINU
+
+   Odpočet v hlavičce funguje jen s otevřenou appkou. Nejčastější
+   chyba v FPL ale není špatný přestup — je to zapomenutý deadline.
+   Service worker už v projektu je, takže chybělo jen povolení
+   a naplánování.
+
+   Notification.showTrigger neumí každý prohlížeč. Když chybí,
+   řekneme to rovnou místo abychom slibovali něco, co nepřijde.
+   ============================================================ */
+const NOTIF_KEY = 'fpl_notif';
+
+function notifSupported(){
+  return typeof Notification !== 'undefined'
+    && 'serviceWorker' in navigator;
+}
+
+async function scheduleDeadlineNotice(){
+  if(!notifSupported() || Notification.permission !== 'granted' || !BOOT) return false;
+  const nxt = BOOT.events.find(e => e.is_next);
+  if(!nxt) return false;
+
+  const when = new Date(nxt.deadline_time).getTime() - 2 * 3600e3;   // 2 h předem
+  if(when <= Date.now()) return false;
+
+  try{
+    const reg = await navigator.serviceWorker.ready;
+    // Zahodíme dřív naplánované, ať se po přepnutí kola nesejdou dvě.
+    for(const n of await reg.getNotifications({includeTriggered: true, tag: 'fpl-deadline'}))
+      n.close();
+
+    if(!('showTrigger' in Notification.prototype)) return 'unsupported';
+
+    await reg.showNotification('Deadline GW' + nxt.id + ' za dvě hodiny', {
+      body: 'Zkontroluj sestavu, kapitána a zraněné.',
+      tag: 'fpl-deadline',
+      icon: '/icon.svg',
+      badge: '/icon.svg',
+      /* eslint-disable-next-line no-undef */
+      showTrigger: new TimestampTrigger(when),
+    });
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+function renderNotifBar(){
+  const host = $('notifhost');
+  if(!host) return;
+
+  if(!notifSupported()){
+    host.innerHTML = `<div class="notifbar"><p>Tenhle prohlížeč upozornění neumí.
+      Odpočet v hlavičce běží dál, ale jen když je appka otevřená.</p></div>`;
+    return;
+  }
+
+  const st = Notification.permission;
+  if(st === 'granted'){
+    host.innerHTML = `<div class="notifbar on"><p><b>Upozornění je zapnuté.</b>
+      Ozve se dvě hodiny před deadlinem.</p></div>`;
+    return;
+  }
+  if(st === 'denied'){
+    host.innerHTML = `<div class="notifbar"><p>Upozornění máš v prohlížeči zakázaná.
+      Povolit se dá v nastavení stránky vedle adresního řádku.</p></div>`;
+    return;
+  }
+  host.innerHTML = `<div class="notifbar">
+    <p>Chceš připomenout deadline dvě hodiny předem? Odpočet v hlavičce
+       funguje jen s otevřenou appkou.</p>
+    <button class="small" id="notifon">Zapnout upozornění</button></div>`;
+
+  $('notifon').addEventListener('click', async () => {
+    const r = await Notification.requestPermission();
+    if(r === 'granted'){
+      const ok = await scheduleDeadlineNotice();
+      localStorage.setItem(NOTIF_KEY, '1');
+      renderNotifBar();
+      if(ok === 'unsupported')
+        $('notifhost').insertAdjacentHTML('beforeend',
+          `<p class="note">Tvůj prohlížeč neumí naplánovaná upozornění dopředu
+           (Notification Triggers). Připomínka přijde jen když bude appka
+           na pozadí spuštěná — spolehni se radši na kalendář.</p>`);
+    }else{
+      renderNotifBar();
+    }
+  });
+}
+
+/* ============================================================
+   SNAPSHOTY MINILIGY
+
+   Hub uměl říct, jak si kdo stojí. Neuměl říct, co se změnilo od
+   minula — z aktuálního stavu se to dopočítat nedá.
+
+   Ukládáme proto po každém kole pořadí a body. Je to localStorage,
+   takže na jiném zařízení je snapshot prázdný; server-side úložiště
+   (Vercel KV) je další krok, ale tohle funguje hned a bez účtu.
+   ============================================================ */
+const SNAP_KEY = () =>
+  'fpl_snap:' + (CONFIG.leagueId || localStorage.getItem('fpl_league') || '0');
+
+function loadSnaps(){
+  try{ return JSON.parse(localStorage.getItem(SNAP_KEY()) || '{}'); }
+  catch(e){ return {}; }
+}
+
+/* Snapshot se ukládá pod číslem kola. Přepsat starý nesmíme —
+   změnil by se tím i výpočet posunu, který na něj odkazuje. */
+function saveSnap(gw, members){
+  const all = loadSnaps();
+  if(all[gw]) return all;
+  all[gw] = members.slice(0, 60).map(m => ({
+    id: m.entry, r: m.rank, t: m.total,
+  }));
+  // Držíme posledních osm kol; víc se do localStorage nevejde bezpečně.
+  const keys = Object.keys(all).map(Number).sort((a, b) => a - b);
+  while(keys.length > 8) delete all[keys.shift()];
+  try{ localStorage.setItem(SNAP_KEY(), JSON.stringify(all)); }catch(e){}
+  return all;
+}
+
+/* Posun v tabulce proti nejbližšímu staršímu snapshotu. */
+function rankDelta(entryId, gw){
+  const all = loadSnaps();
+  const prev = Object.keys(all).map(Number).filter(g => g < gw).sort((a, b) => b - a)[0];
+  if(!prev) return null;
+  const row = all[prev].find(x => x.id === entryId);
+  return row ? row.r : null;
+}
+
+function deltaChip(now, before){
+  if(before === null || before === undefined) return '';
+  const d = before - now;
+  if(d === 0) return '<span class="delta same" title="beze změny">–</span>';
+  return `<span class="delta ${d > 0 ? 'up' : 'down'}"
+    title="proti minulému kolu">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>`;
+}
+
+/* ============================================================
+   PLÁNOVAČ PŘESTUPŮ
+
+   Záložka Transfery odpovídá na „koho vyměnit teď“. Reálné
+   rozhodnutí ale zní „vydržet kolo, vzít dva volné a udělat to
+   naráz“ — a na to appka doteď neuměla odpovědět.
+
+   Plánovač drží tahy v několika kolech dopředu a průběžně počítá:
+     · zůstatek v bance po každém tahu,
+     · volné přestupy (FPL jich teď kumuluje až pět),
+     · body za hity (−4 za každý přestup nad rámec volných),
+     · čistý zisk podle projekce na zbytek plánovaného okna.
+
+   Nic se nikam neodesílá — přestupy pořád uděláš na webu FPL.
+   Tohle je počítadlo, ne ovladač.
+   ============================================================ */
+
+const PLANNER_GWS = 4;
+const PLANNER_KEY = () => 'fpl_planner:' + (ENTRY_ID || '0');
+
+let PLANNER = null;   // {startGw, squad, bank, freeAt, moves:[{gw,out,in}]}
+
+function loadMoves(){
+  try{ return JSON.parse(localStorage.getItem(PLANNER_KEY()) || '[]'); }
+  catch(e){ return []; }
+}
+function saveMoves(m){
+  try{ localStorage.setItem(PLANNER_KEY(), JSON.stringify(m)); }catch(e){}
+}
+
+/* Kolik volných přestupů mám na začátku plánování.
+
+   FPL od letoška kumuluje víc než jeden: nevyužitý se přenese,
+   strop je 1 + max_extra_free_transfers. Přesné číslo posílá
+   picks.entry_history, tak ho bereme odtud a nedopočítáváme. */
+function freeTransfersNow(){
+  const cap = 1 + ((BOOT.game_settings && BOOT.game_settings.max_extra_free_transfers) || 0);
+  const eh = (TR_STATE && TR_STATE.picks && TR_STATE.picks.entry_history) || {};
+  const v = eh.event_transfers !== undefined && Number.isFinite(eh.free_transfers)
+    ? eh.free_transfers : 1;
+  return Math.max(0, Math.min(cap, Number.isFinite(v) ? v : 1));
+}
+
+/* Průchod plánem kolo po kole.
+
+   Bankou a volnými přestupy se prochází v čase, protože obojí se
+   mezi koly mění — a právě to je informace, kvůli které plánovač
+   existuje. Nedá se to spočítat na jednom místě naráz. */
+function simulatePlan(moves){
+  const byId = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const start = PLANNER.startGw;
+  const cap = 1 + ((BOOT.game_settings && BOOT.game_settings.max_extra_free_transfers) || 0);
+
+  let bank = Math.round(PLANNER.bank * 10);   // v desetinách, ať se nezaokrouhluje
+  let free = PLANNER.free;
+  let hits = 0;
+  let gain = 0;
+
+  // Aktuální kádr jako množina; postupně se mění podle tahů.
+  const squad = new Set(PLANNER.squad.map(x => x.p.id));
+  const rows = [];
+
+  for(let i = 0; i < PLANNER_GWS; i++){
+    const gw = start + i;
+    const mine = moves.filter(m => m.gw === gw);
+    const detail = [];
+    let gwErr = null;
+
+    for(const m of mine){
+      const out = byId[m.out], inp = byId[m.in];
+      if(!out || !inp){ gwErr = 'Hráč už v datech není.'; continue; }
+      if(!squad.has(out.id)) gwErr = `${out.web_name} v tu chvíli v kádru není.`;
+      if(squad.has(inp.id)) gwErr = `${inp.web_name} v kádru už je.`;
+
+      bank += Math.round(sellPrice(out) * 10) - inp.now_cost;
+      squad.delete(out.id); squad.add(inp.id);
+
+      // Zisk počítáme na kola od tahu do konce okna — dřívější tah
+      // má víc kol na to, aby se vyplatil.
+      const n = PLANNER_GWS - i;
+      gain += projectRange(inp, gw, n) - projectRange(out, gw, n);
+
+      detail.push({out, in: inp});
+    }
+
+    const used = mine.length;
+    const paid = Math.max(0, used - free);
+    hits += paid;
+    free = Math.min(cap, Math.max(0, free - used) + 1);   // za každé kolo jeden zpět
+
+    rows.push({gw, detail, bank: bank / 10, free, paid, err: gwErr});
+  }
+
+  return {rows, bank: bank / 10, hits, gain, net: gain - hits * 4};
+}
+
+function renderPlanner(){
+  if(!PLANNER){ return; }
+  const moves = loadMoves().filter(m =>
+    m.gw >= PLANNER.startGw && m.gw < PLANNER.startGw + PLANNER_GWS);
+  const sim = simulatePlan(moves);
+  const byId = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+
+  // Nabídka „ven“: co je právě v kádru po předchozích tazích.
+  const owned = new Set(PLANNER.squad.map(x => x.p.id));
+  for(const m of moves){ owned.delete(m.out); owned.add(m.in); }
+
+  const outOpts = [...owned].map(id => byId[id]).filter(Boolean)
+    .sort((a, b) => a.element_type - b.element_type || b.now_cost - a.now_cost)
+    .map(p => `<option value="${p.id}">${esc(p.web_name)} · ${POS[p.element_type]} ·
+      ${(sellPrice(p)).toFixed(1)}m</option>`).join('');
+
+  const cards = sim.rows.map(r => {
+    const list = r.detail.length
+      ? r.detail.map(d => `<div class="pmove">
+          ${crest(d.out.team, 'sm')}<span>${esc(d.out.web_name)}</span>
+          <span class="ar">→</span>
+          ${crest(d.in.team, 'sm')}<span>${esc(d.in.web_name)}</span>
+          <button class="rm" type="button" data-del="${r.gw}:${d.out.id}"
+            aria-label="Zrušit tah ${esc(d.out.web_name)} za ${esc(d.in.web_name)}">×</button>
+        </div>`).join('')
+      : '<p class="pempty">Zatím beze změny.</p>';
+
+    return `<div class="pgw${r.paid ? ' hit' : ''}">
+      <h4>GW${r.gw}</h4>
+      <p class="ft${r.bank < 0 ? ' neg' : ''}">banka <b>${r.bank.toFixed(1)}m</b> ·
+        volné <b>${r.free}</b>${r.paid ? ` · hit <b>−${r.paid * 4}</b>` : ''}</p>
+      ${r.err ? `<p class="pempty" style="color:var(--alert)">${esc(r.err)}</p>` : ''}
+      ${list}
+      <div class="padd">
+        <select data-out="${r.gw}" aria-label="Kdo jde ven v GW${r.gw}">
+          <option value="">Ven…</option>${outOpts}</select>
+        <select data-in="${r.gw}" aria-label="Kdo jde dovnitř v GW${r.gw}">
+          <option value="">Dovnitř…</option></select>
+        <button class="small" data-add="${r.gw}" type="button">Přidat</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  $('plnout').innerHTML = `
+    <h2>Plán na ${PLANNER_GWS} kola · od GW${PLANNER.startGw}</h2>
+    <div class="psum">
+      <div><div class="k">Tahů</div><div class="v">${moves.length}</div></div>
+      <div><div class="k">Hity</div>
+        <div class="v${sim.hits ? ' neg' : ''}">${sim.hits ? '−' + sim.hits * 4 : '0'}</div></div>
+      <div><div class="k">Zisk z projekce</div>
+        <div class="v">${sim.gain >= 0 ? '+' : ''}${sim.gain.toFixed(1)}</div></div>
+      <div><div class="k">Čistě</div>
+        <div class="v ${sim.net >= 0 ? 'pos' : 'neg'}">${sim.net >= 0 ? '+' : ''}${sim.net.toFixed(1)}</div></div>
+      <div><div class="k">Banka na konci</div>
+        <div class="v${sim.bank < 0 ? ' neg' : ''}">${sim.bank.toFixed(1)}m</div></div>
+    </div>
+    ${sim.bank < 0
+      ? '<p class="note" style="color:var(--alert)"><b>Rozpočet nevychází.</b> '
+        + 'Někde v plánu jdeš do minusu — buď levnější příchod, nebo dražší odchod.</p>'
+      : ''}
+    <div class="plan-grid">${cards}</div>
+    <p class="note">Zisk je součet projekcí za kola od tahu do konce okna, takže
+      dřívější tah má víc kol na to, aby se vyplatil. Hity odečítám plnou sazbou
+      −4. Plán se ukládá v prohlížeči; přestupy uděláš pořád na webu FPL.</p>
+    <button class="lnk" id="plnclear" style="margin-top:10px">Vyprázdnit plán</button>`;
+
+  /* Nabídka „dovnitř“ se plní až po výběru odchozího hráče: dává smysl
+     ukazovat jen tu pozici, která se uvolnila, a jen to, co se vejde
+     do rozpočtu daného kola. */
+  $('plnout').querySelectorAll('select[data-out]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const gw = sel.dataset.out;
+      const inSel = $('plnout').querySelector(`select[data-in="${gw}"]`);
+      const out = byId[sel.value];
+      if(!out){ inSel.innerHTML = '<option value="">Dovnitř…</option>'; return; }
+
+      const row = sim.rows.find(r => String(r.gw) === gw) || {bank: PLANNER.bank};
+      const budget = Math.round((row.bank + sellPrice(out)) * 10);
+
+      const opts = BOOT.elements
+        .filter(p => p.element_type === out.element_type
+          && !owned.has(p.id) && p.now_cost <= budget
+          && p.status !== 'u' && p.status !== 'n')
+        .sort((a, b) => parseFloat(b.selected_by_percent) - parseFloat(a.selected_by_percent))
+        .slice(0, 40)
+        .map(p => `<option value="${p.id}">${esc(p.web_name)} ·
+          ${esc(teams[p.team].short_name)} · ${(p.now_cost / 10).toFixed(1)}m ·
+          ${parseFloat(p.selected_by_percent).toFixed(1)} %</option>`).join('');
+
+      inSel.innerHTML = `<option value="">Dovnitř…</option>${opts
+        || '<option value="" disabled>Do rozpočtu se nikdo nevejde</option>'}`;
+    });
+  });
+
+  $('plnout').querySelectorAll('button[data-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const gw = Number(btn.dataset.add);
+      const o = $('plnout').querySelector(`select[data-out="${gw}"]`).value;
+      const i = $('plnout').querySelector(`select[data-in="${gw}"]`).value;
+      if(!o || !i){ $('plnmsg').textContent = 'Vyber hráče na obou stranách.'; return; }
+      $('plnmsg').textContent = '';
+      saveMoves([...loadMoves(), {gw, out: Number(o), in: Number(i)}]);
+      renderPlanner();
+    });
+  });
+
+  $('plnout').querySelectorAll('button[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const [gw, out] = btn.dataset.del.split(':').map(Number);
+      const rest = loadMoves();
+      const at = rest.findIndex(m => m.gw === gw && m.out === out);
+      if(at >= 0) rest.splice(at, 1);
+      saveMoves(rest);
+      renderPlanner();
+    });
+  });
+
+  $('plnclear').addEventListener('click', () => {
+    saveMoves([]);
+    renderPlanner();
+  });
+}
+
+async function loadPlanner(){
+  $('plnmsg').textContent = 'Načítám kádr…';
+  $('plnout').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';
+  try{
+    // Plánovač stojí na stejných datech jako Transfery. Když tam člověk
+    // ještě nebyl, dotáhneme si je sami místo abychom ho posílali pryč.
+    if(!TR_STATE) await analyzeTransfers();
+    if(!TR_STATE){ $('plnmsg').textContent = 'Nejdřív si nech načíst sestavu.'; return; }
+
+    PLANNER = {
+      startGw: TR_STATE.startGw,
+      squad: TR_STATE.squad,
+      bank: bankValue(),
+      free: freeTransfersNow(),
+    };
+    $('plnmsg').textContent = '';
+    renderPlanner();
+  }catch(e){
+    $('plnmsg').textContent = e.message;
+    $('plnout').innerHTML = '';
+  }
+}
+
 /* ============ VSTUPNÍ OBRAZOVKA ============
    Nic se nestahuje, dokud uživatel nezadá ID. Jednotlivé záložky si
    pak data tahají samy, až když na ně přijde řada.
@@ -3895,22 +4521,45 @@ const LEAGUE_KEY = 'fpl_league';
 /* Kompletní úklid při přepnutí týmu.
 
    Bez tohohle zůstaly v paměti sestava, vlastnictví v lize i rozpracovaná
-   analýza přestupů z předchozího ID. Panel „Před deadlinem“ pak u nového
-   týmu ukazoval, koho v lize vlastní úplně jiní lidé. */
+   analýza přestupů z předchozího ID — nový tým pak viděl cizí čísla. */
 function resetState(){
   API_CACHE = new Map();
+  BUY_COST = null;
+  PLANNER = null;
+  if(RAIL_TIMER){ clearInterval(RAIL_TIMER); RAIL_TIMER = null; }
+  const rail = $('rail'); if(rail) rail.hidden = true;
+  const rk = $('railKey'); if(rk) rk.hidden = true;
   MY_SQUAD = null;
-  LEAGUE_OWNERS = null;
   TR_STATE = null;
   HUB = null;
   PLAYERS = null;
   COMPARE = [];
 
   ['out','msg','lout','lmsg','hubout','hubmsg','pout','pdetail',
-   'trout','trmsg','aout','amsg','plout','plmsg'].forEach(id => {
+   'trout','trmsg','plout','plmsg'].forEach(id => {
     const el = $(id);
     if(el) el.innerHTML = '';
   });
+}
+
+/* Sprite s barevnými značkami klubů. Slouží jako záloha, když odznak
+   na CDN chybí (typicky čerstvý nováček). Načítáme ho až po vstupu
+   do appky — na vstupní obrazovce by byl k ničemu. */
+let MARKS_LOADED = false;
+async function loadClubMarks(){
+  if(MARKS_LOADED) return;
+  MARKS_LOADED = true;
+  try{
+    const r = await fetch('/club-marks.svg');
+    if(!r.ok) return;
+    const host = document.createElement('div');
+    host.hidden = true;
+    host.innerHTML = await r.text();
+    document.body.appendChild(host);
+  }catch(e){
+    // Bez spritu se u chybějícího odznaku prostě nic nezobrazí.
+    // Není to důvod cokoli hlásit uživateli.
+  }
 }
 
 function enterApp(entryId, leagueId){
@@ -3933,6 +4582,7 @@ function enterApp(entryId, leagueId){
     $(id).title = hasLeague ? '' : 'Zadej ID miniligy';
   });
 
+  loadClubMarks();
   load(entryId);
   window.scrollTo(0, 0);
 }
