@@ -235,7 +235,7 @@ h2:first-child{margin-top:0}
    vyniknou tak, jak na světlém podkladu nemůžou. */
 .pitch{
   background:var(--sky-deep);border-radius:var(--r-img);
-  padding:24px 12px;margin:16px 0;
+  padding:20px 18px 24px;margin:16px 0;
   display:flex;flex-direction:column;gap:20px;
 }
 .row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
@@ -544,19 +544,25 @@ details.issue[open]>summary .more::after{content:' — sbalit'}
 .kpis.eprow .v.big{font-size:26px;color:var(--blue)}
 
 /* ---------- živé body v probíhajícím kole ---------- */
+/* Souhrn kola sedí uvnitř hřiště, ne nad ním — je to jeho hlavička.
+
+   Hřiště je tmavé, takže bílá karta by na něm byla cizí obdélník. Místo
+   toho je průsvitná s mátovým lemem: čísla drží kontrast, ale je za nimi
+   pořád vidět podklad. Dole je oddělovací linka a odsazení, aby velké
+   číslo nekolidovalo s první řadou dresů. */
 .livebar{
-  display:flex;flex-wrap:wrap;align-items:center;gap:22px;
-  padding:14px 18px;margin-bottom:14px;
-  background:var(--white);border:1px solid var(--line);
-  border-left:3px solid var(--blue);border-radius:var(--r-card);
+  display:flex;flex-wrap:wrap;align-items:center;gap:20px;
+  padding:0 4px 16px;margin:-6px 0 6px;
+  border-bottom:1px solid rgba(255,255,255,.14);
 }
-.livebar.done{border-left-color:var(--ok)}
-.livebar .big{font-family:var(--f-disp);font-size:34px;font-weight:700;line-height:1;
-  color:var(--blue)}
-.livebar.done .big{color:var(--ok)}
-.livebar b{font-family:var(--f-disp);font-size:20px;font-weight:700}
-.livebar span{display:block;font-size:11px;color:var(--mute);font-weight:500;margin-top:3px}
-.livebar .txt{flex:1 1 200px;font-size:12px;color:var(--mute);text-align:right}
+.livebar .big{font-family:var(--f-disp);font-size:38px;font-weight:800;line-height:.95;
+  color:var(--mint-fill);text-shadow:0 2px 14px rgba(0,0,0,.45)}
+.livebar.done .big{color:#fff}
+.livebar b{font-family:var(--f-disp);font-size:21px;font-weight:800;color:#fff}
+.livebar span{display:block;font-size:10.5px;color:#C7A8CE;font-weight:500;
+  margin-top:4px;letter-spacing:.02em}
+.livebar .txt{flex:1 1 190px;font-size:11.5px;color:#B291BA;text-align:right;
+  line-height:1.45}
 
 .shirt .pts{font-family:var(--f-mono);font-size:16px;font-weight:700;margin-top:3px}
 .shirt .pts small{display:block;font-size:9px;font-weight:400;color:var(--mute);
@@ -857,12 +863,6 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
 .delta.up{color:var(--ok)} .delta.down{color:var(--alert)} .delta.same{color:var(--mute)}
 .phasenav{display:flex;gap:5px;flex-wrap:wrap;margin:0 0 14px}
 
-/* ---------- upozornění na deadline ---------- */
-.notifbar{display:flex;align-items:center;gap:11px;flex-wrap:wrap;
-  padding:12px 15px;margin:14px 0;border-radius:var(--r-card);
-  background:var(--warn-bg);font-size:13px}
-.notifbar.on{background:var(--ok-bg)}
-.notifbar p{margin:0;flex:1 1 220px;color:var(--charcoal)}
 
 /* ---------- tmavý režim ----------
    Vědomě NENÍ na prefers-color-scheme. Appka je navržená jako světlá —
@@ -1009,6 +1009,26 @@ table.hist th.n{font-family:var(--f-mono);font-size:11px}
 .ok-t{color:var(--ok);font-weight:700}
 .warn-t{color:var(--warn);font-weight:700}
 .bad-t{color:var(--alert);font-weight:700}
+
+/* ---------- infotooltip ---------- */
+.i-tip{width:17px;height:17px;padding:0;flex:none;
+  border-radius:50%;border:1px solid var(--line);background:none;
+  color:var(--mute);font-family:var(--f-disp);font-size:11px;font-weight:800;
+  line-height:1;cursor:pointer;vertical-align:middle;margin-left:7px;
+  text-transform:none;letter-spacing:0}
+.i-tip:hover{border-color:var(--blue);color:var(--blue)}
+.i-tip[aria-expanded="true"]{background:var(--charcoal);border-color:var(--charcoal);
+  color:var(--white)}
+h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
+
+.tipbox{display:block;margin:8px 0 14px;padding:13px 16px;
+  background:var(--haze);border-left:3px solid var(--blue);
+  border-radius:0 var(--r-btn) var(--r-btn) 0;
+  font-family:var(--f);font-size:12.5px;font-weight:400;line-height:1.55;
+  letter-spacing:0;text-transform:none;color:var(--mute);max-width:760px}
+.tipbox b{color:var(--charcoal)}
+.tipbox code{font-family:var(--f-mono);font-size:11.5px;
+  background:rgba(55,0,60,.07);padding:1px 4px;border-radius:3px}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
@@ -1109,7 +1129,6 @@ table.hist th.n{font-family:var(--f-mono);font-size:11px}
 
     <div class="panel" id="p-squad" role="tabpanel" tabindex="-1" aria-labelledby="t-squad">
       <div id="msg" role="status" aria-live="polite"></div>
-      <div id="notifhost"></div>
       <div id="out"></div>
     </div>
 
@@ -1339,7 +1358,6 @@ async function load(id){
     if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
     startCountdown();
     drawRail();
-    renderNotifBar();
 
     const cur = BOOT.events.find(e => e.is_current);
     const nxt = BOOT.events.find(e => e.is_next);
@@ -1580,9 +1598,9 @@ function render(entry, picks, startGw, liveCtx){
   }).filter(Boolean);
 
   const shapeHtml = shapeWarn.length
-    ? `<h2>Co tě čeká v rozpisu</h2><div class="alerts">${shapeWarn.join('')}</div>
-       <p class="note">Blank znamená nula bodů od celého klubu. Když ti vypadnou čtyři
-       a víc hráčů, je to kolo pro free hit — podrobnosti v záložce Program.</p>`
+    ? `<h2>Co tě čeká v rozpisu${info(`Blank znamená nula bodů od celého klubu. Když ti vypadnou čtyři
+       a víc hráčů, je to kolo pro free hit — podrobnosti v záložce Program.`)}</h2><div class="alerts">${shapeWarn.join('')}</div>
+       `
     : '';
 
   const problems = squad.filter(s => s.p.status !== 'a' || s.chance < 100);
@@ -1713,16 +1731,15 @@ function render(entry, picks, startGw, liveCtx){
       <div><div class="k">Další kolo</div><div class="v">GW${startGw}</div></div>
     </div>
 
-    ${live ? `<div class="livebar${liveCtx.finished ? ' done' : ''}">
-      <div class="big">${liveTotal}<span>bodů v GW${liveGw}</span></div>
-      <div><b>${benchTotal}</b><span>na lavičce</span></div>
-      <div><b>${toPlay || '–'}</b><span>ještě nehrálo</span></div>
-      <div class="txt">${liveCtx.finished
-        ? 'Kolo je uzavřené, čísla jsou konečná.'
-        : 'Průběžně — bonusy se počítají z BPS a po zápase se ještě mohou změnit.'}</div>
-    </div>` : ''}
-
     <div class="pitch">
+      ${live ? `<div class="livebar${liveCtx.finished ? ' done' : ''}">
+        <div class="big">${liveTotal}<span>bodů v GW${liveGw}</span></div>
+        <div><b>${benchTotal}</b><span>na lavičce</span></div>
+        <div><b>${toPlay || '–'}</b><span>ještě nehrálo</span></div>
+        <div class="txt">${liveCtx.finished
+          ? 'Kolo je uzavřené, čísla jsou konečná.'
+          : 'Průběžně — bonusy z BPS se po zápase ještě mohou změnit.'}</div>
+      </div>` : ''}
       ${[4,3,2,1].map(t => `<div class="row">${rows[t].map(shirt).join('')}</div>`).join('')}
     </div>
 
@@ -1733,8 +1750,7 @@ function render(entry, picks, startGw, liveCtx){
 
     ${shapeHtml}
 
-    <h2>Kádr po pozicích</h2>
-    <p class="note">${live
+    <h2>Kádr po pozicích${info(`${live
       ? `Sloupec GW${liveGw} jsou body, které hráč v tomhle kole opravdu má (u kapitána
          už zdvojené). `
       : ''}Sloupec FDR je průměr přes dalších pět kol, barevný rozpis vedle něj ukazuje
@@ -1746,7 +1762,8 @@ function render(entry, picks, startGw, liveCtx){
         + 'týmů</b> (stupnice 1–5). Domácí a venkovní zápas rozliším, ale čísla jsou '
         + 'hrubší, než budou za pár kol.'
       : '<b>Používám oficiální FDR od FPL</b>, protože síly týmů zatím nejsou v datech '
-        + 'vyplněné vůbec.'}</p>
+        + 'vyplněné vůbec.'}`)}</h2>
+    
     ${squadTable}`;
 }
 
@@ -2616,14 +2633,14 @@ function easiestFixtures(squad, startGw){
     </div>`;
   }).join('');
 
-  return `<h2>Nejlehčí los na GW${startGw}</h2>
-    <div class="easygrid">${cards}</div>
-    <p class="note">Dva týmy, které mají v příštím kole nejlehčí zápas.
+  return `<h2>Nejlehčí los na GW${startGw}${info(`Dva týmy, které mají v příštím kole nejlehčí zápas.
       Obtížnost počítám ze síly obou týmů, ne z pevného FDR od FPL, a rozlišuju
       domácí zápas od venkovního. U dvojitého kola beru průměr obou zápasů.
       <b>Není to doporučení na kapitána</b> — lehký los sám o sobě body nedělá.
       Je to podklad: tohle jsou týmy, kde se dá čekat, že se bude hrát na jednu
-      branku.</p>`;
+      branku.`)}</h2>
+    <div class="easygrid">${cards}</div>
+    `;
 }
 
 /* Tři nejdražší hráči v kádru a co je čeká.
@@ -2638,7 +2655,8 @@ function topPriceBlock(squad, startGw){
 
   if(!top.length) return '';
 
-  return `<h2>Tvoji tři nejdražší</h2>
+  return `<h2>Tvoji tři nejdražší${info(`Nejdražší hráči v kádru a co je čeká v GW${startGw}.
+      Číslo vpravo je obtížnost zápasu na stupnici 1–5.`)}</h2>
     <div class="pricetop">${top.map(s => {
       const info = teamGwFdr(s.p.team, startGw);
       return `<div class="ptrow">
@@ -2653,8 +2671,7 @@ function topPriceBlock(squad, startGw){
           info ? info.fdr.toFixed(1) : '–'}</span>
       </div>`;
     }).join('')}</div>
-    <p class="note">Nejdražší hráči v kádru a co je čeká v GW${startGw}.
-      Číslo vpravo je obtížnost zápasu na stupnici 1–5.</p>`;
+    `;
 }
 
 /* ============================================================
@@ -2715,7 +2732,8 @@ function topBoard([key, title, cap, fmt, types]){
         nemá nenulovou.</p></div>`;
 
   return `<div class="tbox">
-    <h4>${esc(title)}</h4><p class="cap">${esc(cap)}</p>
+    <h4>${esc(title)}${info(`Vyber dva hráče a porovnám je vedle sebe.
+      Zelené pole ukazuje, kdo v daném ukazateli vede.`)}</h4><p class="cap">${esc(cap)}</p>
     <ol class="tlist">${rows.map(x => `<li class="${
         MY_SQUAD && MY_SQUAD.has(x.p.id) ? 'me' : ''}">
       <button type="button" class="tname" data-pid="${x.p.id}">
@@ -2810,8 +2828,7 @@ function drawCompare(){
 
   let body;
   if(!a || !b){
-    body = `<p class="note">Vyber dva hráče a porovnám je vedle sebe.
-      Zelené pole ukazuje, kdo v daném ukazateli vede.</p>`;
+    body = ``;
   }else if(a.id === b.id){
     body = '<p class="note">To je dvakrát ten samý hráč — vyber dva různé.</p>';
   }else{
@@ -2857,7 +2874,12 @@ function drawCompare(){
           : ''}</p>`;
   }
 
-  box.innerHTML = `<h2>Porovnání dvou hráčů</h2>${comparePickers()}
+  box.innerHTML = `<h2>Porovnání dvou hráčů${info(`Vyber dva hráče a porovnám je
+      vedle sebe. Zelené pole ukazuje, kdo v daném ukazateli vede. Sada řádků se
+      mění podle pozice: dva brankáři dostanou zákroky a inkasované góly, hráči
+      v poli xG, xA a defenzivní příspěvky. U ceny a inkasovaných gólů vyhrává
+      nižší číslo. Verdikt dole počítám z projekce na pět kol dopředu, ne ze
+      sezónních součtů — ty říkají, kdo byl lepší, ne kdo bude.`)}</h2>${comparePickers()}
     <div class="cmpout">${body}</div>`;
 
   /* Hledání seznam nefiltruje, ale vybere nejlepší shodu. Filtrovat
@@ -2885,13 +2907,12 @@ function drawCompare(){
 
 function drawTopPlayers(){
   $('pout').innerHTML = [
-    '<h2>Hráči v poli</h2>',
+    `<h2>Hráči v poli${info(`Top 10 v každé kategorii za celou sezónu.
+      Zvýrazněné řádky jsou hráči z tvé sestavy — kádr si nech načíst v záložce
+      Sestava. Klikni na jméno pro detail hráče.`)}</h2>`,
     `<div class="tgrid">${TOP_FIELD.map(topBoard).join('')}</div>`,
     '<h2>Brankáři</h2>',
     `<div class="tgrid">${TOP_GK.map(topBoard).join('')}</div>`,
-    `<p class="note">Top 10 v každé kategorii za celou sezónu. Zvýrazněné
-      řádky jsou hráči z tvé sestavy — kádr si nech načíst v záložce Sestava.
-      Klikni na jméno pro detail hráče.</p>`,
   ].join('');
 
   $('pout').querySelectorAll('button.tname').forEach(btn =>
@@ -3008,13 +3029,13 @@ async function showPlayer(pid){
       <div><div class="k">Forma</div><div class="v">${row.p.form}</div></div>
     </div>
 
-    <h2>Statistiky podle pozice</h2>
-    ${statGrid(row.p)}
-    <p class="note">Všechno naměřená čísla z FPL, nic dopočítaného.
+    <h2>Statistiky podle pozice${info(`Všechno naměřená čísla z FPL, nic dopočítaného.
     ${row.p.element_type === 1 ? 'U brankáře rozhodují zákroky a čistá konta.'
       : row.p.element_type === 2 ? 'U obránce sleduj xGC — kolik jeho tým očekávaně inkasuje.'
       : row.p.element_type === 3 ? 'Záložník bere body z obou stran: zapojení do gólů i čisté konto.'
-      : 'U útočníka je podstatné xGI — jak často se dostává ke gólovým situacím.'}</p>
+      : 'U útočníka je podstatné xGI — jak často se dostává ke gólovým situacím.'}`)}</h2>
+    ${statGrid(row.p)}
+    
 
     <h2 style="margin-top:16px">Posledních 5 kol</h2>
     ${pills}
@@ -3538,7 +3559,13 @@ function renderTransfers(){
   const bankEdited = Number.isFinite(parseFloat(localStorage.getItem(BANK_KEY())));
 
   $('trout').innerHTML = `
-    <h2>Nalezeno ${issues.length} problémů · ${p1} akutních</h2>
+    <h2>Nalezeno ${issues.length} problémů · ${p1} akutních${info(`${BUY_COST
+      ? 'Prodejní ceny počítám z <b>tvých skutečných nákupních cen</b> (endpoint '
+        + 'transfers/). Ze zisku ti FPL vrací polovinu zaokrouhlenou dolů — to je '
+        + 'v čísle zahrnuté. Přepsat je můžeš, ale většinou nebudeš muset.'
+      : '<b>Historii přestupů se nepodařilo načíst</b>, takže počítám z ceny na '
+        + 'začátku sezóny. U hráčů koupených během sezóny to bude vedle — přepiš je '
+        + 'ručně.'}`)}</h2>
     <div class="budget" style="border-top:0;padding-top:0">
       <label>V bance
         <input class="pin" id="bankin" type="number" step="0.1" min="0" max="100"
@@ -3547,13 +3574,7 @@ function renderTransfers(){
       ${bankEdited ? `<span class="edited">upraveno</span>
         <button class="lnk" id="bankreset">vrátit ${TR_STATE.apiBank.toFixed(1)}m z FPL</button>` : ''}
     </div>
-    <p class="note">${BUY_COST
-      ? 'Prodejní ceny počítám z <b>tvých skutečných nákupních cen</b> (endpoint '
-        + 'transfers/). Ze zisku ti FPL vrací polovinu zaokrouhlenou dolů — to je '
-        + 'v čísle zahrnuté. Přepsat je můžeš, ale většinou nebudeš muset.'
-      : '<b>Historii přestupů se nepodařilo načíst</b>, takže počítám z ceny na '
-        + 'začátku sezóny. U hráčů koupených během sezóny to bude vedle — přepiš je '
-        + 'ručně.'}</p>
+    
     ${blocks.join('')}
     <button class="lnk" id="sellreset" style="margin-top:14px">Zahodit ruční přepisy</button>
     <div class="diffs">${buildDifferentials()}</div>`;
@@ -3947,20 +3968,21 @@ function buildCollective(){
     <h2>Kapitánská mapa · GW${cur.id}</h2>
     <div class="capmap">${capRows}</div>
 
-    <h2>Efekt šablony</h2>
+    <h2>Efekt šablony${info(`${
+      templatePct >= 60
+        ? 'Liga hraje skoro stejný tým — rozhodne se to na pár rozdílných hráčích a kapitánovi.'
+        : templatePct >= 35
+          ? 'Sestavy se překrývají zhruba z třetiny. Prostor odlišit se tu pořád je.'
+          : 'Každý si jede po svém — tabulka se může házet kolo od kola.'}`)}</h2>
     <div class="kpis">
       <div><div class="k">Jádro ligy</div><div class="v">${core.length}</div></div>
       <div><div class="k">Má každý</div><div class="v">${universal.length}</div></div>
       <div><div class="k">Shoda</div><div class="v">${templatePct} %</div></div>
     </div>
-    <p class="note">${
-      templatePct >= 60
-        ? 'Liga hraje skoro stejný tým — rozhodne se to na pár rozdílných hráčích a kapitánovi.'
-        : templatePct >= 35
-          ? 'Sestavy se překrývají zhruba z třetiny. Prostor odlišit se tu pořád je.'
-          : 'Každý si jede po svém — tabulka se může házet kolo od kola.'}</p>
+    
 
-    <h2>Liga proti proudu</h2>
+    <h2>Liga proti proudu${info(`Kde je tvoje liga jinde než zbytek světa. Kladný rozdíl znamená,
+    že vy na hráče věříte víc než ostatní.`)}</h2>
     <table>
       <thead><tr><th>Hráč</th><th class="hide-s">Tým</th>
         <th class="n">V lize</th><th class="n">Globálně</th><th class="n">Rozdíl</th></tr></thead>
@@ -3972,8 +3994,7 @@ function buildCollective(){
         <td class="n ${x.diff > 0 ? 'ok' : 'al'}">${x.diff > 0 ? '+' : ''}${x.diff.toFixed(0)}</td>
       </tr>`).join('')}</tbody>
     </table>
-    <p class="note">Kde je tvoje liga jinde než zbytek světa. Kladný rozdíl znamená,
-    že vy na hráče věříte víc než ostatní.</p>`;
+    `;
 }
 
 function renderHub(){
@@ -3994,7 +4015,20 @@ function renderHub(){
   ];
 
   $('hubout').innerHTML = `
-    <h2>${esc(CONFIG.leagueName || HUB.st.league.name)} · po ${HUB.cur.id}. kole</h2>
+    <h2>${esc(CONFIG.leagueName || HUB.st.league.name)} · po ${HUB.cur.id}. kole${info(`${strengthsReady()
+      ? 'Obtížnost počítám z útočné a obranné síly obou týmů, ne z pevného FDR, které '
+        + 'FPL nastaví v srpnu a pak už nemění. Barvy jsou <b>relativní</b> — každé pásmo '
+        + 'dostane zhruba pětinu zápasů.'
+      : strengthsUsable()
+      ? 'Útočná a obranná síla zatím v datech není, tak počítám z <b>celkové síly týmů</b> '
+        + '(stupnice 1–5) — pořád to rozliší domácí zápas od venkovního, jen hruběji. '
+        + 'Barvy jsou relativní, každé pásmo dostane zhruba pětinu zápasů.'
+      : '<b>Zdroj obtížnosti: oficiální FDR od FPL.</b> Síly týmů, ze kterých počítám '
+        + 'vlastní hodnocení, zatím v datech nejsou vyplněné — FPL je doplní po několika '
+        + 'odehraných kolech a čísla se pak zjemní.'}
+    <b>VELKÁ</b> písmena znamenají domácí zápas,
+    <b>malá</b> venkovní. Dvě zkratky v jednom políčku je double, pomlčka blank.
+    Tabulka je seřazená od nejpříznivějšího programu.`)}</h2>
     <div class="subnav" role="tablist">
       ${SECS.map((s, i) => `<button class="sub-btn" role="tab"
         aria-selected="${i === 0}" data-hs="${i}">${esc(s[0])}</button>`).join('')}
@@ -4180,20 +4214,7 @@ function buildTicker(){
       <thead><tr><th>Klub</th>${head}<th>Ø</th></tr></thead>
       <tbody>${body}</tbody>
     </table>
-    <p class="note">${strengthsReady()
-      ? 'Obtížnost počítám z útočné a obranné síly obou týmů, ne z pevného FDR, které '
-        + 'FPL nastaví v srpnu a pak už nemění. Barvy jsou <b>relativní</b> — každé pásmo '
-        + 'dostane zhruba pětinu zápasů.'
-      : strengthsUsable()
-      ? 'Útočná a obranná síla zatím v datech není, tak počítám z <b>celkové síly týmů</b> '
-        + '(stupnice 1–5) — pořád to rozliší domácí zápas od venkovního, jen hruběji. '
-        + 'Barvy jsou relativní, každé pásmo dostane zhruba pětinu zápasů.'
-      : '<b>Zdroj obtížnosti: oficiální FDR od FPL.</b> Síly týmů, ze kterých počítám '
-        + 'vlastní hodnocení, zatím v datech nejsou vyplněné — FPL je doplní po několika '
-        + 'odehraných kolech a čísla se pak zjemní.'}
-    <b>VELKÁ</b> písmena znamenají domácí zápas,
-    <b>malá</b> venkovní. Dvě zkratky v jednom políčku je double, pomlčka blank.
-    Tabulka je seřazená od nejpříznivějšího programu.</p>`;
+    `;
 }
 
 /* --- 2. Blanky a doubly --- */
@@ -4224,9 +4245,7 @@ function buildShape(){
     </div>`;
   }).join('');
 
-  return cards + `<p class="note">Blank znamená, že klub v tom kole nehraje a jeho hráči
-    dají nulu. Double je opak — dva zápasy, dvojnásobná šance. Tohle jsou kola, kde se
-    vyplatí mít nachystaný čip.</p>`;
+  return cards + ``;
 }
 
 /* --- 3. Predikce změn cen ---
@@ -4288,6 +4307,7 @@ function buildPrices(){
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
   const mv = priceMoves();
 
+  // Prázdný stav není vysvětlivka — patří na stránku, ne pod „i“.
   if(!mv.ok) return `<h3>Pohyby cen</h3>
     <p class="note">FPL zatím predikce cen neposílá — pole
     <code>price_change_projections</code> je v datech prázdné. Objeví se
@@ -4710,12 +4730,12 @@ function buildDifferentials(){
   const g = diffRows(BOOT.elements, startGw,
     p => parseFloat(p.selected_by_percent) || 0, gwPlayed);
 
-  let out = `<h3>Top 5 diferenciálů · celé FPL</h3>
-    <p class="note">Hráči ${esc(g.tier.label)} s nejvyšší projekcí na příštích
+  let out = `<h3>Top 5 diferenciálů · celé FPL${info(`Hráči ${esc(g.tier.label)} s nejvyšší projekcí na příštích
       ${DIFF_GWS} kol.${g.tier.max > 12
         ? ' <b>Strop jsem musel povolit</b> — pod dvanácti procenty se pět jmen'
           + ' s rozumnou projekcí nenašlo.'
-        : ''}</p>
+        : ''}`)}</h3>
+    
     ${diffTable(g, 'Vlastní')}`;
 
   // --- v rámci miniligy ---
@@ -4741,10 +4761,31 @@ function buildDifferentials(){
 
     const l = diffRows(BOOT.elements, startGw, ownPct, gwPlayed, tiers);
 
-    out += `<p class="note">Hráči, ${esc(l.tier.label)} (${n} manažerů).
-        Tady se pořadí láme — na hráči, kterého má celá liga, proti ní
-        nezískáš nic, i kdyby dal hattrick.</p>
-      ${diffTable(l, 'V lize')}`;
+    /* Druhá pětice: pod polovinou ligy.
+
+       Ostré diferenciály (nikdo / jeden soupeř) jsou často hráči, které
+       nikdo nemá z dobrého důvodu. Pod polovinou ligy je mírnější kategorie:
+       pořád na nich proti půlce soupeřů získáváš, ale výběr je širší
+       a jména známější. Jedno bez druhého dává zkreslený obrázek. */
+    const half = [{max: 50 - 0.01, label: 'které má míň než polovina ligy'}];
+    const h = diffRows(BOOT.elements, startGw, ownPct, gwPlayed, half);
+
+    out += `<div class="subnav" role="tablist">
+        <button class="sub-btn" role="tab" aria-selected="true" data-diff="0">Ostré</button>
+        <button class="sub-btn" role="tab" aria-selected="false" data-diff="1">Pod polovinou ligy</button>
+      </div>
+      <div class="sec" id="diff-0">
+        <p class="note">Hráči, ${esc(l.tier.label)} (${n} manažerů).
+          Tady se pořadí láme nejvíc — na hráči, kterého má celá liga, proti ní
+          nezískáš nic, i kdyby dal hattrick.</p>
+        ${diffTable(l, 'V lize')}
+      </div>
+      <div class="sec" id="diff-1" hidden>
+        <p class="note">Hráči, které má míň než polovina ligy. Mírnější
+          kategorie — proti půlce soupeřů pořád získáváš, ale výběr je širší
+          a rizika menší než u těch, které nemá nikdo.</p>
+        ${diffTable(h, 'V lize')}
+      </div>`;
   }
 
   out += `<p class="note">Řadím podle projekce dělené odmocninou vlastnictví
@@ -4756,6 +4797,19 @@ function buildDifferentials(){
 
   return out;
 }
+
+/* Přepínač mezi ostrými a mírnějšími ligovými diferenciály.
+   Delegovaně, protože blok se překresluje s celou záložkou Transfery. */
+document.addEventListener('click', ev => {
+  const btn = ev.target.closest('button[data-diff]');
+  if(!btn) return;
+  const host = btn.closest('.diffs') || document;
+  host.querySelectorAll('button[data-diff]').forEach(b =>
+    b.setAttribute('aria-selected', String(b === btn)));
+  host.querySelectorAll('[id^="diff-"]').forEach(sec => {
+    sec.hidden = sec.id !== 'diff-' + btn.dataset.diff;
+  });
+});
 
 /* ============================================================
    ZÁLOŽKA CENY
@@ -4804,11 +4858,11 @@ function buildMoved(){
   const mv = recentMovers();
   return `<h3>Zdražili</h3>
     ${movedTable(mv.up, 'up', 'Za poslední kolo nikdo nezdražil.')}
-    <h3>Zlevnili</h3>
-    ${movedTable(mv.down, 'down', 'Za poslední kolo nikdo nezlevnil.')}
-    <p class="note">Změna je za <b>poslední kolo</b> (<code>cost_change_event</code>),
+    <h3>Zlevnili${info(`Změna je za <b>poslední kolo</b> (<code>cost_change_event</code>),
       ne za celou sezónu. Zvýrazněné řádky jsou hráči z tvé sestavy — u těch,
-      kteří zlevnili, ti klesá hodnota týmu.</p>`;
+      kteří zlevnili, ti klesá hodnota týmu.`)}</h3>
+    ${movedTable(mv.down, 'down', 'Za poslední kolo nikdo nezlevnil.')}
+    `;
 }
 
 function buildSeason(){
@@ -4836,10 +4890,10 @@ function buildSeason(){
     return '<p class="note">Od začátku sezóny se zatím žádná cena nepohnula.</p>';
 
   return `<h3>Největší růst</h3>${tbl(top)}
-    <h3>Největší propad</h3>${tbl(bot)}
-    <p class="note">Růst hodnoty týmu je dlouhá hra: každé zdražení hráče,
+    <h3>Největší propad${info(`Růst hodnoty týmu je dlouhá hra: každé zdražení hráče,
       kterého držíš, ti přidá 0,1m do rozpočtu — ale při prodeji dostaneš
-      zpátky jen polovinu zisku.</p>`;
+      zpátky jen polovinu zisku.`)}</h3>${tbl(bot)}
+    `;
 }
 
 async function loadPrices(){
@@ -4978,6 +5032,63 @@ if($('theme')) $('theme').addEventListener('click', () => {
 });
 
 /* ============================================================
+   INFOTOOLTIP
+
+   Appka měla přes sedmdesát vysvětlujících odstavců pod tabulkami.
+   Každý sám o sobě dával smysl, dohromady z toho ale byla zeď textu,
+   kterou nikdo nečetl a která odsouvala vlastní data pod ohyb.
+
+   Text zůstává — jen se schová za „i“ vedle nadpisu a vyjede na
+   kliknutí. Kdo to čte poprvé, najde ho; kdo appku zná, nevidí ho.
+
+   Proč kliknutí a ne hover: na dotykovém displeji hover neexistuje
+   a tooltip by byl nedostupný. Kliknutí funguje všude stejně.
+   ============================================================ */
+let TIP_SEQ = 0;
+
+/* Vrací „i“ tlačítko i s obsahem. Vkládá se přímo do nadpisu. */
+function info(html){
+  const id = 'tip' + (++TIP_SEQ);
+  return `<button type="button" class="i-tip" aria-expanded="false"
+      aria-controls="${id}" title="Co to znamená">i</button>` +
+    `<span class="tipbox" id="${id}" role="note" hidden>${html}</span>`;
+}
+
+/* Jedna delegovaná obsluha pro celý dokument — tooltipy vznikají
+   při každém překreslení a věšet posluchače na každý zvlášť by
+   znamenalo je po překreslení ztrácet. */
+document.addEventListener('click', ev => {
+  const btn = ev.target.closest('.i-tip');
+
+  // Klik mimo zavře všechno otevřené.
+  document.querySelectorAll('.i-tip[aria-expanded="true"]').forEach(b => {
+    if(b === btn) return;
+    b.setAttribute('aria-expanded', 'false');
+    const box = document.getElementById(b.getAttribute('aria-controls'));
+    if(box) box.hidden = true;
+  });
+
+  if(!btn) return;
+  ev.preventDefault();
+
+  const box = document.getElementById(btn.getAttribute('aria-controls'));
+  if(!box) return;
+  const open = btn.getAttribute('aria-expanded') === 'true';
+  btn.setAttribute('aria-expanded', String(!open));
+  box.hidden = open;
+});
+
+document.addEventListener('keydown', ev => {
+  if(ev.key !== 'Escape') return;
+  document.querySelectorAll('.i-tip[aria-expanded="true"]').forEach(b => {
+    b.setAttribute('aria-expanded', 'false');
+    const box = document.getElementById(b.getAttribute('aria-controls'));
+    if(box) box.hidden = true;
+    b.focus();
+  });
+});
+
+/* ============================================================
    KOLEJNICE SEZÓNY
 
    38 čárek pod hlavičkou, jedna na kolo. Odehraná plná, aktuální
@@ -5085,97 +5196,6 @@ function crest(teamId, cls){
     + ` role=&quot;img&quot; aria-label=&quot;${sn}&quot;><use href=&quot;#club-${sn}&quot;/></svg>'`;
   return `<img class="crest ${cls || ''}" src="/api/badge?code=${t.code}&size=50"
     alt="" width="21" height="21" loading="lazy" decoding="async" onerror="${fb}">`;
-}
-
-/* ============================================================
-   PŘIPOMÍNKA DEADLINU
-
-   Odpočet v hlavičce funguje jen s otevřenou appkou. Nejčastější
-   chyba v FPL ale není špatný přestup — je to zapomenutý deadline.
-   Service worker už v projektu je, takže chybělo jen povolení
-   a naplánování.
-
-   Notification.showTrigger neumí každý prohlížeč. Když chybí,
-   řekneme to rovnou místo abychom slibovali něco, co nepřijde.
-   ============================================================ */
-const NOTIF_KEY = 'fpl_notif';
-
-function notifSupported(){
-  return typeof Notification !== 'undefined'
-    && 'serviceWorker' in navigator;
-}
-
-async function scheduleDeadlineNotice(){
-  if(!notifSupported() || Notification.permission !== 'granted' || !BOOT) return false;
-  const nxt = BOOT.events.find(e => e.is_next);
-  if(!nxt) return false;
-
-  const when = new Date(nxt.deadline_time).getTime() - 2 * 3600e3;   // 2 h předem
-  if(when <= Date.now()) return false;
-
-  try{
-    const reg = await navigator.serviceWorker.ready;
-    // Zahodíme dřív naplánované, ať se po přepnutí kola nesejdou dvě.
-    for(const n of await reg.getNotifications({includeTriggered: true, tag: 'fpl-deadline'}))
-      n.close();
-
-    if(!('showTrigger' in Notification.prototype)) return 'unsupported';
-
-    await reg.showNotification('Deadline GW' + nxt.id + ' za dvě hodiny', {
-      body: 'Zkontroluj sestavu, kapitána a zraněné.',
-      tag: 'fpl-deadline',
-      icon: '/icon.svg',
-      badge: '/icon.svg',
-      /* eslint-disable-next-line no-undef */
-      showTrigger: new TimestampTrigger(when),
-    });
-    return true;
-  }catch(e){
-    return false;
-  }
-}
-
-function renderNotifBar(){
-  const host = $('notifhost');
-  if(!host) return;
-
-  if(!notifSupported()){
-    host.innerHTML = `<div class="notifbar"><p>Tenhle prohlížeč upozornění neumí.
-      Odpočet v hlavičce běží dál, ale jen když je appka otevřená.</p></div>`;
-    return;
-  }
-
-  const st = Notification.permission;
-  if(st === 'granted'){
-    host.innerHTML = `<div class="notifbar on"><p><b>Upozornění je zapnuté.</b>
-      Ozve se dvě hodiny před deadlinem.</p></div>`;
-    return;
-  }
-  if(st === 'denied'){
-    host.innerHTML = `<div class="notifbar"><p>Upozornění máš v prohlížeči zakázaná.
-      Povolit se dá v nastavení stránky vedle adresního řádku.</p></div>`;
-    return;
-  }
-  host.innerHTML = `<div class="notifbar">
-    <p>Chceš připomenout deadline dvě hodiny předem? Odpočet v hlavičce
-       funguje jen s otevřenou appkou.</p>
-    <button class="small" id="notifon">Zapnout upozornění</button></div>`;
-
-  $('notifon').addEventListener('click', async () => {
-    const r = await Notification.requestPermission();
-    if(r === 'granted'){
-      const ok = await scheduleDeadlineNotice();
-      localStorage.setItem(NOTIF_KEY, '1');
-      renderNotifBar();
-      if(ok === 'unsupported')
-        $('notifhost').insertAdjacentHTML('beforeend',
-          `<p class="note">Tvůj prohlížeč neumí naplánovaná upozornění dopředu
-           (Notification Triggers). Připomínka přijde jen když bude appka
-           na pozadí spuštěná — spolehni se radši na kalendář.</p>`);
-    }else{
-      renderNotifBar();
-    }
-  });
 }
 
 /* ============================================================
@@ -5449,6 +5469,14 @@ function renderPlanner(){
   }).join('');
 
   $('plnout').innerHTML = `
+    <h2>Plán na ${PLANNER_GWS} kola${info(`<b>Co je „zisk z projekce“:</b> u každého tahu vezmu
+      svůj model a spočítám, kolik bodů nasbírá příchozí hráč od kola tahu
+      do konce plánovaného okna — a odečtu totéž pro odcházejícího. Model
+      počítá minutovou jistotu, sílu soupeřů, defenzivní příspěvky
+      i dvojitá a volná kola. Je to <b>můj odhad, ne oficiální číslo FPL</b>;
+      to najdeš jako „projekce FPL“ u hráče a platí vždy jen na jedno kolo.
+      Součty přes několik kol jsou ze své podstaty hrubé — ber je jako
+      pořadí, ne jako předpověď.`)}</h2>
     <div class="psum">
       <div><div class="k">Tahů v plánu</div><div class="v">${moves.length}</div></div>
       <div><div class="k">Body za hity</div>
@@ -5480,14 +5508,7 @@ function renderPlanner(){
         + 'Potřebuješ levnější příchod nebo dražší odchod.</p>'
       : ''}
     <div class="plan-rows">${gwRows}</div>
-    <p class="note"><b>Co je „zisk z projekce“:</b> u každého tahu vezmu
-      svůj model a spočítám, kolik bodů nasbírá příchozí hráč od kola tahu
-      do konce plánovaného okna — a odečtu totéž pro odcházejícího. Model
-      počítá minutovou jistotu, sílu soupeřů, defenzivní příspěvky
-      i dvojitá a volná kola. Je to <b>můj odhad, ne oficiální číslo FPL</b>;
-      to najdeš jako „projekce FPL“ u hráče a platí vždy jen na jedno kolo.
-      Součty přes několik kol jsou ze své podstaty hrubé — ber je jako
-      pořadí, ne jako předpověď.</p>
+    
     <p class="note">Každý přestup nad rámec volných stojí <b>4 body</b>. Volný
       přestup se ti po každém kole vrátí, strop je
       ${1 + ((BOOT.game_settings && BOOT.game_settings.max_extra_free_transfers) || 0)} —

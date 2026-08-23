@@ -1457,7 +1457,9 @@ check('bez výběru porovnání jen vyzve', () => {
   w.eval('CMP_A = CMP_B = null;');
   w.eval('drawCompare()');
   const html = w.document.getElementById('pcompare').innerHTML;
-  if(!html.includes('Vyber dva hráče')) throw new Error(html.slice(0, 120));
+  // Text výzvy se přesunul do tooltipu u nadpisu.
+  if(!html.includes('Vyber dva hráče') && !html.includes('tipbox'))
+    throw new Error(html.slice(0, 140));
   if(!html.includes('id="cmpa"')) throw new Error('chybí výběr hráčů');
   return 'výzva + oba výběry';
 });
@@ -1938,6 +1940,132 @@ check('tlačítko Aktualizovat cache opravdu zneplatní', () => {
   if(!html.slice(j, j + 300).includes('dropCached'))
     throw new Error('hub neaktualizuje');
   return 'obě tlačítka';
+});
+
+/* ================= infotooltipy ================= */
+
+check('upozornění na deadline je pryč', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  for(const t of ['renderNotifBar', 'scheduleDeadlineNotice', 'notifhost', 'NOTIF_KEY'])
+    if(html.includes(t)) throw new Error('zůstalo: ' + t);
+  const sw = fs.readFileSync('sw.js', 'utf8');
+  if(sw.includes('notificationclick')) throw new Error('service worker to pořád obsluhuje');
+  return 'odstraněno';
+});
+
+check('vysvětlivky se schovaly do tooltipů', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const tips = (html.match(/\$\{info\(/g) || []).length;
+  if(tips < 12) throw new Error('tooltipů jen ' + tips);
+  return tips + ' tooltipů';
+});
+
+check('tooltip je schovaný, dokud se neklikne', () => {
+  w.eval('TIP_SEQ = 900');
+  const html = w.eval('info')('Vysvětlení.');
+  if(!html.includes('hidden')) throw new Error('vyjede rovnou');
+  if(!html.includes('aria-expanded="false"')) throw new Error('chybí stav pro odečítač');
+  if(!html.includes('aria-controls="tip901"')) throw new Error('nespojil tlačítko s obsahem');
+  return 'zavřený';
+});
+
+check('kliknutí tooltip otevře a druhé zavře', () => {
+  const host = w.document.createElement('div');
+  host.innerHTML = '<h2>Nadpis' + w.eval('info')('Text vysvětlivky.') + '</h2>';
+  w.document.body.appendChild(host);
+
+  const btn = host.querySelector('.i-tip');
+  const box = host.querySelector('.tipbox');
+  if(!box.hidden) throw new Error('začíná otevřený');
+
+  btn.click();
+  if(box.hidden) throw new Error('neotevřel se');
+  if(btn.getAttribute('aria-expanded') !== 'true') throw new Error('aria se nezměnila');
+
+  btn.click();
+  if(!box.hidden) throw new Error('nezavřel se');
+  host.remove();
+  return 'otevírá a zavírá';
+});
+
+check('otevřený tooltip zavře klik jinam', () => {
+  const host = w.document.createElement('div');
+  host.innerHTML = '<h2>A' + w.eval('info')('Text.') + '</h2>';
+  w.document.body.appendChild(host);
+  const btn = host.querySelector('.i-tip'), box = host.querySelector('.tipbox');
+  btn.click();
+  if(box.hidden) throw new Error('neotevřel se');
+  w.document.body.click();
+  if(!box.hidden) throw new Error('zůstal otevřený po kliknutí jinam');
+  host.remove();
+  return 'zavírá se';
+});
+
+/* ================= druhá pětice diferenciálů ================= */
+
+check('ligové diferenciály mají dvě sady s přepínačem', () => {
+  const els = bootstrap.elements;
+  w.eval(`LEAGUE_OWN = {n: 10, owners: {
+    ${els[3].id}: ['a','b','c','d','e'],
+    ${els[4].id}: ['a']
+  }};`);
+  const html = w.eval('buildDifferentials()');
+  w.eval('LEAGUE_OWN = null;');
+
+  if(!html.includes('data-diff="0"') || !html.includes('data-diff="1"'))
+    throw new Error('chybí přepínač');
+  if(!html.includes('id="diff-0"') || !html.includes('id="diff-1"'))
+    throw new Error('chybí jedna ze sad');
+  if(!html.includes('míň než polovina ligy'))
+    throw new Error('druhá sada není o polovině ligy');
+  return 'ostré + pod polovinou';
+});
+
+check('mírnější sada pouští i vlastněnější hráče', () => {
+  const ownPct = () => 40;    // 40 % ligy — do ostré sady se nevejde
+  const prisna = w.eval('diffRows')(bootstrap.elements, 11, ownPct, 9,
+    [{max: 10, label: 'ostré'}]);
+  const mirna = w.eval('diffRows')(bootstrap.elements, 11, ownPct, 9,
+    [{max: 49.99, label: 'pod polovinou'}]);
+  if(mirna.rows.length < prisna.rows.length)
+    throw new Error('mírnější sada je menší než ostrá');
+  if(!mirna.rows.length) throw new Error('mírnější sada je prázdná');
+  return `ostrá ${prisna.rows.length}, mírná ${mirna.rows.length}`;
+});
+
+/* ================= souhrn kola uvnitř hřiště ================= */
+
+check('souhrn kola sedí uvnitř hřiště', () => {
+  w.__live = liveMap;
+  w.eval('render')(entry, {picks: picksSquad, entry_history: {event_transfers_cost: 0}},
+    11, {live: w.__live, gw: 10, finished: false});
+  const pitch = w.document.querySelector('#out .pitch');
+  if(!pitch) throw new Error('hřiště se nevykreslilo');
+  if(!pitch.querySelector('.livebar'))
+    throw new Error('souhrn je pořád mimo hřiště');
+  return 'uvnitř';
+});
+
+check('souhrn se nekryje s první řadou dresů', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  const blok = style.slice(style.indexOf('.livebar{'),
+                           style.indexOf('}', style.indexOf('.livebar{')));
+  // Oddělovací linka a spodní odsazení drží dresy pod souhrnem.
+  if(!/border-bottom/.test(blok)) throw new Error('chybí oddělení od dresů');
+  if(!/padding:[^;]*16px/.test(blok)) throw new Error('chybí spodní odsazení');
+  return 'linka + odsazení';
+});
+
+check('čísla souhrnu drží kontrast na tmavém hřišti', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  const blok = style.slice(style.indexOf('.livebar .big{'),
+                           style.indexOf('}', style.indexOf('.livebar .big{')));
+  // Bílá ani mátová by na bílé kartě neprošly — hřiště je proto tmavé.
+  if(!/var\(--mint-fill\)/.test(blok)) throw new Error('velké číslo není mátové');
+  if(!/text-shadow/.test(blok)) throw new Error('chybí stín pro čitelnost na podkladu');
+  return 'mátová + stín';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci

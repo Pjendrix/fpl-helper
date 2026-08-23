@@ -123,6 +123,18 @@ kdo chce jít proti proudu, najde nízké vlastnictví v záložce Hub ligy.
 a odehrané minuty. Všechno ostatní je pod tlačítkem **i** (ne hover — na
 dotykovém displeji by tooltip byl nedostupný).
 
+**Vysvětlivky jsou v tooltipech.** Appka měla přes sedmdesát vysvětlujících
+odstavců pod tabulkami. Každý sám o sobě dával smysl, dohromady z toho byla zeď
+textu, kterou nikdo nečetl a která odsouvala vlastní data pod ohyb. Text zůstal,
+jen se schoval za „i“ vedle nadpisu — helper `info()` vrací tlačítko i obsah,
+obsluha je jedna delegovaná na dokumentu (tooltipy vznikají při každém
+překreslení, takže věšet posluchače na každý zvlášť by je po překreslení
+ztrácelo). Otevírá se **kliknutím, ne hoverem**: na dotykovém displeji hover
+neexistuje a tooltip by byl nedostupný.
+
+Krátké hlášky a prázdné stavy v tooltipech nejsou — „nikdo není zraněný“ nebo
+„FPL zatím predikce neposílá“ je informace, ne vysvětlivka.
+
 **Ligové záložky se načítají samy** — při prvním otevření záložky, ne při startu
 appky. Kdo se na ligu nepodívá, nestáhne nic; kdo ano, nemusí klikat. Druhá
 ligová záložka je pak skoro zadarmo, protože dotazy na jednotlivé členy jdou
@@ -277,10 +289,6 @@ Snapshoty miniligy a plán přestupů se ukládají do `localStorage`, tedy jen
 v tom prohlížeči, kde je vytvoříš. Na jiném zařízení začínáš s prázdnou
 historií. Sdílené úložiště (Vercel KV) je logický další krok, ale tohle
 funguje hned a bez dalšího účtu.
-
-Naplánovaná upozornění na deadline stojí na Notification Triggers, které
-zatím neumí každý prohlížeč. Když chybí, appka to napíše rovnou místo aby
-slibovala připomínku, která nepřijde.
 
 Vyhledávání v porovnání hráčů seznam nefiltruje, jen vybere nejlepší shodu.
 Filtrovat `<select>` znamená mazat a znovu stavět stovky `<option>` při každém

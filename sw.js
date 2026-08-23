@@ -9,7 +9,7 @@
 // (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
 // nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v5';
+const SHELL = 'squadcheck-shell-v6';
 const BADGES = 'squadcheck-badges-v1';
 const FILES = ['/', '/index.html', '/manifest.webmanifest',
                '/icon.svg', '/favicon.svg', '/club-marks.svg',
@@ -65,16 +65,5 @@ self.addEventListener('fetch', ev => {
         return res;
       })
       .catch(() => caches.match(ev.request).then(hit => hit || caches.match('/')))
-  );
-});
-
-// Klik na připomínku deadlinu otevře appku, ne prázdnou záložku.
-self.addEventListener('notificationclick', ev => {
-  ev.notification.close();
-  ev.waitUntil(
-    self.clients.matchAll({type: 'window', includeUncontrolled: true}).then(list => {
-      for(const c of list) if(c.url.includes(location.origin)) return c.focus();
-      return self.clients.openWindow('/');
-    })
   );
 });
