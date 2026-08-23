@@ -944,10 +944,210 @@ check('Dancing Script je pryč', () => {
   return 'ok';
 });
 
-check('appka má tmavý režim', () => {
+/* Tma je vědomě přepínač, ne automatika: uživatel s tmavým systémem
+   by jinak dostal variantu, o kterou si neřekl. */
+check('výchozí je světlo, tma jen na přání', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  // Hledáme media query, ne zmínku — komentář o tom, proč to tak není,
+  // je v pořádku a testu nemá vadit.
+  if(/@media[^{]*prefers-color-scheme/.test(html))
+    throw new Error('tma se pořád zapíná automaticky');
+  if(!html.includes('[data-theme="dark"]')) throw new Error('chybí tmavá varianta');
+  if(w.document.documentElement.getAttribute('data-theme') !== 'light')
+    throw new Error('start není světlý');
+  return 'light → přepínač';
+});
+
+check('přepínač tématu si volbu pamatuje', () => {
+  w.localStorage.clear();
+  w.eval('applyTheme')('dark');
+  if(w.document.documentElement.getAttribute('data-theme') !== 'dark')
+    throw new Error('nepřepnul');
+  const meta = w.document.querySelector('meta[name="theme-color"]').content;
+  if(meta === '#37003C') throw new Error('theme-color zůstal světlý');
+  w.document.getElementById('theme').click();
+  if(w.localStorage.getItem('fpl_theme') !== 'light')
+    throw new Error('neuložil: ' + w.localStorage.getItem('fpl_theme'));
+  return 'dark → light, uloženo';
+});
+
+/* Klasická past: [hidden] má display:none, ale .railkey{display:flex}
+   ho přebije. Legenda kolejnice se pak zobrazovala pořád. */
+check('atribut hidden přebije i display:flex', () => {
   const css = fs.readFileSync('index.html', 'utf8');
-  if(!css.includes('prefers-color-scheme:dark')) throw new Error('chybí');
+  if(!/\[hidden\]\{display:none!important\}/.test(css))
+    throw new Error('chybí globální pravidlo pro [hidden]');
   return 'ok';
+});
+
+check('legenda kolejnice neukazuje syrovou šablonu', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const i = html.indexOf('id="railKey"');
+  if(html.slice(i, i + 400).includes('{n}'))
+    throw new Error('zůstal nevyplněný zástupný text {n}');
+  return 'ok';
+});
+
+check('.who má flex, aby odznak nelezl na jméno', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  if(!/(^|\n)\.who\{[^}]*flex/.test(style))
+    throw new Error('základní .who není flex — odznak se překryje s textem');
+  return 'ok';
+});
+
+/* ================= záložka Ceny ================= */
+
+check('recentMovers rozdělí pohyby za poslední kolo', () => {
+  const saved = bootstrap.elements.map(p => p.cost_change_event);
+  bootstrap.elements.forEach((p, i) => {
+    p.cost_change_event = i % 5 === 0 ? 1 : (i % 7 === 0 ? -1 : 0);
+  });
+  const mv = w.eval('recentMovers()');
+  bootstrap.elements.forEach((p, i) => { p.cost_change_event = saved[i]; });
+
+  if(!mv.up.length || !mv.down.length)
+    throw new Error(`up=${mv.up.length} down=${mv.down.length}`);
+  if(mv.up.some(p => p.cost_change_event <= 0)) throw new Error('mezi zdraženími je pokles');
+  if(mv.down.some(p => p.cost_change_event >= 0)) throw new Error('mezi poklesy je zdražení');
+  return `${mv.up.length} nahoru, ${mv.down.length} dolů`;
+});
+
+check('bez pohybu cen to appka řekne', () => {
+  const saved = bootstrap.elements.map(p => p.cost_change_event);
+  bootstrap.elements.forEach(p => { p.cost_change_event = 0; });
+  const html = w.eval('buildMoved()');
+  bootstrap.elements.forEach((p, i) => { p.cost_change_event = saved[i]; });
+  if(!html.includes('nikdo nezdražil')) throw new Error('mlčí místo hlášky');
+  return 'poctivá hláška';
+});
+
+check('sezónní pohyb ukáže cenu na startu i teď', () => {
+  const html = w.eval('buildSeason()');
+  if(!html.includes('Největší růst') || !html.includes('Největší propad'))
+    throw new Error('chybí jedna ze stran');
+  return 'ok';
+});
+
+check('Ceny mají vlastní záložku a čipy jsou pryč', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  if(!html.includes('id="t-prices"')) throw new Error('chybí tlačítko Ceny');
+  if(html.includes('buildChips')) throw new Error('čipy zůstaly v kódu');
+  const tabs = w.eval('TABS').map(t => t[0]);
+  if(!tabs.includes('t-prices')) throw new Error('záložka není v TABS: ' + tabs);
+  return tabs.length + ' záložek';
+});
+
+/* ================= plánovač: seznam hráčů a rozvržení ================= */
+
+check('nabídka příchozích není osekaná na 40 jmen', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const i = html.indexOf('const fillIn =');
+  const j = html.indexOf('q.querySelectorAll(`select[data-out', i);
+  const blok = html.slice(i, i > 0 ? i + 2600 : 0);
+  if(/\.slice\(0,\s*\d+\)/.test(blok))
+    throw new Error('seznam se pořád ořezává napevno');
+  if(!blok.includes('data-search'))
+    throw new Error('chybí hledání ve jménech');
+  return 'celý seznam + hledání';
+});
+
+check('plánovač počítá s kádrem po předchozích tazích', () => {
+  const squad = [1, 2, 3, 4].map(i => ({p: bootstrap.elements[i]}));
+  const prichozi = bootstrap.elements.find(p =>
+    p.element_type === squad[0].p.element_type && !squad.some(x => x.p.id === p.id));
+  w.__pl = {startGw: 11, squad, bank: 20, free: 1};
+  w.eval('PLANNER = window.__pl;');
+
+  // prodám hráče v GW11 a v GW12 ho zkusím prodat znovu — to nesmí projít
+  const r = w.eval('simulatePlan')([
+    {gw: 11, out: squad[0].p.id, in: prichozi.id},
+    {gw: 12, out: squad[0].p.id, in: bootstrap.elements[120].id}]);
+  if(!r.rows[1].err) throw new Error('spolkl prodej hráče, kterého už nemám');
+  return r.rows[1].err;
+});
+
+check('kola jsou pod sebou, ne ve čtyřech sloupcích', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  if(style.includes('.plan-grid'))
+    throw new Error('zůstalo mřížkové rozvržení');
+  if(!/\.plan-rows\{[^}]*flex-direction:column/.test(style))
+    throw new Error('kola nejsou pod sebou');
+  return 'svislý seznam';
+});
+
+check('formuláře v plánovači jsou zabalené', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  if(!html.includes('id="padd-${r.gw}" hidden'))
+    throw new Error('formulář se rozbaluje rovnou');
+  if(!html.includes('data-open='))
+    throw new Error('chybí tlačítko na rozbalení');
+  return 'na kliknutí';
+});
+
+check('plánovač vysvětlí, k čemu je', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const i = html.indexOf('id="p-planner"');
+  const uvod = html.slice(i, i + 900);
+  if(!uvod.includes('K čemu to je'))
+    throw new Error('chybí vysvětlení účelu');
+  return 'ok';
+});
+
+/* ================= proxy: 403 od Cloudflare ================= */
+
+check('proxy se nehlásí botím User-Agentem', () => {
+  const js = fs.readFileSync('api/fpl.js', 'utf8');
+  if(js.includes('"fpl-squad-check/1.0"'))
+    throw new Error('pořád posílá botí UA — Cloudflare vrací 403');
+  if(!js.includes('Mozilla/5.0')) throw new Error('chybí hlavičky prohlížeče');
+  if(!js.includes('Referer')) throw new Error('chybí Referer');
+  return 'hlavičky prohlížeče';
+});
+
+check('proxy zkusí 403 ještě jednou', () => {
+  const js = fs.readFileSync('api/fpl.js', 'utf8');
+  if(!js.includes('fetchUpstream')) throw new Error('chybí opakování');
+  if(!/status !== 403/.test(js)) throw new Error('403 se neopakuje');
+  return 'dva pokusy';
+});
+
+check('fixtures/ zůstává na whitelistu', () => {
+  const js = fs.readFileSync('api/fpl.js', 'utf8');
+  const re = /\^fixtures\\\/\$/;
+  if(!re.test(js)) throw new Error('fixtures/ z whitelistu zmizel');
+  return 'ok';
+});
+
+/* ================= Hráči: hlasitá chyba místo prázdna ================= */
+
+check('Hráči bez rozpisu neselžou potichu', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const i = html.indexOf('async function loadPlayers()');
+  const fn = html.slice(i, html.indexOf('function drawPlayers()', i));
+  if(!fn.includes('catch')) throw new Error('chybí zachycení chyby');
+  if(!fn.includes("$('pmsg')")) throw new Error('chybu nemá kam napsat');
+  if(!fn.includes("api('fixtures/')")) throw new Error('nedotáhne si rozpis sám');
+  return 'chyba se zobrazí';
+});
+
+check('plátno je ve světlém režimu opravdu světlé', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  const root = style.slice(style.indexOf(':root{'), style.indexOf('}', style.indexOf(':root{')));
+  const sky = (root.match(/--sky:\s*(#[0-9a-fA-F]{6})/) || [])[1];
+  if(!sky) throw new Error('--sky není definovaná');
+
+  const lum = h => {
+    const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(1 + i, 3 + i), 16) / 255);
+    const f = c => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+  // Tmavé plátno by z appky udělalo tmavý web s bílými okny bez ohledu
+  // na to, co říká data-theme.
+  if(lum(sky) < 0.5) throw new Error('plátno ' + sky + ' je tmavé');
+  return sky;
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci

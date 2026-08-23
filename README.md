@@ -15,7 +15,8 @@ sama, až když na ni přijde řada.
 | **Hub ligy** | Novinky po kole, sezónní žebříčky (daň za transfery, zmrzlá lavička), zdraví kádrů, kapitánská mapa a efekt šablony |
 | **Hráči** | Filtrovatelná tabulka všech hráčů s projekcí, detail s rozpisem kolo po kole, **porovnání dvou hráčů vedle sebe** |
 | **Transfery** | Najde problémové hráče a navrhne náhrady do rozpočtu, seřazené podle vlastnictví; statistiky pod tlačítkem **i** |
-| **Program** | Rozpis na šest kol s vlastní obtížností, blanky a doubly, oficiální predikce změn cen, plánovač čipů |
+| **Program** | Rozpis na šest kol s vlastní obtížností, blanky a doubly |
+| **Ceny** | Kdo dnes v noci zdraží nebo zlevní (oficiální predikce), kdo se pohnul za poslední kolo, největší růst a propad za sezónu |
 | **Plánovač** | Přestupy na čtyři kola dopředu — banka, volné přestupy a hity spočítané kolo po kole |
 
 V hlavičce běží odpočet do nejbližšího deadlinu a pod ní **kolejnice sezóny**:
@@ -170,6 +171,19 @@ posílá `price_change_projections` s pravděpodobností na tři dny dopředu,
 oficiální číslo, když existuje — stejně jako u `ep_next`. Když projekce
 v datech nejsou (bývá to před prvním kolem), appka to řekne místo aby hádala.
 
+**Světlo a tma.** Appka je navržená jako světlá — barevná stupnice obtížnosti
+i odznaky klubů čtou na papíře líp než na černé. Tma je proto **přepínač
+v hlavičce**, ne `prefers-color-scheme`: automatika by lidem s tmavým systémem
+podstrčila horší variantu, aniž by si o ni řekli. Volba se pamatuje pod klíčem
+`fpl_theme`. Jediné místo, kde tma zůstává i ve světlém režimu, je hřiště —
+bílé dresy na ní vyniknou tak, jak na světlém podkladu nemůžou.
+
+**Cloudflare a 403.** FPL sedí za Cloudflare, který začal odmítat requesty
+s botím `User-Agent`. Projevovalo se to jako 403 na `/fixtures/`, zatímco
+`/bootstrap-static/` ještě procházel. Proxy proto posílá hlavičky prohlížeče
+včetně `Referer` a při 403 nebo 503 zkusí request ještě jednou. Pokud se to
+vrátí, prvním místem k šahnutí je `BROWSER_HEADERS` v `api/fpl.js`.
+
 **Google Fonts** se načítají z CDN. Pro provoz v EU je čistší si ty tři
 rodiny (Archivo, Inter, Space Mono) stáhnout do repozitáře,
 nahradit `<link>` vlastním `@font-face` a z CSP v `vercel.json` odstranit
@@ -189,3 +203,7 @@ funguje hned a bez dalšího účtu.
 Naplánovaná upozornění na deadline stojí na Notification Triggers, které
 zatím neumí každý prohlížeč. Když chybí, appka to napíše rovnou místo aby
 slibovala připomínku, která nepřijde.
+
+Doporučení čipů appka nedělá. Dřív to byla čtvrtá sekce v Programu, ale
+potřebovala načtený kádr z jiné záložky a bez něj ukazovala jen výzvu, ať
+si ho člověk načte — což z ní dělalo spíš překážku než radu.

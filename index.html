@@ -16,10 +16,15 @@
      protože jsou tak specifické. Předchozí #2b7fff byla systémová modrá,
      která navíc kolidovala s modrozelenou stupnicí obtížnosti.
      --------------------------------------------------------------- */
-  --aubergine:#37003C;
+  --aubergine:#37003C;      /* lišta a navigace — jen chrom, ne plátno */
   --aubergine-lift:#4B0F52;
-  --sky:#37003C;            /* plátno a hřiště */
-  --sky-deep:#2B0030;
+
+  /* Plátno je světlé. Auberginová vypadala na maketě dobře, ale jako pozadí
+     celé stránky z appky udělala tmavý web s bílými okny — přesný opak
+     „Air“ pocitu, na kterém stojí zbytek návrhu. Odstín je vzatý z papíru
+     a jen o tón tmavší, aby se karty daly odlišit bez rámečku. */
+  --sky:#E7E0EA;
+  --sky-deep:#2B0030;       /* hřiště — tam tma sedí, dresy na ní vyniknou */
 
   --blue:#0086A8;           /* interaktivní prvky; mimo stupnici obtížnosti */
   --ink:#1F0A24;
@@ -56,6 +61,11 @@
   --r-card:14px; --r-btn:8px; --r-in:4px; --r-img:11px;
 }
 *{box-sizing:border-box}
+
+/* .railkey a spol. mají display:flex, což přebíjí výchozí display:none
+   u atributu [hidden]. Legenda kolejnice se proto zobrazovala i tehdy,
+   když neměla co ukázat. Klasická past — řešíme jednou pro všechny. */
+[hidden]{display:none!important}
 html,body{margin:0}
 body{
   background:var(--sky);
@@ -79,6 +89,11 @@ body{
   letter-spacing:-.2px;color:#fff;white-space:nowrap;line-height:1.15}
 .brand .tx small{display:block;font-family:var(--f-mono);font-size:8.5px;
   font-weight:700;letter-spacing:3.2px;color:#B98FC2;margin-bottom:-1px}
+/* Základní .who používá tabulka vlastnictví i další seznamy. Když jsem
+   pravidlo zúžil na .bar .who, zbytek zůstal inline a odznak klubu se
+   překrýval s prvním písmenem jména. */
+.who{display:inline-flex;align-items:center;gap:7px;min-width:0;vertical-align:middle}
+.who b{font-weight:700}
 .bar .who{margin-left:auto;display:flex;align-items:center;gap:9px;
   font-family:var(--f-mono);font-size:11.5px;color:#D9C4DE;min-width:0}
 .bar .who b{color:#fff;font-weight:700;overflow:hidden;text-overflow:ellipsis;
@@ -166,9 +181,11 @@ h2:first-child{margin-top:0}
 .sub-btn[aria-selected="true"]{background:var(--charcoal);border-color:var(--charcoal);color:var(--white)}
 .sec[hidden]{display:none}
 
-/* ---------- hřiště ---------- */
+/* ---------- hřiště ----------
+   Jediné místo, kde tma zůstává i ve světlém režimu: bílé dresy na ní
+   vyniknou tak, jak na světlém podkladu nemůžou. */
 .pitch{
-  background:var(--sky);border-radius:var(--r-img);
+  background:var(--sky-deep);border-radius:var(--r-img);
   padding:24px 12px;margin:16px 0;
   display:flex;flex-direction:column;gap:20px;
 }
@@ -623,6 +640,9 @@ i.mv.down{color:var(--alert)}
     grid-template-columns:1fr 1fr;gap:3px 10px;padding:11px 13px;
   }
   .prow .who{grid-column:1/-1;margin-bottom:3px}
+  .padd{grid-template-columns:1fr}
+  .pgw-h{gap:10px}
+  .pgw-h button{margin-left:0;width:100%}
   .prow .n{text-align:left;font-size:11px;color:var(--mute)}
   .prow .n::before{content:attr(data-l) ' ';font-family:var(--f)}
   .prow .n b{color:var(--charcoal)}
@@ -694,8 +714,10 @@ i.mv.down{color:var(--alert)}
 .railkey i{width:6px;height:6px;border-radius:50%;display:inline-block}
 
 /* ---------- odznaky klubů ---------- */
+button.small.icon{padding:4px 8px;font-size:14px;line-height:1;min-width:30px}
+
 .crest{width:21px;height:21px;flex:0 0 auto;border-radius:5px;
-  object-fit:contain;background:var(--haze)}
+  object-fit:contain;background:var(--haze);margin-right:1px}
 .crest.sm{width:17px;height:17px;border-radius:4px}
 .shirt .crest{width:24px;height:24px;margin:0 auto 3px;display:block}
 
@@ -717,16 +739,27 @@ i.mv.down{color:var(--alert)}
 @keyframes shimmer{0%{background-position:100% 0}100%{background-position:0 0}}
 
 /* ---------- plánovač přestupů ---------- */
-.plan-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));
-  margin:14px 0}
+/* Kola pod sebou, ne čtyři sloupce vedle sebe. Ve čtyřech úzkých boxech
+   se nedalo přečíst ani jméno hráče a formuláře byly rozbalené všechny
+   najednou — působilo to nahňácaně a nebylo poznat, co po člověku appka chce. */
+.plan-rows{display:flex;flex-direction:column;gap:10px;margin:14px 0}
 .pgw{border:1px solid var(--line);border-radius:var(--r-card);background:var(--white);
-  padding:12px 13px}
-.pgw.hit{border-color:var(--alert)}
-.pgw h4{margin:0 0 2px;font-family:var(--f-disp);font-size:12px;font-weight:800;
-  letter-spacing:1px;text-transform:uppercase;color:var(--aubergine)}
-.pgw .ft{font-family:var(--f-mono);font-size:11px;color:var(--mute);margin:0 0 9px}
-.pgw .ft b{color:var(--charcoal)}
+  padding:13px 16px}
+.pgw.hit{border-left:3px solid var(--alert)}
+.pgw-h{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+  padding-bottom:9px;margin-bottom:3px;border-bottom:1px solid var(--line-soft)}
+.pgw h4{margin:0;font-family:var(--f-disp);font-size:14px;font-weight:800;
+  letter-spacing:.6px;text-transform:uppercase;color:var(--aubergine);min-width:52px}
+.pgw .ft{font-family:var(--f-mono);font-size:11.5px;color:var(--mute);margin:0}
+.pgw .ft b{color:var(--charcoal);font-size:13px}
 .pgw .ft.neg b{color:var(--alert)}
+.pgw-h button{margin-left:auto}
+button.small.ghost{background:none;border-color:var(--line);color:var(--mute)}
+button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
+.pmove .cost{font-family:var(--f-mono);font-size:11.5px;color:var(--mute);
+  margin-left:8px}
+.pempty.err{color:var(--alert)}
+.warnbox{background:var(--alert-bg);color:var(--charcoal)}
 .pmove{display:flex;align-items:center;gap:7px;padding:6px 0;
   border-top:1px solid var(--line-soft);font-size:12.5px}
 .pmove .ar{font-family:var(--f-mono);color:var(--mute);flex:none}
@@ -734,10 +767,16 @@ i.mv.down{color:var(--alert)}
   cursor:pointer;font-size:15px;line-height:1;padding:0 3px}
 .pmove .rm:hover{color:var(--alert)}
 .pempty{font-size:12px;color:var(--mute);padding:8px 0 2px}
-.padd{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-top:9px}
-.padd select{font-size:12px;padding:6px 7px}
-.padd button{font-size:12px;padding:6px 11px}
-.psum{display:flex;gap:22px;flex-wrap:wrap;padding:14px 16px;margin:14px 0;
+.padd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;
+  gap:12px;align-items:end;margin-top:12px;padding-top:12px;
+  border-top:1px solid var(--line-soft)}
+.padd label{display:flex;flex-direction:column;gap:5px;font-size:11.5px;
+  color:var(--mute);min-width:0}
+.padd select,.padd input{font-size:12.5px;padding:6px 8px;width:100%}
+.padd select[size]{padding:2px}
+.padd .cnt{font-family:var(--f-mono);font-size:10.5px;color:var(--mute)}
+.padd button{font-size:12.5px;padding:7px 14px;white-space:nowrap}
+.psum{display:flex;gap:26px;flex-wrap:wrap;padding:15px 18px;margin:0 0 14px;
   background:var(--haze);border-radius:var(--r-card)}
 .psum div{min-width:82px}
 .psum .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--mute)}
@@ -757,10 +796,11 @@ i.mv.down{color:var(--alert)}
 .notifbar p{margin:0;flex:1 1 220px;color:var(--charcoal)}
 
 /* ---------- tmavý režim ----------
-   Možný jedině díky tomu, že barvy jsou teď v tokenech. S literály
-   rozesetými po CSS by to znamenalo přepsat celý soubor. */
-@media (prefers-color-scheme:dark){
-  :root{
+   Vědomě NENÍ na prefers-color-scheme. Appka je navržená jako světlá —
+   barevná stupnice obtížnosti i odznaky klubů čtou na papíře líp než
+   na černé. Tma je proto přepínač, ne automatika; volba se pamatuje
+   v localStorage pod klíčem fpl_theme. */
+:root[data-theme="dark"]{
     --sky:#1A0620; --sky-deep:#120416;
     --white:#241029; --haze:#2E1634; --charcoal:#F2E9F4; --ink:#F2E9F4;
     --mute:#B291BA; --line:rgba(255,255,255,.14); --line-soft:rgba(255,255,255,.07);
@@ -776,11 +816,11 @@ i.mv.down{color:var(--alert)}
     --blank:repeating-linear-gradient(45deg,#33203A,#33203A 3px,#3E2A45 3px,#3E2A45 6px);
     --blank-i:#B291BA;
   }
-  body{background:var(--sky)}
-  .crest{background:var(--haze)}
-  .skel i{background:linear-gradient(90deg,var(--haze) 25%,#3A1E42 37%,var(--haze) 63%);
-    background-size:400% 100%}
 }
+:root[data-theme="dark"] body{background:var(--sky)}
+:root[data-theme="dark"] .skel i{
+  background:linear-gradient(90deg,var(--haze) 25%,#3A1E42 37%,var(--haze) 63%);
+  background-size:400% 100%}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
@@ -837,7 +877,12 @@ i.mv.down{color:var(--alert)}
         <span class="tx"><small>MINILEAGUE</small>SQUAD CHECK</span>
       </span>
       <span class="cd" id="countdown" hidden></span>
-      <span class="who"><b id="whoName">—</b><button class="small" id="logout">Změnit ID</button></span>
+      <span class="who">
+        <button class="small icon" id="theme" aria-pressed="false"
+                title="Přepnout tmavý režim" aria-label="Přepnout tmavý režim">☾</button>
+        <b id="whoName">—</b>
+        <button class="small" id="logout">Změnit ID</button>
+      </span>
     </div>
   </div>
 
@@ -854,6 +899,7 @@ i.mv.down{color:var(--alert)}
       <button id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Hráči</button>
       <button id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
       <button id="t-plan" role="tab" aria-selected="false" aria-controls="p-plan">Program</button>
+      <button id="t-prices" role="tab" aria-selected="false" aria-controls="p-prices">Ceny</button>
       <button id="t-planner" role="tab" aria-selected="false" aria-controls="p-planner">Plánovač</button>
       </div>
     </div>
@@ -863,7 +909,7 @@ i.mv.down{color:var(--alert)}
     <div class="railkey" id="railKey" hidden>
       <span><i style="background:#00FF87"></i>dvojité kolo</span>
       <span><i style="background:#C4004A"></i>volné kolo</span>
-      <span>tvůj kádr, {n} kol dopředu</span>
+      <span id="railScope">tvůj kádr</span>
     </div>
 
     <div class="panel" id="p-squad" role="tabpanel" tabindex="-1" aria-labelledby="t-squad">
@@ -908,6 +954,7 @@ i.mv.down{color:var(--alert)}
         </select>
         <label class="chk"><input type="checkbox" id="fmine"> Jen moje</label>
       </div>
+      <div id="pmsg" role="status" aria-live="polite"></div>
       <div id="pout"></div>
       <div id="pdetail"></div>
     </div>
@@ -919,9 +966,19 @@ i.mv.down{color:var(--alert)}
       <div id="trout"></div>
     </div>
 
+    <div class="panel" id="p-prices" role="tabpanel" tabindex="-1" aria-labelledby="t-prices" hidden>
+      <p class="hint">Kdo dnes v noci zdraží nebo zlevní — a komu se cena
+        pohnula za poslední kolo.</p>
+      <div id="prmsg" role="status" aria-live="polite"></div>
+      <div id="prout"></div>
+    </div>
+
     <div class="panel" id="p-planner" role="tabpanel" tabindex="-1" aria-labelledby="t-planner" hidden>
-      <p class="hint">Rozplánuj přestupy na několik kol dopředu. Appka hlídá rozpočet,
-        volné přestupy i body za hity.</p>
+      <p class="hint"><b>K čemu to je:</b> záložka Transfery řeší „koho vyměnit teď“.
+        Tady si naopak vyzkoušíš, jestli se vyplatí počkat. Naklikáš tahy do
+        následujících čtyř kol a appka spočítá, kolik zbude v bance, kolik ti
+        zůstane volných přestupů a jestli za některý tah zaplatíš 4 body.
+        Nic se nikam neodesílá — přestupy pak uděláš na webu FPL.</p>
       <div id="plnmsg" role="status" aria-live="polite"></div>
       <div id="plnout"></div>
     </div>
@@ -1534,10 +1591,11 @@ function render(entry, picks, startGw, liveCtx){
 /* ============ ZALOZKY ============ */
 const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-hub','p-hub'],
               ['t-players','p-players'], ['t-tr','p-tr'], ['t-plan','p-plan'],
-              ['t-planner','p-planner']];
+              ['t-prices','p-prices'], ['t-planner','p-planner']];
 
 // Co se má spustit při prvním otevření záložky (lazy načítání).
-const TAB_INIT = {'t-plan': () => loadPlan(), 't-planner': () => loadPlanner()};
+const TAB_INIT = {'t-plan': () => loadPlan(), 't-prices': () => loadPrices(),
+                  't-planner': () => loadPlanner()};
 const TAB_DONE = new Set();
 
 function selectTab(tid){
@@ -2264,17 +2322,31 @@ let PLAYERS = null;
 let COMPARE = [];   // až dva hráči vybraní k porovnání
 
 async function loadPlayers(){
-  if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
-  if(!PLAYERS){
-    PLAYERS = playerRows();
-    const sel = $('fteam');
-    BOOT.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(t => {
-      const o = document.createElement('option');
-      o.value = t.id; o.textContent = t.name;
-      sel.appendChild(o);
-    });
+  $('pmsg').textContent = '';
+  try{
+    // Rozpis je tu povinný — bez něj neumím spočítat FDR ani projekci.
+    // Dřív se sem došlo s BOOT načteným a FIX null, playerRows() spadla
+    // a záložka zůstala prázdná bez jediného slova. Tichá chyba je horší
+    // než hlasitá.
+    if(!BOOT) BOOT = await api('bootstrap-static/');
+    if(!FIX) FIX = await api('fixtures/');
+
+    if(!PLAYERS){
+      $('pout').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';
+      PLAYERS = playerRows();
+      const sel = $('fteam');
+      if(sel.options.length <= 1)
+        BOOT.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(t => {
+          const o = document.createElement('option');
+          o.value = t.id; o.textContent = t.name;
+          sel.appendChild(o);
+        });
+    }
+    drawPlayers();
+  }catch(e){
+    $('pmsg').textContent = e.message;
+    $('pout').innerHTML = '';
   }
-  drawPlayers();
 }
 
 function drawPlayers(){
@@ -3849,68 +3921,6 @@ function buildPrices(){
          {weekday: 'short', hour: '2-digit', minute: '2-digit'}) + '</b>.' : ''}</p>`;
 }
 
-/* --- 4. Plánovač čipů ---
-
-   Pro každé z nadcházejících kol spočítáme, co by v něm čip vynesl.
-   Bench boost žije z lavičky, triple captain z nejlepšího hráče,
-   free hit z blanků. Není to rada „udělej to“, je to ukazatel, kde
-   se ta kola shlukují. */
-function buildChips(){
-  const start = planStartGw();
-
-  if(!MY_SQUAD || !TR_STATE)
-    return `<p class="note">Doporučení čipů potřebuje tvoji sestavu.
-      Otevři nejdřív záložku Transfery a klikni na „Analyzovat sestavu“.</p>`;
-
-  const squad = TR_STATE.squad;   // [{p, pick}, …]
-
-  const rows = [];
-  for(let gw = start; gw < start + PLAN_GWS; gw++){
-    // Tady musí zůstat model: `ep_next` je vždy jen na nejbližší kolo,
-    // takže pro výhled na šest kol dopředu ho použít nejde.
-    const withXp = squad.map(sq => ({...sq, xp: projectGw(sq.p, gw)}));
-    const sorted = [...withXp].sort((a, b) => b.xp - a.xp);
-
-    // Lavička = čtyři nejslabší po splnění formace; hrubě, ale pro
-    // porovnání kol mezi sebou to stačí.
-    const bench = sorted.slice(11);
-    const benchXp = bench.reduce((s, x) => s + x.xp, 0);
-
-    const best = sorted[0];
-    const blanks = squad.filter(sq => gwFixtures(sq.p.team, gw).length === 0).length;
-    const doubles = squad.filter(sq => gwFixtures(sq.p.team, gw).length > 1).length;
-
-    rows.push({gw, benchXp, best, blanks, doubles});
-  }
-
-  const bestBench = Math.max(...rows.map(r => r.benchXp));
-  const bestTc = Math.max(...rows.map(r => r.best.xp));
-  const worstBlank = Math.max(...rows.map(r => r.blanks));
-
-  const body = rows.map(r => {
-    const tags = [];
-    if(r.benchXp === bestBench && r.benchXp > 8) tags.push('<span class="tag bb">Bench boost</span>');
-    if(r.best.xp === bestTc) tags.push('<span class="tag tc">Triple captain</span>');
-    if(r.blanks >= 4 && r.blanks === worstBlank) tags.push('<span class="tag fh">Free hit</span>');
-
-    return `<tr>
-      <td>GW${r.gw}</td>
-      <td>${r.benchXp.toFixed(1)}</td>
-      <td>${esc(r.best.p.web_name)}<span class="sub">${r.best.xp.toFixed(1)} xP</span></td>
-      <td>${r.doubles || '–'}</td>
-      <td>${r.blanks || '–'}</td>
-      <td>${tags.join(' ') || ''}</td>
-    </tr>`;
-  }).join('');
-
-  return `<table><thead><tr><th>Kolo</th><th>Lavička xP</th><th>Nejlepší hráč</th>
-      <th>Doublů</th><th>Blanků</th><th>Kdy uvažovat</th></tr></thead>
-      <tbody>${body}</tbody></table>
-    <p class="note">Sloupce jsou spočítané pro <b>tvůj současný kádr</b>. Bench boost dává
-    smysl tam, kde má lavička nejvyšší projekci, triple captain tam, kde má jeden hráč
-    špičkové kolo, free hit tam, kde ti vypadne půlka sestavy kvůli blanku.
-    Čísla platí pro dnešní sestavu — po transferech se posunou.</p>`;
-}
 
 async function loadPlan(){
   $('plmsg').textContent = 'Načítám rozpis…';
@@ -3919,11 +3929,12 @@ async function loadPlan(){
     startCountdown();
 
     const start = planStartGw();
+    // Ceny mají od téhle verze vlastní záložku — v Programu se v nich
+    // nedalo vyznat. Doporučení čipů odešlo úplně: potřebovalo načtený
+    // kádr z jiné záložky a když ho nemělo, ukazovalo jen výzvu.
     const SECTIONS = [
       ['Rozpis', buildTicker()],
       ['Blanky a doubly', buildShape()],
-      ['Ceny', buildPrices()],
-      ['Čipy', buildChips()],
     ];
 
     $('plout').innerHTML = `
@@ -3952,6 +3963,127 @@ async function loadPlan(){
 }
 
 
+
+/* ============================================================
+   ZÁLOŽKA CENY
+
+   Dřív to byla jedna ze čtyř sekcí v Programu a zapadalo to.
+   Cena je přitom jediná věc v FPL, která se mění každou noc a na
+   kterou se dá reagovat jen dopředu — zaslouží si vlastní místo.
+
+   Tři pohledy:
+     · kdo dnes v noci zdraží nebo zlevní (oficiální projekce),
+     · komu se cena pohnula za poslední kolo (cost_change_event),
+     · největší pohyb od začátku sezóny (cost_change_start).
+   ============================================================ */
+
+/* Hráči, kterým se cena pohnula za poslední kolo.
+   cost_change_event je v desetinách milionu a resetuje se s kolem. */
+function recentMovers(){
+  const moved = BOOT.elements
+    .filter(p => (p.cost_change_event || 0) !== 0)
+    .sort((a, b) => Math.abs(b.cost_change_event) - Math.abs(a.cost_change_event)
+                 || parseFloat(b.selected_by_percent) - parseFloat(a.selected_by_percent));
+  return {
+    up: moved.filter(p => p.cost_change_event > 0),
+    down: moved.filter(p => p.cost_change_event < 0),
+  };
+}
+
+function movedTable(list, dir, empty){
+  if(!list.length) return `<p class="note">${empty}</p>`;
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  return `<table><thead><tr><th>Hráč</th><th class="n">Cena teď</th>
+      <th class="n">Změna</th><th class="n">Vlastní</th></tr></thead>
+    <tbody>${list.slice(0, 25).map(p => {
+      const d = p.cost_change_event / 10;
+      return `<tr${MY_SQUAD && MY_SQUAD.has(p.id) ? ' class="me"' : ''}>
+        <td><span class="who">${crest(p.team, 'sm')}<b>${esc(p.web_name)}</b>
+          <em class="sub">${esc(teams[p.team].short_name)}</em></span></td>
+        <td class="n">${(p.now_cost / 10).toFixed(1)}m</td>
+        <td class="n ${dir}">${d > 0 ? '+' : ''}${d.toFixed(1)}m</td>
+        <td class="n">${parseFloat(p.selected_by_percent).toFixed(1)} %</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function buildMoved(){
+  const mv = recentMovers();
+  return `<h3>Zdražili</h3>
+    ${movedTable(mv.up, 'up', 'Za poslední kolo nikdo nezdražil.')}
+    <h3>Zlevnili</h3>
+    ${movedTable(mv.down, 'down', 'Za poslední kolo nikdo nezlevnil.')}
+    <p class="note">Změna je za <b>poslední kolo</b> (<code>cost_change_event</code>),
+      ne za celou sezónu. Zvýrazněné řádky jsou hráči z tvé sestavy — u těch,
+      kteří zlevnili, ti klesá hodnota týmu.</p>`;
+}
+
+function buildSeason(){
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const sorted = BOOT.elements
+    .filter(p => (p.cost_change_start || 0) !== 0)
+    .sort((a, b) => b.cost_change_start - a.cost_change_start);
+  const top = sorted.slice(0, 15);
+  const bot = sorted.slice(-15).reverse();
+
+  const tbl = list => `<table><thead><tr><th>Hráč</th><th class="n">Start</th>
+      <th class="n">Teď</th><th class="n">Změna</th></tr></thead>
+    <tbody>${list.map(p => {
+      const d = p.cost_change_start / 10;
+      return `<tr${MY_SQUAD && MY_SQUAD.has(p.id) ? ' class="me"' : ''}>
+        <td><span class="who">${crest(p.team, 'sm')}<b>${esc(p.web_name)}</b>
+          <em class="sub">${esc(teams[p.team].short_name)}</em></span></td>
+        <td class="n">${((p.now_cost - p.cost_change_start) / 10).toFixed(1)}m</td>
+        <td class="n">${(p.now_cost / 10).toFixed(1)}m</td>
+        <td class="n ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d.toFixed(1)}m</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+
+  if(!sorted.length)
+    return '<p class="note">Od začátku sezóny se zatím žádná cena nepohnula.</p>';
+
+  return `<h3>Největší růst</h3>${tbl(top)}
+    <h3>Největší propad</h3>${tbl(bot)}
+    <p class="note">Růst hodnoty týmu je dlouhá hra: každé zdražení hráče,
+      kterého držíš, ti přidá 0,1m do rozpočtu — ale při prodeji dostaneš
+      zpátky jen polovinu zisku.</p>`;
+}
+
+async function loadPrices(){
+  $('prmsg').textContent = 'Načítám…';
+  $('prout').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i></div>';
+  try{
+    if(!BOOT) BOOT = await api('bootstrap-static/');
+
+    const SECTIONS = [
+      ['Dnes v noci', buildPrices()],
+      ['Změnili za kolo', buildMoved()],
+      ['Za sezónu', buildSeason()],
+    ];
+
+    $('prout').innerHTML = `
+      <div class="subnav" role="tablist">
+        ${SECTIONS.map((x, i) =>
+          `<button class="sub-btn" role="tab" aria-selected="${i === 0}" data-sec="${i}">${esc(x[0])}</button>`
+        ).join('')}
+      </div>
+      ${SECTIONS.map((x, i) =>
+        `<div class="sec" id="pr-${i}"${i ? ' hidden' : ''}>${x[1]}</div>`
+      ).join('')}`;
+
+    $('prout').querySelectorAll('.sub-btn').forEach(b => {
+      b.addEventListener('click', () => {
+        $('prout').querySelectorAll('.sub-btn').forEach(x =>
+          x.setAttribute('aria-selected', x === b));
+        SECTIONS.forEach((_, i) => { $('pr-' + i).hidden = String(i) !== b.dataset.sec; });
+      });
+    });
+    $('prmsg').textContent = '';
+  }catch(e){
+    $('prmsg').textContent = e.message;
+    $('prout').innerHTML = '';
+  }
+}
 
 /* ============================================================
    MĚSÍČNÍ TABULKY MINILIGY
@@ -4017,6 +4149,40 @@ function mountPhases(leagueId, cur, myId){
 
   draw(done[done.length - 1]);   // výchozí je poslední rozehraný měsíc
 }
+
+/* ============================================================
+   SVĚTLO A TMA
+
+   Appka je navržená jako světlá: stupnice obtížnosti i odznaky
+   klubů čtou na papíře líp než na černé. Tma proto není na
+   prefers-color-scheme — automatika by lidem s tmavým systémem
+   podstrčila horší variantu, aniž by si o ni řekli.
+   ============================================================ */
+const THEME_KEY = 'fpl_theme';
+
+function applyTheme(mode){
+  const dark = mode === 'dark';
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', dark ? '#1A0620' : '#37003C');
+  const btn = $('theme');
+  if(btn){
+    btn.textContent = dark ? '☀' : '☾';
+    btn.setAttribute('aria-pressed', String(dark));
+    btn.title = dark ? 'Přepnout světlý režim' : 'Přepnout tmavý režim';
+    btn.setAttribute('aria-label', btn.title);
+  }
+}
+
+// Výchozí je světlo. Uloženou volbu bereme, systémovou preferenci ne.
+applyTheme(localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light');
+
+if($('theme')) $('theme').addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark'
+    ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+});
 
 /* ============================================================
    KOLEJNICE SEZÓNY
@@ -4098,8 +4264,9 @@ function drawRail(){
   const key = $('railKey');
   if(key){
     key.hidden = !Object.keys(shape).length;
-    const last = key.lastElementChild;
-    if(last) last.textContent = MY_SQUAD ? 'podle tvého kádru' : 'kádr zatím nenačtený';
+    const scope = $('railScope');
+    if(scope) scope.textContent = MY_SQUAD
+      ? 'podle tvého kádru' : 'kádr zatím nenačtený';
   }
 
   // Přepočet po minutě, ať se aktuální čárka plní i při otevřené appce.
@@ -4365,105 +4532,167 @@ function simulatePlan(moves){
 }
 
 function renderPlanner(){
-  if(!PLANNER){ return; }
+  if(!PLANNER) return;
   const moves = loadMoves().filter(m =>
     m.gw >= PLANNER.startGw && m.gw < PLANNER.startGw + PLANNER_GWS);
   const sim = simulatePlan(moves);
   const byId = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
 
-  // Nabídka „ven“: co je právě v kádru po předchozích tazích.
+  // Kádr po dosud naplánovaných tazích. Nabídka „ven“ musí ukazovat tenhle
+  // stav, ne původní patnáctku — jinak by šlo prodat hráče, kterého jsi
+  // v předchozím kole už pustil.
   const owned = new Set(PLANNER.squad.map(x => x.p.id));
   for(const m of moves){ owned.delete(m.out); owned.add(m.in); }
 
-  const outOpts = [...owned].map(id => byId[id]).filter(Boolean)
-    .sort((a, b) => a.element_type - b.element_type || b.now_cost - a.now_cost)
-    .map(p => `<option value="${p.id}">${esc(p.web_name)} · ${POS[p.element_type]} ·
-      ${(sellPrice(p)).toFixed(1)}m</option>`).join('');
-
-  const cards = sim.rows.map(r => {
+  const gwRows = sim.rows.map(r => {
     const list = r.detail.length
       ? r.detail.map(d => `<div class="pmove">
           ${crest(d.out.team, 'sm')}<span>${esc(d.out.web_name)}</span>
           <span class="ar">→</span>
           ${crest(d.in.team, 'sm')}<span>${esc(d.in.web_name)}</span>
+          <span class="cost">${((d.in.now_cost - sellPrice(d.out) * 10) / 10 >= 0 ? '+' : '')}${
+            ((d.in.now_cost / 10) - sellPrice(d.out)).toFixed(1)}m</span>
           <button class="rm" type="button" data-del="${r.gw}:${d.out.id}"
             aria-label="Zrušit tah ${esc(d.out.web_name)} za ${esc(d.in.web_name)}">×</button>
         </div>`).join('')
-      : '<p class="pempty">Zatím beze změny.</p>';
+      : '<p class="pempty">Beze změny — necháváš kádr, jak je.</p>';
 
-    return `<div class="pgw${r.paid ? ' hit' : ''}">
-      <h4>GW${r.gw}</h4>
-      <p class="ft${r.bank < 0 ? ' neg' : ''}">banka <b>${r.bank.toFixed(1)}m</b> ·
-        volné <b>${r.free}</b>${r.paid ? ` · hit <b>−${r.paid * 4}</b>` : ''}</p>
-      ${r.err ? `<p class="pempty" style="color:var(--alert)">${esc(r.err)}</p>` : ''}
+    return `<section class="pgw${r.paid ? ' hit' : ''}">
+      <header class="pgw-h">
+        <h4>GW${r.gw}</h4>
+        <span class="ft${r.bank < 0 ? ' neg' : ''}">
+          <b>${r.bank.toFixed(1)}m</b> v bance</span>
+        <span class="ft"><b>${r.free}</b> volných po kole</span>
+        ${r.paid ? `<span class="ft neg"><b>−${r.paid * 4}</b> bodů za hit</span>` : ''}
+        <button class="small ghost" type="button" data-open="${r.gw}"
+          aria-expanded="false">Přidat přestup</button>
+      </header>
+      ${r.err ? `<p class="pempty err">${esc(r.err)}</p>` : ''}
       ${list}
-      <div class="padd">
-        <select data-out="${r.gw}" aria-label="Kdo jde ven v GW${r.gw}">
-          <option value="">Ven…</option>${outOpts}</select>
-        <select data-in="${r.gw}" aria-label="Kdo jde dovnitř v GW${r.gw}">
-          <option value="">Dovnitř…</option></select>
-        <button class="small" data-add="${r.gw}" type="button">Přidat</button>
+      <div class="padd" id="padd-${r.gw}" hidden>
+        <label>Kdo jde ven
+          <select data-out="${r.gw}">
+            <option value="">Vyber hráče z kádru…</option>
+            ${[...owned].map(id => byId[id]).filter(Boolean)
+              .sort((a, b) => a.element_type - b.element_type || b.now_cost - a.now_cost)
+              .map(p => `<option value="${p.id}">${POS[p.element_type]} ·
+                ${esc(p.web_name)} · ${sellPrice(p).toFixed(1)}m</option>`).join('')}
+          </select>
+        </label>
+        <label>Kdo přijde
+          <input type="search" data-search="${r.gw}" placeholder="Hledej podle jména…"
+            autocomplete="off" disabled>
+          <select data-in="${r.gw}" size="6" disabled>
+            <option value="">Nejdřív vyber, kdo jde ven</option>
+          </select>
+          <span class="cnt" data-cnt="${r.gw}"></span>
+        </label>
+        <button class="small" data-add="${r.gw}" type="button">Přidat do plánu</button>
       </div>
-    </div>`;
+    </section>`;
   }).join('');
 
   $('plnout').innerHTML = `
-    <h2>Plán na ${PLANNER_GWS} kola · od GW${PLANNER.startGw}</h2>
     <div class="psum">
-      <div><div class="k">Tahů</div><div class="v">${moves.length}</div></div>
-      <div><div class="k">Hity</div>
+      <div><div class="k">Tahů v plánu</div><div class="v">${moves.length}</div></div>
+      <div><div class="k">Body za hity</div>
         <div class="v${sim.hits ? ' neg' : ''}">${sim.hits ? '−' + sim.hits * 4 : '0'}</div></div>
       <div><div class="k">Zisk z projekce</div>
         <div class="v">${sim.gain >= 0 ? '+' : ''}${sim.gain.toFixed(1)}</div></div>
       <div><div class="k">Čistě</div>
         <div class="v ${sim.net >= 0 ? 'pos' : 'neg'}">${sim.net >= 0 ? '+' : ''}${sim.net.toFixed(1)}</div></div>
-      <div><div class="k">Banka na konci</div>
-        <div class="v${sim.bank < 0 ? ' neg' : ''}">${sim.bank.toFixed(1)}m</div></div>
     </div>
-    ${sim.bank < 0
-      ? '<p class="note" style="color:var(--alert)"><b>Rozpočet nevychází.</b> '
-        + 'Někde v plánu jdeš do minusu — buď levnější příchod, nebo dražší odchod.</p>'
+    ${sim.net < 0 && moves.length
+      ? '<p class="note warnbox">Takhle plán <b>body ztrácí</b>. Buď některý tah '
+        + 'odlož o kolo (ušetříš hit), nebo ho zruš.</p>'
       : ''}
-    <div class="plan-grid">${cards}</div>
-    <p class="note">Zisk je součet projekcí za kola od tahu do konce okna, takže
-      dřívější tah má víc kol na to, aby se vyplatil. Hity odečítám plnou sazbou
-      −4. Plán se ukládá v prohlížeči; přestupy uděláš pořád na webu FPL.</p>
-    <button class="lnk" id="plnclear" style="margin-top:10px">Vyprázdnit plán</button>`;
+    ${sim.bank < 0
+      ? '<p class="note warnbox">Rozpočet nevychází — někde jdeš do minusu. '
+        + 'Potřebuješ levnější příchod nebo dražší odchod.</p>'
+      : ''}
+    <div class="plan-rows">${gwRows}</div>
+    <p class="note">Každý přestup nad rámec volných stojí <b>4 body</b>. Volný
+      přestup se ti po každém kole vrátí, strop je
+      ${1 + ((BOOT.game_settings && BOOT.game_settings.max_extra_free_transfers) || 0)} —
+      proto se vyplatí tahy rozložit. Zisk počítám jako součet projekcí od kola
+      tahu do konce okna, takže dřívější přestup má víc kol na to, aby se
+      zaplatil.</p>
+    <button class="lnk" id="plnclear">Vyprázdnit plán</button>`;
 
-  /* Nabídka „dovnitř“ se plní až po výběru odchozího hráče: dává smysl
-     ukazovat jen tu pozici, která se uvolnila, a jen to, co se vejde
-     do rozpočtu daného kola. */
-  $('plnout').querySelectorAll('select[data-out]').forEach(sel => {
-    sel.addEventListener('change', () => {
-      const gw = sel.dataset.out;
-      const inSel = $('plnout').querySelector(`select[data-in="${gw}"]`);
-      const out = byId[sel.value];
-      if(!out){ inSel.innerHTML = '<option value="">Dovnitř…</option>'; return; }
+  const q = $('plnout');
 
-      const row = sim.rows.find(r => String(r.gw) === gw) || {bank: PLANNER.bank};
-      const budget = Math.round((row.bank + sellPrice(out)) * 10);
-
-      const opts = BOOT.elements
-        .filter(p => p.element_type === out.element_type
-          && !owned.has(p.id) && p.now_cost <= budget
-          && p.status !== 'u' && p.status !== 'n')
-        .sort((a, b) => parseFloat(b.selected_by_percent) - parseFloat(a.selected_by_percent))
-        .slice(0, 40)
-        .map(p => `<option value="${p.id}">${esc(p.web_name)} ·
-          ${esc(teams[p.team].short_name)} · ${(p.now_cost / 10).toFixed(1)}m ·
-          ${parseFloat(p.selected_by_percent).toFixed(1)} %</option>`).join('');
-
-      inSel.innerHTML = `<option value="">Dovnitř…</option>${opts
-        || '<option value="" disabled>Do rozpočtu se nikdo nevejde</option>'}`;
+  // Formulář je zabalený, dokud si o něj neřekneš. Čtyři rozbalené formuláře
+  // vedle sebe byly hlavní důvod, proč záložka působila nahňácaně.
+  q.querySelectorAll('button[data-open]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const box = $('padd-' + btn.dataset.open);
+      const show = box.hidden;
+      box.hidden = !show;
+      btn.setAttribute('aria-expanded', String(show));
+      btn.textContent = show ? 'Zavřít' : 'Přidat přestup';
+      if(show) box.querySelector('select[data-out]').focus();
     });
   });
 
-  $('plnout').querySelectorAll('button[data-add]').forEach(btn => {
+  /* Nabídka příchozích. Dřív to bylo 40 jmen podle vlastnictví bez možnosti
+     hledat, takže to vypadalo, že tam půlka ligy chybí. Teď je v seznamu
+     každý hráč dané pozice, který se vejde do rozpočtu, a jde v něm hledat.
+     Počet nahoře říká, s kolika hráči se vlastně pracuje. */
+  const fillIn = (gw, force) => {
+    const outSel = q.querySelector(`select[data-out="${gw}"]`);
+    const inSel = q.querySelector(`select[data-in="${gw}"]`);
+    const search = q.querySelector(`input[data-search="${gw}"]`);
+    const cnt = q.querySelector(`[data-cnt="${gw}"]`);
+    const out = byId[outSel.value];
+
+    if(!out){
+      inSel.disabled = search.disabled = true;
+      inSel.innerHTML = '<option value="">Nejdřív vyber, kdo jde ven</option>';
+      cnt.textContent = '';
+      return;
+    }
+
+    const row = sim.rows.find(r => String(r.gw) === String(gw)) || {bank: PLANNER.bank};
+    const budget = Math.round((row.bank + sellPrice(out)) * 10);
+    const needle = normName(search.value || '');
+
+    const all = BOOT.elements.filter(p =>
+      p.element_type === out.element_type && !owned.has(p.id)
+      && p.status !== 'u' && p.status !== 'n');
+
+    const fits = all.filter(p => p.now_cost <= budget);
+    const shown = fits.filter(p => !needle
+      || normName(p.web_name + ' ' + p.second_name).includes(needle));
+
+    shown.sort((a, b) =>
+      parseFloat(b.selected_by_percent) - parseFloat(a.selected_by_percent));
+
+    inSel.disabled = search.disabled = false;
+    inSel.innerHTML = shown.length
+      ? shown.map(p => `<option value="${p.id}">${esc(p.web_name)} ·
+          ${esc(teams[p.team].short_name)} · ${(p.now_cost / 10).toFixed(1)}m ·
+          ${parseFloat(p.selected_by_percent).toFixed(1)} %</option>`).join('')
+      : '<option value="" disabled>Nikdo neodpovídá</option>';
+
+    // Poctivé počítadlo: kolik hráčů pozice existuje, kolik jich rozpočet
+    // pustí a kolik zbylo po hledání. Bez toho není poznat, jestli je seznam
+    // krátký kvůli penězům, nebo kvůli překlepu ve jméně.
+    cnt.textContent = `${shown.length} z ${fits.length} v rozpočtu ${
+      (budget / 10).toFixed(1)}m · ${all.length} na pozici celkem`;
+    if(force) search.value = '';
+  };
+
+  q.querySelectorAll('select[data-out]').forEach(sel =>
+    sel.addEventListener('change', () => fillIn(sel.dataset.out, true)));
+  q.querySelectorAll('input[data-search]').forEach(inp =>
+    inp.addEventListener('input', () => fillIn(inp.dataset.search, false)));
+
+  q.querySelectorAll('button[data-add]').forEach(btn => {
     btn.addEventListener('click', () => {
       const gw = Number(btn.dataset.add);
-      const o = $('plnout').querySelector(`select[data-out="${gw}"]`).value;
-      const i = $('plnout').querySelector(`select[data-in="${gw}"]`).value;
+      const o = q.querySelector(`select[data-out="${gw}"]`).value;
+      const i = q.querySelector(`select[data-in="${gw}"]`).value;
       if(!o || !i){ $('plnmsg').textContent = 'Vyber hráče na obou stranách.'; return; }
       $('plnmsg').textContent = '';
       saveMoves([...loadMoves(), {gw, out: Number(o), in: Number(i)}]);
@@ -4471,7 +4700,7 @@ function renderPlanner(){
     });
   });
 
-  $('plnout').querySelectorAll('button[data-del]').forEach(btn => {
+  q.querySelectorAll('button[data-del]').forEach(btn => {
     btn.addEventListener('click', () => {
       const [gw, out] = btn.dataset.del.split(':').map(Number);
       const rest = loadMoves();
@@ -4482,10 +4711,7 @@ function renderPlanner(){
     });
   });
 
-  $('plnclear').addEventListener('click', () => {
-    saveMoves([]);
-    renderPlanner();
-  });
+  $('plnclear').addEventListener('click', () => { saveMoves([]); renderPlanner(); });
 }
 
 async function loadPlanner(){
@@ -4535,8 +4761,9 @@ function resetState(){
   PLAYERS = null;
   COMPARE = [];
 
-  ['out','msg','lout','lmsg','hubout','hubmsg','pout','pdetail',
-   'trout','trmsg','plout','plmsg'].forEach(id => {
+  ['out','msg','lout','lmsg','hubout','hubmsg','pout','pmsg','pdetail',
+   'trout','trmsg','plout','plmsg','prout','prmsg',
+   'plnout','plnmsg'].forEach(id => {
     const el = $(id);
     if(el) el.innerHTML = '';
   });
