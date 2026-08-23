@@ -1437,6 +1437,156 @@ check('záložka se jmenuje Top hráči a stará tabulka je pryč', () => {
   return 'ok';
 });
 
+/* ================= diferenciály ================= */
+
+check('diferenciál musí mít jistotu minut', () => {
+  const f = w.eval('minutesSecure');
+  const p = {...bootstrap.elements[5], status: 'a', minutes: 900,
+             chance_of_playing_next_round: 100};
+  if(!f(p, 10)) throw new Error('odmítl hráče s 90 minutami na kolo');
+  if(f({...p, status: 'i'}, 10)) throw new Error('vzal zraněného');
+  if(f({...p, chance_of_playing_next_round: 25}, 10)) throw new Error('vzal pochybného');
+  if(f({...p, minutes: 200}, 10)) throw new Error('vzal střídajícího (20 min/kolo)');
+  return 'jistota minut hlídána';
+});
+
+check('nižší vlastnictví zvedne skóre při stejné projekci', () => {
+  const f = w.eval('diffScore');
+  const p = bootstrap.elements[7];
+  const vzacny = f(p, 11, 2), bezny = f(p, 11, 40);
+  if(vzacny.xp !== bezny.xp) throw new Error('projekce se liší, test nic neměří');
+  if(!(vzacny.score > bezny.score))
+    throw new Error(`2 % → ${vzacny.score.toFixed(2)}, 40 % → ${bezny.score.toFixed(2)}`);
+  return `2 % je ${(vzacny.score / bezny.score).toFixed(1)}× výš`;
+});
+
+check('extrémně nízké vlastnictví neuteče do nekonečna', () => {
+  const f = w.eval('diffScore');
+  const p = bootstrap.elements[7];
+  // 0,1 % a 0 % musí dát totéž — páka je useknutá zdola
+  if(f(p, 11, 0.1).score !== f(p, 11, 0).score)
+    throw new Error('nulové vlastnictví se neusekává');
+  return 'useknuto';
+});
+
+check('diferenciály vrátí nejvýš pět hráčů seřazených podle skóre', () => {
+  const pool = bootstrap.elements.filter(p => p.element_type !== 1).slice(0, 60);
+  const rows = w.eval('diffRows')(pool, 11, p => parseFloat(p.selected_by_percent));
+  if(rows.length > 5) throw new Error('řádků: ' + rows.length);
+  for(let i = 1; i < rows.length; i++)
+    if(rows[i].score > rows[i - 1].score) throw new Error('není seřazeno');
+  return rows.length + ' hráčů';
+});
+
+check('bez načtené miniligy to diferenciály přiznají', () => {
+  w.eval('LEAGUE_OWN = null;');
+  const html = w.eval('buildDifferentials()');
+  if(!html.includes('celé FPL')) throw new Error('chybí globální část');
+  if(!html.includes('Miniliga</b>')) throw new Error('neřekl, že chybí liga');
+  return 'poctivá hláška';
+});
+
+check('s načtenou miniligou se počítá i ligové vlastnictví', () => {
+  const els = bootstrap.elements;
+  // deset manažerů, jeden hráč u všech, jiný u jednoho
+  w.eval(`LEAGUE_OWN = {n: 10, owners: {
+    ${els[3].id}: ['a','b','c','d','e','f','g','h','i','j'],
+    ${els[4].id}: ['a']
+  }};`);
+  const html = w.eval('buildDifferentials()');
+  w.eval('LEAGUE_OWN = null;');
+  if(!html.includes('10 manažerů')) throw new Error('nezmínil velikost ligy');
+  if(html.includes('Miniliga</b>')) throw new Error('pořád si stěžuje na chybějící ligu');
+  return 'ligová část vykreslena';
+});
+
+/* ================= historie miniligy ================= */
+
+const pastFixture = [
+  {past: [{season_name: '2021/22', total_points: 2100, rank: 500000},
+          {season_name: '2022/23', total_points: 2300, rank: 200000},
+          {season_name: '2023/24', total_points: 2500, rank: 90000}]},
+  {past: [{season_name: '2022/23', total_points: 2400, rank: 150000},
+          {season_name: '2023/24', total_points: 2200, rank: 400000}]},
+  {past: []},
+];
+const histMembers = [
+  {entry: 1, player_name: 'Adam', entry_name: 'A'},
+  {entry: 2, player_name: 'Bob', entry_name: 'B'},
+  {entry: 3, player_name: 'Cyril', entry_name: 'C'},
+];
+
+check('historie poskládá sezóny ze všech členů', () => {
+  const h = w.eval('buildLeagueHistory')(histMembers, pastFixture);
+  if(h.cols.join(',') !== '2021/22,2022/23,2023/24')
+    throw new Error('sloupce: ' + h.cols);
+  return h.cols.length + ' sezón';
+});
+
+check('historie drží nejvýš šest sezón', () => {
+  const many = [{past: Array.from({length: 10}, (_, i) => ({
+    season_name: `20${10 + i}/${11 + i}`, total_points: 2000 + i, rank: 1000}))}];
+  const h = w.eval('buildLeagueHistory')([histMembers[0]], many);
+  if(h.cols.length !== 6) throw new Error('sloupců: ' + h.cols.length);
+  if(h.cols[5] !== '2019/20') throw new Error('nedrží ty nejnovější: ' + h.cols);
+  return 'posledních 6';
+});
+
+check('kdo sezónu nehrál, nedostane poslední místo', () => {
+  const h = w.eval('buildLeagueHistory')(histMembers, pastFixture);
+  // 2021/22 hrál jen Adam → je první a nikdo jiný v pořadí není
+  if(h.order['2021/22'].size !== 1) throw new Error('do pořadí se dostal někdo, kdo nehrál');
+  if(h.order['2021/22'].get(1) !== 1) throw new Error('Adam není první');
+  // 2022/23 hráli dva, Bob má víc bodů → je první
+  if(h.order['2022/23'].get(2) !== 1) throw new Error('Bob měl vyhrát 2022/23');
+  if(h.order['2022/23'].get(1) !== 2) throw new Error('Adam měl být druhý');
+  return 'pořadí jen z těch, kdo hráli';
+});
+
+check('nehraná sezóna se ukáže pomlčkou, ne nulou', () => {
+  const html = w.eval('renderLeagueHistory')(histMembers, pastFixture, 1);
+  if(!html.includes('empty')) throw new Error('chybí prázdná buňka');
+  if(/>0<\/b>/.test(html)) throw new Error('vyrobil nulu tam, kde chybí data');
+  return 'pomlčka';
+});
+
+check('historie přizná, že pořadí miniligy z API není', () => {
+  const html = w.eval('renderLeagueHistory')(histMembers, pastFixture, 1);
+  if(!html.includes('neposílá pořadí miniligy'))
+    throw new Error('tváří se to jako skutečný archiv ligy');
+  return 'omezení uvedeno';
+});
+
+check('bez historie u kohokoli to appka řekne', () => {
+  const html = w.eval('renderLeagueHistory')([histMembers[2]], [{past: []}], 3);
+  if(!html.includes('nemá v FPL zaznamenanou')) throw new Error(html.slice(0, 100));
+  return 'poctivá hláška';
+});
+
+/* ================= zisk z projekce ================= */
+
+check('plánovač ukáže zisk u každého tahu zvlášť', () => {
+  const squad = [1, 2, 3, 4].map(i => ({p: bootstrap.elements[i]}));
+  w.__pl = {startGw: 11, squad, bank: 30, free: 2, derived: 2, manual: false};
+  w.eval('PLANNER = window.__pl;');
+  const r = w.eval('simulatePlan')([
+    {gw: 11, out: squad[0].p.id, in: bootstrap.elements[95].id}]);
+  const d = r.rows[0].detail[0];
+  if(!Number.isFinite(d.gain)) throw new Error('tah nenese vlastní zisk');
+  if(Math.abs(d.gain - r.gain) > 1e-9)
+    throw new Error('součet nesedí s jediným tahem: ' + d.gain + ' vs ' + r.gain);
+  return d.gain.toFixed(1) + ' b';
+});
+
+check('plánovač vysvětlí, odkud se zisk bere', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  if(!html.includes('Co je „zisk z projekce“'))
+    throw new Error('chybí vysvětlení');
+  if(!html.includes('můj odhad, ne oficiální číslo FPL'))
+    throw new Error('nerozlišuje vlastní model od projekce FPL');
+  return 'vysvětleno';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);

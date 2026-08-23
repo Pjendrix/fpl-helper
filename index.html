@@ -898,6 +898,17 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
 .ftbar label{display:inline-flex;align-items:center;gap:8px}
 .ftbar .pin{width:56px}
 .ftbar .fthint{flex:1 1 240px;font-family:var(--f);font-size:12px}
+
+/* ---------- diferenciály ---------- */
+.diffs{margin-top:28px;padding-top:22px;border-top:1px solid var(--line)}
+
+/* ---------- historie miniligy ---------- */
+table.hist td.empty{color:var(--mute);opacity:.6}
+table.hist td.first b{color:var(--ok)}
+table.hist td u{display:block;text-decoration:none;font-size:10px;
+  color:var(--mute);font-family:var(--f-mono);white-space:nowrap}
+.psum .k2{font-size:10px;color:var(--mute);font-family:var(--f-mono);margin-top:2px}
+.pmove .cost.gain{color:var(--ok);font-weight:700}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
@@ -1931,6 +1942,12 @@ function renderLeague(st, members, hist, picks, cur, truncated){
   });
 
   const n = Object.keys(byEntry).length;
+
+  /* Vlastnictví v lize si uložíme i mimo tuhle funkci — potřebují ho
+     diferenciály v Transferech. Dřív tu podobná proměnná byla a zmizela
+     s panelem „Před deadlinem“; tahle drží jen to, co je opravdu potřeba. */
+  LEAGUE_OWN = {owners, n};
+
   const ranked = Object.entries(owners)
     .map(([pid, list]) => ({p: els[pid], list, pct: Math.round((list.length / n) * 100)}))
     .filter(o => o.p)
@@ -1990,6 +2007,7 @@ function renderLeague(st, members, hist, picks, cur, truncated){
     ['Vývoj', rankChart(members, hist)],
     ['Rozdíly', diffHtml],
     ['Kdo koho má', ownTable],
+    ['Historie', '<div id="histbox"></div>'],
   ];
 
   const cap = truncated
@@ -2018,6 +2036,16 @@ function renderLeague(st, members, hist, picks, cur, truncated){
   });
 
   mountPhases(st.league.id, cur, myId);
+
+  // Historie je desítky dotazů, tak ji spustíme až když si o ni člověk řekne.
+  const histBtn = [...$('lout').querySelectorAll('.sub-btn')]
+    .find(b => b.textContent.trim() === 'Historie');
+  if(histBtn) histBtn.addEventListener('click', () => {
+    if(!$('histbox').dataset.loaded){
+      $('histbox').dataset.loaded = '1';
+      loadLeagueHistory(members, myId);
+    }
+  }, {once: false});
 
   // Živá tabulka se dopočítá až po vykreslení — nezdržuje zbytek panelu.
   renderLive(members, picks, cur, myId);
@@ -3163,7 +3191,8 @@ function renderTransfers(){
       <p class="note">Nikdo není zraněný ani suspendovaný, nikoho nečeká vyloženě zlý
       blok zápasů a nikdo netrpí bodovým suchem. Hráči, kteří bodují, se neflagují —
       dobrá forma přebije i těžký program. V bance máš ${bank.toFixed(1)}m.</p>
-    </div>`;
+    </div>
+    <div class="diffs">${buildDifferentials()}</div>`;
     return;
   }
 
@@ -3299,7 +3328,8 @@ function renderTransfers(){
         + 'začátku sezóny. U hráčů koupených během sezóny to bude vedle — přepiš je '
         + 'ručně.'}</p>
     ${blocks.join('')}
-    <button class="lnk" id="sellreset" style="margin-top:14px">Zahodit ruční přepisy</button>`;
+    <button class="lnk" id="sellreset" style="margin-top:14px">Zahodit ruční přepisy</button>
+    <div class="diffs">${buildDifferentials()}</div>`;
 
   /* Tlačítko „i“ místo hover tooltipu — na dotykovém displeji se hover
      nedá vyvolat a tooltip by tam byl nedostupný. */
@@ -3356,6 +3386,7 @@ $('trgo').addEventListener('click', async () => {
 
 /* ============ HUB LIGY ============ */
 let HUB = null;
+let LEAGUE_OWN = null;   // {owners: {playerId: [jmena]}, n} — plni renderLeague
 
 async function loadHub(){
   $('hubmsg').textContent = 'Načítám ligu…';
@@ -4115,6 +4146,239 @@ async function loadPlan(){
 
 
 /* ============================================================
+   HISTORIE MINILIGY
+
+   Důležité omezení, které stojí za to znát dopředu: FPL **neposílá
+   pořadí miniligy za minulé sezóny**. Endpoint standings vrací vždy
+   jen tu rozehranou. Co dostat jde, je `past` z entry/{id}/history/ —
+   celkové body a celkové pořadí každého manažera za předchozí sezóny.
+
+   Tabulka níž je proto sestavená z celkových bodů členů, kteří jsou
+   v lize **dneska**. Není to archiv toho, jak liga tehdy dopadla:
+     · kdo mezitím odešel, tu není,
+     · kdo se přidal loni, má starší sezóny prázdné,
+     · pořadí je přepočítané mezi současnými členy, ne historické.
+   Appka to říká i uživateli — tichý nepřesný archiv by byl horší
+   než žádný.
+   ============================================================ */
+
+const HIST_SEASONS = 6;
+
+/* Poskládá matici sezóna × manažer z `past` jednotlivých členů. */
+function buildLeagueHistory(members, pasts){
+  const seasons = new Set();
+  const rows = [];
+
+  members.forEach((m, i) => {
+    const past = (pasts[i] && pasts[i].past) || [];
+    const by = {};
+    past.forEach(s => {
+      if(!s || !s.season_name) return;
+      seasons.add(s.season_name);
+      by[s.season_name] = {pts: s.total_points, rank: s.rank};
+    });
+    rows.push({m, by, seasons: past.length});
+  });
+
+  // Poslední sezóny podle názvu — „2024/25“ se řadí správně i textově.
+  const cols = [...seasons].sort().slice(-HIST_SEASONS);
+
+  // Pořadí v rámci ligy počítáme pro každou sezónu zvlášť a jen z těch,
+  // kdo v ní vůbec hráli. Kdo tehdy nehrál, nemá dostat poslední místo.
+  const order = {};
+  cols.forEach(c => {
+    const hrali = rows.filter(r => r.by[c]).sort((a, b) => b.by[c].pts - a.by[c].pts);
+    order[c] = new Map(hrali.map((r, i) => [r.m.entry, i + 1]));
+  });
+
+  return {cols, rows, order};
+}
+
+function renderLeagueHistory(members, pasts, myId){
+  const {cols, rows, order} = buildLeagueHistory(members, pasts);
+
+  if(!cols.length)
+    return `<p class="note">Nikdo z členů ligy nemá v FPL zaznamenanou
+      předchozí sezónu — buď jste tu všichni noví, nebo hráli pod jiným účtem.</p>`;
+
+  // Řadíme podle počtu sezón a pak podle součtu — kdo hraje dýl, je nahoře.
+  const sum = r => cols.reduce((a, c) => a + (r.by[c] ? r.by[c].pts : 0), 0);
+  const played = r => cols.filter(c => r.by[c]).length;
+  const sorted = rows.slice().sort((a, b) => played(b) - played(a) || sum(b) - sum(a));
+
+  const cell = (r, c) => {
+    const v = r.by[c];
+    if(!v) return '<td class="n empty" title="tuhle sezónu nehrál">–</td>';
+    const pos = order[c].get(r.m.entry);
+    return `<td class="n${pos === 1 ? ' first' : ''}">
+      <b>${v.pts}</b><u>${pos}. v lize${
+        v.rank ? ' · ' + v.rank.toLocaleString('cs-CZ') + '. celkově' : ''}</u></td>`;
+  };
+
+  return `<table class="hist">
+      <thead><tr><th>Manažer</th>${cols.map(c =>
+        `<th class="n">${esc(c)}</th>`).join('')}<th class="n">Sezón</th></tr></thead>
+      <tbody>${sorted.map(r => `<tr${r.m.entry === myId ? ' class="me"' : ''}>
+        <td><b>${esc(r.m.player_name)}</b><span class="sub">${esc(r.m.entry_name)}</span></td>
+        ${cols.map(c => cell(r, c)).join('')}
+        <td class="n">${played(r)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <p class="note"><b>Čti to obezřetně.</b> FPL neposílá pořadí miniligy
+      za minulé sezóny — vrací jen celkové body každého manažera. Tahle
+      tabulka je proto dopočítaná z lidí, kteří jsou v lize <b>dneska</b>:
+      kdo mezitím odešel, chybí, a pořadí není to, jak liga tehdy skutečně
+      dopadla. Celkové pořadí v závorce je pořadí mezi všemi hráči FPL
+      na světě, to je z API přímo.</p>`;
+}
+
+async function loadLeagueHistory(members, myId){
+  const box = $('histbox');
+  if(!box) return;
+  box.innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i></div>';
+
+  try{
+    // Jeden dotaz na člena. U velkých lig by to bylo moc, tak bereme
+    // prvních padesát — víc se stejně do tabulky rozumně nevejde.
+    const subset = members.slice(0, 50);
+    const pasts = await pooled(subset,
+      m => cached('entry/' + m.entry + '/history/'), 5,
+      (done, total) => {
+        box.innerHTML = `<p class="note">Načítám historii… ${done}/${total}</p>`;
+      });
+
+    const ok = pasts.filter(Boolean).length;
+    if(!ok){ box.innerHTML = '<p class="note">Historii se nepodařilo načíst.</p>'; return; }
+
+    box.innerHTML = (ok < subset.length
+        ? `<p class="note">U ${subset.length - ok} členů se historie nenačetla,
+           v tabulce chybí.</p>`
+        : '')
+      + renderLeagueHistory(subset, pasts, myId);
+  }catch(e){
+    box.innerHTML = `<p class="note">Historii se nepodařilo načíst: ${esc(e.message)}</p>`;
+  }
+}
+
+/* ============================================================
+   DIFERENCIÁLY
+
+   Diferenciál je hráč, kterého skoro nikdo nemá a přitom nosí body.
+   Obojí musí platit zároveň — nízké vlastnictví samo o sobě není
+   přednost, většina nevlastněných hráčů je nevlastněná právem.
+
+   Skóre proto stavíme na dvou složkách:
+
+     výnos    = projekce mého modelu na příštích 5 kol (počítá rozpis,
+                minutovou jistotu, defenzivní příspěvky i doubly)
+     páka     = jak moc se ti to promítne do pořadí
+
+   Páka není lineární. Rozdíl mezi 2 % a 12 % vlastnictví je pro tvůj
+   posun v lize mnohem větší než mezi 40 % a 50 %, protože v druhém
+   případě se s tebou hýbe skoro celé pole. Používáme proto
+   1 / sqrt(vlastnictví), useknuté zdola, ať extrémně neznámí hráči
+   s jednou dobrou statistikou neutečou nahoru.
+
+   Nejde o „kup tohohle“. Je to seznam, kde se dívat.
+   ============================================================ */
+
+const DIFF_MAX_OWN = 12;      // strop globálního vlastnictví v procentech
+const DIFF_GWS = 5;
+
+/* Minutová jistota. Diferenciál, který nehraje, není diferenciál —
+   je to prázdné místo v sestavě. */
+function minutesSecure(p, gwPlayed){
+  if(p.status === 'u' || p.status === 'n' || p.status === 'i') return false;
+  if((p.chance_of_playing_next_round ?? 100) < 75) return false;
+  const perGw = gwPlayed > 0 ? p.minutes / gwPlayed : 0;
+  return perGw >= 55;
+}
+
+function diffScore(p, startGw, ownPct){
+  const xp = projectRange(p, startGw, DIFF_GWS);
+  const own = Math.max(1.5, ownPct);        // useknuté zdola
+  return {xp, leverage: 1 / Math.sqrt(own), score: xp / Math.sqrt(own)};
+}
+
+function diffRows(pool, startGw, ownOf){
+  return pool
+    .map(p => ({p, own: ownOf(p), ...diffScore(p, startGw, ownOf(p))}))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5);
+}
+
+function diffTable(rows, ownLabel){
+  if(!rows.length) return '<p class="note">Nikdo neprošel filtrem.</p>';
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+
+  return `<table><thead><tr>
+      <th>Hráč</th><th class="n">Cena</th><th class="n">${esc(ownLabel)}</th>
+      <th class="n">Projekce ${DIFF_GWS} kol</th><th class="n">xGI/90</th>
+      <th class="n">Forma</th></tr></thead>
+    <tbody>${rows.map(r => {
+      const mine = MY_SQUAD && MY_SQUAD.has(r.p.id);
+      const xgi = stat(r.p, 'expected_goal_involvements_per_90');
+      return `<tr${mine ? ' class="me"' : ''}>
+        <td><span class="who">${crest(r.p.team, 'sm')}<b>${esc(r.p.web_name)}</b>
+          <em class="sub">${esc(teams[r.p.team].short_name)}</em>
+          ${mine ? '<span class="badge dif">máš</span>' : ''}</span></td>
+        <td class="n">${(r.p.now_cost / 10).toFixed(1)}m</td>
+        <td class="n">${r.own.toFixed(1)} %</td>
+        <td class="n"><b>${r.xp.toFixed(1)}</b></td>
+        <td class="n">${xgi === null ? '–' : xgi.toFixed(2)}</td>
+        <td class="n">${parseFloat(r.p.form || 0).toFixed(1)}</td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+function buildDifferentials(){
+  const startGw = planStartGw();
+  const gwPlayed = BOOT.events.filter(e => e.finished).length;
+
+  const base = BOOT.elements.filter(p => minutesSecure(p, gwPlayed));
+
+  // --- globální ---
+  const globalPool = base.filter(p =>
+    parseFloat(p.selected_by_percent) <= DIFF_MAX_OWN);
+  const globalRows = diffRows(globalPool, startGw,
+    p => parseFloat(p.selected_by_percent));
+
+  let out = `<h3>Top 5 diferenciálů · celé FPL</h3>
+    <p class="note">Hráči pod ${DIFF_MAX_OWN} % vlastnictví, kteří mají
+      nejvyšší projekci na příštích ${DIFF_GWS} kol. Jistota minut je
+      podmínka — hráč, který nenastupuje, není diferenciál.</p>
+    ${diffTable(globalRows, 'Vlastní')}`;
+
+  // --- v rámci miniligy ---
+  out += '<h3>Top 5 diferenciálů · tvoje miniliga</h3>';
+
+  if(!LEAGUE_OWN){
+    out += `<p class="note">Nejdřív si nech načíst záložku <b>Miniliga</b> —
+      bez ní nevím, koho tvoji soupeři vlastní.</p>`;
+  }else{
+    const {owners, n} = LEAGUE_OWN;
+    const ownPct = p => ((owners[p.id] || []).length / n) * 100;
+
+    // V lize dává smysl jiný práh: zajímá nás, koho má nejvýš jeden soupeř.
+    const cutoff = (1 / n) * 100 + 0.01;
+    const leaguePool = base.filter(p => ownPct(p) <= cutoff);
+    const leagueRows = diffRows(leaguePool, startGw, ownPct);
+
+    out += `<p class="note">Hráči, které v tvé lize (${n} manažerů) má
+        nejvýš jeden člověk. Tady se pořadí láme — na globálně vlastněném
+        hráči proti své lize nezískáš nic, i kdyby nasázel hattrick.</p>
+      ${diffTable(leagueRows, 'V lize')}`;
+  }
+
+  out += `<p class="note">Řadím podle projekce dělené odmocninou vlastnictví.
+    Odmocnina proto, že rozdíl mezi 2 % a 12 % znamená pro tvůj posun
+    mnohem víc než mezi 40 % a 50 % — tam se s tebou hýbe skoro celé pole.
+    Není to pokyn ke koupi, je to seznam, kde se dívat.</p>`;
+
+  return out;
+}
+
+/* ============================================================
    ZÁLOŽKA CENY
 
    Dřív to byla jedna ze čtyř sekcí v Programu a zapadalo to.
@@ -4707,9 +4971,10 @@ function simulatePlan(moves){
       // Zisk počítáme na kola od tahu do konce okna — dřívější tah
       // má víc kol na to, aby se vyplatil.
       const n = PLANNER_GWS - i;
-      gain += projectRange(inp, gw, n) - projectRange(out, gw, n);
+      const moveGain = projectRange(inp, gw, n) - projectRange(out, gw, n);
+      gain += moveGain;
 
-      detail.push({out, in: inp});
+      detail.push({out, in: inp, gain: moveGain});
     }
 
     const used = mine.length;
@@ -4760,8 +5025,10 @@ function renderPlanner(){
           ${crest(d.out.team, 'sm')}<span>${esc(d.out.web_name)}</span>
           <span class="ar">→</span>
           ${crest(d.in.team, 'sm')}<span>${esc(d.in.web_name)}</span>
-          <span class="cost">${((d.in.now_cost - sellPrice(d.out) * 10) / 10 >= 0 ? '+' : '')}${
+          <span class="cost">${((d.in.now_cost / 10) - sellPrice(d.out)) >= 0 ? '+' : ''}${
             ((d.in.now_cost / 10) - sellPrice(d.out)).toFixed(1)}m</span>
+          <span class="cost gain" title="rozdíl projekcí od tohohle kola do konce plánu">${
+            d.gain >= 0 ? '+' : ''}${d.gain.toFixed(1)} b</span>
           <button class="rm" type="button" data-del="${r.gw}:${d.out.id}"
             aria-label="Zrušit tah ${esc(d.out.web_name)} za ${esc(d.in.web_name)}">×</button>
         </div>`).join('')
@@ -4808,7 +5075,8 @@ function renderPlanner(){
       <div><div class="k">Body za hity</div>
         <div class="v${sim.hits ? ' neg' : ''}">${sim.hits ? '−' + sim.hits * 4 : '0'}</div></div>
       <div><div class="k">Zisk z projekce</div>
-        <div class="v">${sim.gain >= 0 ? '+' : ''}${sim.gain.toFixed(1)}</div></div>
+        <div class="v">${sim.gain >= 0 ? '+' : ''}${sim.gain.toFixed(1)}</div>
+        <div class="k2">bodů za ${PLANNER_GWS} kol</div></div>
       <div><div class="k">Čistě</div>
         <div class="v ${sim.net >= 0 ? 'pos' : 'neg'}">${sim.net >= 0 ? '+' : ''}${sim.net.toFixed(1)}</div></div>
     </div>
@@ -4833,6 +5101,14 @@ function renderPlanner(){
         + 'Potřebuješ levnější příchod nebo dražší odchod.</p>'
       : ''}
     <div class="plan-rows">${gwRows}</div>
+    <p class="note"><b>Co je „zisk z projekce“:</b> u každého tahu vezmu
+      svůj model a spočítám, kolik bodů nasbírá příchozí hráč od kola tahu
+      do konce plánovaného okna — a odečtu totéž pro odcházejícího. Model
+      počítá minutovou jistotu, sílu soupeřů, defenzivní příspěvky
+      i dvojitá a volná kola. Je to <b>můj odhad, ne oficiální číslo FPL</b>;
+      to najdeš jako „projekce FPL“ u hráče a platí vždy jen na jedno kolo.
+      Součty přes několik kol jsou ze své podstaty hrubé — ber je jako
+      pořadí, ne jako předpověď.</p>
     <p class="note">Každý přestup nad rámec volných stojí <b>4 body</b>. Volný
       přestup se ti po každém kole vrátí, strop je
       ${1 + ((BOOT.game_settings && BOOT.game_settings.max_extra_free_transfers) || 0)} —
@@ -5012,6 +5288,7 @@ function resetState(){
   MY_SQUAD = null;
   TR_STATE = null;
   HUB = null;
+  LEAGUE_OWN = null;
   PLAYERS = null;
   CMP_A = CMP_B = null;
 

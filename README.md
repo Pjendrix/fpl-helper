@@ -123,6 +123,21 @@ kdo chce jít proti proudu, najde nízké vlastnictví v záložce Hub ligy.
 a odehrané minuty. Všechno ostatní je pod tlačítkem **i** (ne hover — na
 dotykovém displeji by tooltip byl nedostupný).
 
+**Historie miniligy má strop, který nejde obejít.** FPL neposílá pořadí
+miniligy za minulé sezóny — endpoint standings vrací vždy jen tu rozehranou.
+Dostat jde `past` z `entry/{id}/history/`: celkové body a celkové pořadí
+každého manažera. Tabulka v sekci Historie je proto dopočítaná z lidí, kteří
+jsou v lize **dneska** — kdo mezitím odešel, chybí, a pořadí není to, jak
+liga tehdy skutečně dopadla. Appka to říká i uživateli; tichý nepřesný archiv
+by byl horší než žádný.
+
+**Diferenciály** řadíme podle projekce dělené **odmocninou** vlastnictví.
+Odmocnina proto, že rozdíl mezi 2 % a 12 % znamená pro posun v pořadí mnohem
+víc než mezi 40 % a 50 % — tam se s tebou hýbe skoro celé pole. Páka je
+useknutá zdola na 1,5 %, ať neznámý hráč s jednou dobrou statistikou neuteče
+nahoru. Jistota minut je tvrdá podmínka: hráč, který nenastupuje, není
+diferenciál, ale prázdné místo v sestavě.
+
 **Žebříčky místo filtrů.** Záložka Top hráči byla dřív filtrovatelná tabulka
 všech zhruba sedmi set hráčů. Fungovala, ale odpovídala na otázku „najdi mi
 konkrétního hráče“ — a tu si člověk položí zřídka. Častější je „kdo je letos
