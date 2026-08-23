@@ -13,7 +13,7 @@ sama, až když na ni přijde řada.
 | **Sestava** | Kádr **seskupený podle pozic** s rozpisem na tři kola, živé body během kola, zranění a otazníky, doporučení kapitána, optimální jedenáctka z tvých patnácti, upozornění na blanky a doubly |
 | **Miniliga** | Pořadí, **průběžné body během kola**, vývoj pozic v grafu, hráči, které máš jen ty nebo naopak nemáš, kdo koho vlastní |
 | **Hub ligy** | Novinky po kole, sezónní žebříčky (daň za transfery, zmrzlá lavička), zdraví kádrů, kapitánská mapa a efekt šablony |
-| **Hráči** | Filtrovatelná tabulka všech hráčů s projekcí, detail s rozpisem kolo po kole, **porovnání dvou hráčů vedle sebe** |
+| **Top hráči** | Žebříčky top 10 podle gólů, asistencí, DEFCON, bonusů, xG, xA a xGI; u brankářů čistá konta a zákroky. Pod nimi **porovnání dvou libovolných hráčů** vedle sebe |
 | **Transfery** | Najde problémové hráče a navrhne náhrady do rozpočtu, seřazené podle vlastnictví; statistiky pod tlačítkem **i** |
 | **Program** | Rozpis na šest kol s vlastní obtížností, blanky a doubly |
 | **Ceny** | Kdo dnes v noci zdraží nebo zlevní (oficiální predikce), kdo se pohnul za poslední kolo, největší růst a propad za sezónu |
@@ -123,6 +123,13 @@ kdo chce jít proti proudu, najde nízké vlastnictví v záložce Hub ligy.
 a odehrané minuty. Všechno ostatní je pod tlačítkem **i** (ne hover — na
 dotykovém displeji by tooltip byl nedostupný).
 
+**Žebříčky místo filtrů.** Záložka Top hráči byla dřív filtrovatelná tabulka
+všech zhruba sedmi set hráčů. Fungovala, ale odpovídala na otázku „najdi mi
+konkrétního hráče“ — a tu si člověk položí zřídka. Častější je „kdo je letos
+nejlepší v X“, na což se z jedné dlouhé tabulky odpovídalo řazením a klikáním.
+Teď je každá kategorie vlastní box s top desítkou. Kategorie, kterou FPL v dané
+sezóně neposílá, box přizná místo aby ukazoval samé nuly.
+
 **Statistiky u hráče** se řídí jeho pozicí: brankář dostane zákroky, chycené
 penalty a xGC; obránce čistá konta, xGC a defenzivní příspěvky; záložník
 xGI i xGC, protože bere body z obou stran; útočník xGI, xG a xA. Pole, která
@@ -171,6 +178,12 @@ posílá `price_change_projections` s pravděpodobností na tři dny dopředu,
 oficiální číslo, když existuje — stejně jako u `ep_next`. Když projekce
 v datech nejsou (bývá to před prvním kolem), appka to řekne místo aby hádala.
 
+**Vstupní obrazovka je tmavá.** Zbytek appky světlý — je to záměr, ne
+nedůslednost. Vstup funguje jako dveře: auberginové pozadí, za nimi se appka
+rozsvítí. Praktický důvod je ale prostší: nadpis byl bílý a na světlém plátně
+zmizel. Formulář navíc sedí **vedle** nadpisu, ne pod ním; dřív byl přes dvě
+stě pixelů pod ohybem a po otevření nebylo vidět, co má člověk udělat.
+
 **Světlo a tma.** Appka je navržená jako světlá — barevná stupnice obtížnosti
 i odznaky klubů čtou na papíře líp než na černé. Tma je proto **přepínač
 v hlavičce**, ne `prefers-color-scheme`: automatika by lidem s tmavým systémem
@@ -203,6 +216,11 @@ funguje hned a bez dalšího účtu.
 Naplánovaná upozornění na deadline stojí na Notification Triggers, které
 zatím neumí každý prohlížeč. Když chybí, appka to napíše rovnou místo aby
 slibovala připomínku, která nepřijde.
+
+Vyhledávání v porovnání hráčů seznam nefiltruje, jen vybere nejlepší shodu.
+Filtrovat `<select>` znamená mazat a znovu stavět stovky `<option>` při každém
+stisku klávesy — a hlavně by ti pod rukama zmizel hráč, kterého jsi právě
+vybral.
 
 Doporučení čipů appka nedělá. Dřív to byla čtvrtá sekce v Programu, ale
 potřebovala načtený kádr z jiné záložky a bez něj ukazovala jen výzvu, ať

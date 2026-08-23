@@ -259,6 +259,10 @@ bootstrap.elements.forEach((p, i) => {
   p.penalties_saved = 0; p.clean_sheets = i % 6; p.goals_conceded = i % 15;
   p.expected_goal_involvements = String(((i * 13) % 900) / 100);
   p.goals_scored = i % 9; p.assists = i % 7;
+  // sezonni souhrny (ne per_90) — ctou je zebricky v Top hracich
+  p.expected_goals = String(((i * 19) % 1400) / 100);
+  p.expected_assists = String(((i * 7) % 900) / 100);
+  p.defensive_contribution = (i * 3) % 90;
   p.ict_index = String(((i * 23) % 2000) / 10);
   p.ict_index_rank_type = (i % 60) + 1;
 });
@@ -1148,6 +1152,189 @@ check('plátno je ve světlém režimu opravdu světlé', () => {
   // na to, co říká data-theme.
   if(lum(sky) < 0.5) throw new Error('plátno ' + sky + ' je tmavé');
   return sky;
+});
+
+/* ================= normName ================= */
+
+check('normName přežil odstranění staré záložky', () => {
+  // Zmizel spolu s panelem „Před deadlinem“, ale volají ho tři jiná místa.
+  // Projevilo se to až po napsání do vyhledávacího pole.
+  const f = w.eval('normName');
+  if(f('Dúbravka') !== 'dubravka') throw new Error(f('Dúbravka'));
+  if(f("O'Brien Jr.") !== 'obrien jr') throw new Error(f("O'Brien Jr."));
+  return 'diakritika i interpunkce pryč';
+});
+
+/* ================= vstupní obrazovka ================= */
+
+check('nadpis na vstupu není bílý na bílém', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  // Bílý text je v pořádku jen proto, že landing má tmavé pozadí.
+  if(!/#landing\{[^}]*background:var\(--aubergine\)/.test(style))
+    throw new Error('landing nemá tmavé pozadí, bílý nadpis by zmizel');
+  return 'tmavé pozadí + bílý nadpis';
+});
+
+check('formulář je vedle nadpisu, ne pod ním', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  if(!/#landing \.wrap\{[^}]*grid-template-columns/.test(style))
+    throw new Error('není dvousloupcový');
+  if(/\.hero\{padding:80px/.test(style))
+    throw new Error('zůstalo staré odsazení, které tlačí formulář pod ohyb');
+  return 'dva sloupce';
+});
+
+/* ================= Top hráči ================= */
+
+check('žebříčky pokrývají všechny zadané kategorie', () => {
+  const keys = w.eval('TOP_FIELD').map(x => x[0]).concat(w.eval('TOP_GK').map(x => x[0]));
+  const want = ['goals_scored', 'assists', 'defensive_contribution', 'bonus',
+                'expected_goals', 'expected_assists', 'expected_goal_involvements',
+                'clean_sheets', 'saves'];
+  const chybi = want.filter(k => !keys.includes(k));
+  if(chybi.length) throw new Error('chybí: ' + chybi.join(', '));
+  return keys.length + ' kategorií';
+});
+
+check('brankářské žebříčky obsahují jen brankáře', () => {
+  const html = w.eval('topBoard')(w.eval('TOP_GK')[0]);
+  const ids = [...html.matchAll(/data-pid="(\d+)"/g)].map(m => Number(m[1]));
+  if(!ids.length) throw new Error('prázdný žebříček');
+  const els = Object.fromEntries(bootstrap.elements.map(p => [p.id, p]));
+  const cizi = ids.filter(id => els[id].element_type !== 1);
+  if(cizi.length) throw new Error(cizi.length + ' nebrankářů v tabulce čistých kont');
+  return ids.length + ' brankářů';
+});
+
+check('žebříčky hráčů v poli brankáře vynechají', () => {
+  const html = w.eval('topBoard')(w.eval('TOP_FIELD')[0]);
+  const ids = [...html.matchAll(/data-pid="(\d+)"/g)].map(m => Number(m[1]));
+  const els = Object.fromEntries(bootstrap.elements.map(p => [p.id, p]));
+  if(ids.some(id => els[id].element_type === 1))
+    throw new Error('brankář v tabulce střelců');
+  return ids.length + ' hráčů v poli';
+});
+
+check('žebříček je seřazený sestupně a má nejvýš 10', () => {
+  const html = w.eval('topBoard')(w.eval('TOP_FIELD')[0]);
+  const vals = [...html.matchAll(/class="tval">([\d.]+)</g)].map(m => parseFloat(m[1]));
+  if(vals.length > 10) throw new Error('řádků: ' + vals.length);
+  for(let i = 1; i < vals.length; i++)
+    if(vals[i] > vals[i - 1]) throw new Error('není seřazeno: ' + vals.join(','));
+  return vals.length + ' řádků, ' + vals[0] + ' nahoře';
+});
+
+check('chybějící statistiku žebříček přizná', () => {
+  const saved = bootstrap.elements.map(p => p.defensive_contribution);
+  bootstrap.elements.forEach(p => { delete p.defensive_contribution; });
+  const html = w.eval('topBoard')(
+    w.eval('TOP_FIELD').find(x => x[0] === 'defensive_contribution'));
+  bootstrap.elements.forEach((p, i) => { p.defensive_contribution = saved[i]; });
+  if(!html.includes('neposílá')) throw new Error('mlčí místo hlášky');
+  return 'poctivá hláška';
+});
+
+check('žebříček označí hráče z tvé sestavy', () => {
+  // Vybíráme někoho, kdo v žebříčku opravdu je. Řadit si vlastní kopii
+  // podle jednoho kritéria nestačí — topBoard při shodě rozhoduje ještě
+  // podle celkových bodů, takže „první podle gólů“ může skončit mimo top 10.
+  const bez = w.eval('topBoard')(w.eval('TOP_FIELD')[0]);
+  const vidit = [...bez.matchAll(/data-pid="(\d+)"/g)].map(m => Number(m[1]));
+  if(!vidit.length) throw new Error('žebříček je prázdný');
+
+  w.eval(`MY_SQUAD = new Set([${vidit[2]}]);`);
+  const html = w.eval('topBoard')(w.eval('TOP_FIELD')[0]);
+  w.eval('MY_SQUAD = null;');
+
+  const oznaceno = (html.match(/class="me"/g) || []).length;
+  if(oznaceno !== 1) throw new Error('označených řádků: ' + oznaceno);
+  return 'právě jeden řádek';
+});
+
+/* ================= porovnání dvou hráčů ================= */
+
+check('u ceny vyhrává nižší číslo, u bodů vyšší', () => {
+  const els = bootstrap.elements;
+  const levny = els.reduce((a, b) => a.now_cost < b.now_cost ? a : b);
+  const drahy = els.reduce((a, b) => a.now_cost > b.now_cost ? a : b);
+  const rows = w.eval('compareRows')(levny, drahy);
+
+  const cena = rows.find(r => r[0] === 'Cena');
+  if(cena[5] !== false) throw new Error('u ceny se cení vyšší číslo');
+  const body = rows.find(r => r[0] === 'Body celkem');
+  if(body[5] !== true) throw new Error('u bodů se cení nižší číslo');
+  return 'cena níž, body výš';
+});
+
+check('dva brankáři dostanou brankářské řádky', () => {
+  const gks = bootstrap.elements.filter(p => p.element_type === 1);
+  const labels = w.eval('compareRows')(gks[0], gks[1]).map(r => r[0]);
+  if(!labels.includes('Zákroky')) throw new Error('chybí zákroky');
+  if(labels.includes('xG')) throw new Error('brankářům se ukazuje xG');
+  return labels.length + ' řádků';
+});
+
+check('hráči v poli dostanou útočné řádky', () => {
+  const fw = bootstrap.elements.filter(p => p.element_type === 4);
+  const labels = w.eval('compareRows')(fw[0], fw[1]).map(r => r[0]);
+  if(!labels.includes('xG') || !labels.includes('DEFCON'))
+    throw new Error('chybí xG nebo DEFCON');
+  if(labels.includes('Zákroky')) throw new Error('hráčům v poli se ukazují zákroky');
+  return labels.length + ' řádků';
+});
+
+check('porovnání dvou pozic na rozdíl v bodování upozorní', () => {
+  const gk = bootstrap.elements.find(p => p.element_type === 1);
+  const fw = bootstrap.elements.find(p => p.element_type === 4);
+  w.eval(`CMP_A = ${gk.id}; CMP_B = ${fw.id};`);
+  w.eval('drawCompare()');
+  const html = w.document.getElementById('pcompare').innerHTML;
+  if(!html.includes('různé pozice')) throw new Error('neupozornil');
+  return 'upozornil';
+});
+
+check('stejný hráč dvakrát se odmítne', () => {
+  const p = bootstrap.elements[30];
+  w.eval(`CMP_A = ${p.id}; CMP_B = ${p.id};`);
+  w.eval('drawCompare()');
+  const html = w.document.getElementById('pcompare').innerHTML;
+  if(!html.includes('ten samý')) throw new Error('porovnal hráče se sebou');
+  w.eval('CMP_A = CMP_B = null;');
+  return 'odmítnuto';
+});
+
+check('bez výběru porovnání jen vyzve', () => {
+  w.eval('CMP_A = CMP_B = null;');
+  w.eval('drawCompare()');
+  const html = w.document.getElementById('pcompare').innerHTML;
+  if(!html.includes('Vyber dva hráče')) throw new Error(html.slice(0, 120));
+  if(!html.includes('id="cmpa"')) throw new Error('chybí výběr hráčů');
+  return 'výzva + oba výběry';
+});
+
+check('vítěz řádku se zvýrazní jen na jedné straně', () => {
+  const els = bootstrap.elements.filter(p => p.element_type === 3);
+  const a = els.reduce((x, y) => x.total_points > y.total_points ? x : y);
+  const b = els.reduce((x, y) => x.total_points < y.total_points ? x : y);
+  w.eval(`CMP_A = ${a.id}; CMP_B = ${b.id};`);
+  w.eval('drawCompare()');
+  const doc = w.document.getElementById('pcompare');
+  const rows = [...doc.querySelectorAll('.ctab tr')];
+  if(!rows.length) throw new Error('žádné řádky');
+  const oba = rows.filter(tr => tr.querySelectorAll('td.win').length > 1);
+  if(oba.length) throw new Error(oba.length + ' řádků má vítěze na obou stranách');
+  w.eval('CMP_A = CMP_B = null;');
+  return rows.length + ' řádků';
+});
+
+check('záložka se jmenuje Top hráči a stará tabulka je pryč', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  if(!html.includes('>Top hráči</button>')) throw new Error('starý název');
+  if(html.includes('function drawPlayers')) throw new Error('stará tabulka zůstala');
+  if(html.includes('id="fsort"')) throw new Error('staré filtry zůstaly');
+  return 'ok';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci

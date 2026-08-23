@@ -101,23 +101,47 @@ body{
 .bar .who button{border-color:rgba(255,255,255,.35);color:#fff;background:none}
 .bar .who button:hover{background:rgba(255,255,255,.12)}
 
-/* ---------- vstupní obrazovka ---------- */
-.hero{padding:80px 0 120px;text-align:center}
+/* ---------- vstupní obrazovka ----------
+
+   Dvě věci se předělávaly: bílý nadpis stál na světlém plátně a byl
+   prakticky neviditelný, a formulář byl až 250 px pod ohybem, takže
+   po otevření nebylo vidět, co má člověk vlastně udělat.
+
+   Řešení: vstupní obrazovka je auberginová. Je to „dveře“ — za nimi
+   se appka rozsvítí. Bílý text tím dává smysl a formulář sedí vedle
+   nadpisu, ne pod ním. */
+#landing{background:var(--aubergine);min-height:100vh;
+  display:flex;align-items:center;padding:32px 0}
+#landing .wrap{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
+  gap:56px;align-items:center;width:100%}
+
+.hero{text-align:left;min-width:0}
+.hero .mk{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.hero .mk svg{width:34px;height:34px;flex:none}
 .hero h1{
-  font-family:var(--f-disp);font-weight:700;
-  font-size:clamp(56px,13vw,140px);line-height:.85;
-  letter-spacing:-.01em;text-transform:uppercase;
-  color:var(--white);margin:0;
+  font-family:var(--f-disp);font-weight:800;
+  font-size:clamp(38px,5.4vw,66px);line-height:.94;
+  letter-spacing:-.02em;text-transform:uppercase;
+  color:#fff;margin:0;
 }
 .hero h1 em{font-family:var(--f-mono);font-style:normal;font-weight:700;
-  text-transform:uppercase;letter-spacing:.42em;font-size:.15em;
-  display:block;margin-bottom:14px;color:var(--mint-fill);opacity:1}
-.hero .lede{color:rgba(255,255,255,.86);font-size:16px;max-width:440px;
-  margin:20px auto 0;line-height:1.5}
+  text-transform:uppercase;letter-spacing:.4em;font-size:.19em;
+  display:block;margin-bottom:12px;color:var(--mint-fill)}
+.hero .lede{color:#D9C4DE;font-size:16px;max-width:420px;
+  margin:20px 0 0;line-height:1.6}
+
+/* Tři věci, které appka umí — ať je hned vidět, o co jde. */
+.hero ul{list-style:none;margin:26px 0 0;padding:0;display:grid;gap:9px}
+.hero li{display:flex;align-items:flex-start;gap:10px;
+  color:#C7A8CE;font-size:13.5px;line-height:1.45}
+.hero li b{color:#fff;font-weight:600}
+.hero li i{flex:none;width:6px;height:6px;border-radius:50%;
+  background:var(--mint-fill);margin-top:7px}
 
 .gate{
   background:var(--white);border-radius:var(--r-card);
-  padding:32px;max-width:460px;margin:48px auto 0;text-align:left;
+  padding:30px;max-width:440px;margin:0;text-align:left;
+  box-shadow:0 24px 60px rgba(0,0,0,.28);
 }
 .gate h2{font-size:20px;line-height:1.1;font-weight:600;margin:0 0 4px}
 .gate p.sub{color:var(--mute);font-size:13px;margin:0 0 24px}
@@ -651,8 +675,15 @@ i.mv.down{color:var(--alert)}
 }
 
 @media (max-width:640px){
-  .hero{padding:48px 0 72px}
-  .gate{padding:24px}
+  .cmpbar{grid-template-columns:1fr}
+  .cmpvs{padding:0;text-align:center}
+  .tgrid{grid-template-columns:1fr}
+  #landing{padding:26px 0;align-items:flex-start}
+  #landing .wrap{grid-template-columns:1fr;gap:28px}
+  .hero h1{font-size:clamp(34px,10vw,48px)}
+  .hero .lede{font-size:14.5px;margin-top:14px}
+  .hero ul{display:none}
+  .gate{padding:22px;max-width:none}
   .panel{padding:20px 16px}
   .shirt{width:74px}
   td,th{padding:7px 5px}
@@ -821,6 +852,43 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
 :root[data-theme="dark"] .skel i{
   background:linear-gradient(90deg,var(--haze) 25%,#3A1E42 37%,var(--haze) 63%);
   background-size:400% 100%}
+
+/* ---------- žebříčky Top hráčů ---------- */
+.tgrid{display:grid;gap:11px;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));
+  margin:12px 0 22px}
+.tbox{background:var(--haze);border-radius:var(--r-card);padding:15px 16px}
+.tbox h4{margin:0 0 2px;font-family:var(--f-disp);font-size:12.5px;font-weight:800;
+  letter-spacing:.9px;text-transform:uppercase;color:var(--aubergine)}
+.tbox .cap{margin:0 0 10px;font-size:11.5px;color:var(--mute)}
+.tempty{font-size:12px;color:var(--mute);margin:0}
+
+.tlist{list-style:none;margin:0;padding:0;counter-reset:tr}
+.tlist li{display:flex;align-items:center;gap:9px;padding:5px 0;
+  border-top:1px solid var(--line-soft);counter-increment:tr}
+.tlist li:first-child{border-top:0}
+.tlist li::before{content:counter(tr);flex:none;width:15px;text-align:right;
+  font-family:var(--f-mono);font-size:10.5px;color:var(--mute)}
+.tlist li.me{box-shadow:inset 2px 0 0 var(--ok);padding-left:6px;margin-left:-6px}
+.tname{flex:1;min-width:0;display:flex;align-items:center;gap:7px;
+  background:none;border:0;padding:0;cursor:pointer;text-align:left;
+  font-family:var(--f);font-size:13px;color:var(--charcoal)}
+.tname b{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tname em{font-style:normal;font-family:var(--f-mono);font-size:10.5px;
+  color:var(--mute);flex:none}
+.tname:hover b{color:var(--blue);text-decoration:underline}
+.tval{flex:none;font-family:var(--f-mono);font-size:13.5px;font-weight:700}
+
+/* ---------- výběr dvou hráčů k porovnání ---------- */
+.cmpbar{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;
+  align-items:end;margin:12px 0 18px}
+.cmpbar label{display:flex;flex-direction:column;gap:6px;min-width:0;
+  font-size:11.5px;color:var(--mute)}
+.cmpbar input,.cmpbar select{font-size:13px;padding:7px 9px}
+.cmpvs{font-family:var(--f-disp);font-size:12px;font-weight:800;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--mute);
+  padding-bottom:9px}
+.cmpout{background:var(--haze);border-radius:var(--r-card);padding:18px 20px}
+.cmpout .note:only-child{margin:0}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
@@ -838,9 +906,21 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
 <div id="landing">
   <div class="wrap">
     <div class="hero">
+      <div class="mk">
+        <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+          <rect width="64" height="64" rx="15" fill="#4B0F52"/>
+          <path d="M17 33.5 L27.5 44 L48 20" fill="none" stroke="#00FF87"
+                stroke-width="8" stroke-linecap="square"/>
+        </svg>
+      </div>
       <h1><em>Minileague</em>Squad Check</h1>
       <p class="lede">Zadej svoje ID a uvidíš, kdo ti nenastoupí, kdo v lize vede
-        a koho vyměnit. Data se stahují až když si o ně řekneš.</p>
+        a koho vyměnit.</p>
+      <ul>
+        <li><i></i><span><b>Kontrola kádru</b> — zranění, kapitán, optimální jedenáctka</span></li>
+        <li><i></i><span><b>Miniliga</b> — kdo koho má, průběžné body, měsíční tabulky</span></li>
+        <li><i></i><span><b>Plánování</b> — rozpis na šest kol, ceny, přestupy dopředu</span></li>
+      </ul>
     </div>
 
     <div class="gate">
@@ -896,7 +976,7 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
       <button id="t-squad" role="tab" aria-selected="true" aria-controls="p-squad">Sestava</button>
       <button id="t-league" role="tab" aria-selected="false" aria-controls="p-league">Miniliga</button>
       <button id="t-hub" role="tab" aria-selected="false" aria-controls="p-hub">Hub ligy</button>
-      <button id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Hráči</button>
+      <button id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Top hráči</button>
       <button id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
       <button id="t-plan" role="tab" aria-selected="false" aria-controls="p-plan">Program</button>
       <button id="t-prices" role="tab" aria-selected="false" aria-controls="p-prices">Ceny</button>
@@ -933,29 +1013,11 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
     </div>
 
     <div class="panel" id="p-players" role="tabpanel" tabindex="-1" aria-labelledby="t-players" hidden>
-      <div class="filters">
-        <input id="q" placeholder="Hledat hráče…" style="flex:2 1 180px">
-        <select id="fpos">
-          <option value="">Všechny pozice</option>
-          <option value="1">Brankáři</option>
-          <option value="2">Obránci</option>
-          <option value="3">Záložníci</option>
-          <option value="4">Útočníci</option>
-        </select>
-        <select id="fteam"><option value="">Všechny týmy</option></select>
-        <select id="fsort">
-          <option value="ep">Řadit: projekce FPL</option>
-          <option value="total_points">Řadit: body celkem</option>
-          <option value="form">Řadit: forma</option>
-          <option value="value">Řadit: body za milion</option>
-          <option value="xgi">Řadit: xGI/90</option>
-          <option value="minutes">Řadit: minuty</option>
-          <option value="xp">Řadit: model (počítá doubly)</option>
-        </select>
-        <label class="chk"><input type="checkbox" id="fmine"> Jen moje</label>
-      </div>
+      <p class="hint">Kdo letos vede v jednotlivých statistikách — a porovnání
+        libovolných dvou hráčů vedle sebe.</p>
       <div id="pmsg" role="status" aria-live="polite"></div>
       <div id="pout"></div>
+      <div id="pcompare"></div>
       <div id="pdetail"></div>
     </div>
 
@@ -2294,6 +2356,17 @@ function statGrid(p){
     </div>`).join('')}</div>`;
 }
 
+/* Jméno na porovnatelný tvar: bez diakritiky, bez interpunkce, malé.
+   „Dúbravka“ i „Dubravka“ tak najdeš stejným dotazem.
+
+   Pozor: tahle funkce odešla omylem spolu s panelem „Před deadlinem“,
+   přestože ji používá i hledání v Hráčích a v Plánovači. Projevilo se to
+   jako „normName is not defined“ až po napsání do vyhledávacího pole. */
+function normName(s){
+  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z ]/g, '').trim();
+}
+
 function playerRows(){
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
   const cur = BOOT.events.find(e => e.is_current);
@@ -2319,200 +2392,270 @@ function playerRows(){
 }
 
 let PLAYERS = null;
-let COMPARE = [];   // až dva hráči vybraní k porovnání
+
+/* ============================================================
+   TOP HRÁČI
+
+   Dřív to byla filtrovatelná tabulka všech ~700 hráčů. Fungovala,
+   ale odpovídala na otázku „najdi mi konkrétního hráče“ — a tu si
+   člověk položí zřídka. Častější je „kdo je letos nejlepší v X“,
+   a na to se z jedné dlouhé tabulky odpovídalo řazením a klikáním.
+
+   Teď jsou to žebříčky: každá kategorie jeden box, top 10 v každém.
+   Pod nimi porovnání dvou libovolných hráčů vedle sebe.
+   ============================================================ */
+
+/* Kategorie: [klíč, nadpis, popisek, formát čísla, povolené pozice].
+
+   Pole se čtou přes stat(), takže když je FPL v dané sezóně neposílá,
+   box to řekne místo aby ukazoval samé nuly. */
+const TOP_FIELD = [
+  ['goals_scored', 'Nejvíc gólů', 'branky za sezónu', v => v, null],
+  ['assists', 'Nejvíc asistencí', 'nahrávky na gól', v => v, null],
+  ['defensive_contribution', 'Nejvíc DEFCON',
+    'defenzivní příspěvky · 2 body za práh', v => v, null],
+  ['bonus', 'Nejvíc bonusů', 'bonusové body z BPS', v => v, null],
+  ['expected_goals', 'Nejvyšší xG', 'očekávané góly z kvality šancí',
+    v => v.toFixed(2), null],
+  ['expected_assists', 'Nejvyšší xA', 'očekávané asistence',
+    v => v.toFixed(2), null],
+  ['expected_goal_involvements', 'Nejvyšší xGI', 'xG a xA dohromady',
+    v => v.toFixed(2), null],
+];
+
+const TOP_GK = [
+  ['clean_sheets', 'Nejvíc čistých kont', 'zápasy bez inkasovaného gólu', v => v, [1]],
+  ['saves', 'Nejvíc zákroků', 'bod za každé tři', v => v, [1]],
+];
+
+/* Jeden žebříček. `types` omezí pozice — brankářské kategorie nemá smysl
+   počítat přes hráče v poli a góly zase přes brankáře. */
+function topBoard([key, title, cap, fmt, types]){
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+
+  const pool = BOOT.elements.filter(p => {
+    if(types) return types.includes(p.element_type) && stat(p, key) !== null;
+    return p.element_type !== 1 && stat(p, key) !== null;
+  });
+
+  const rows = pool
+    .map(p => ({p, v: stat(p, key)}))
+    .filter(x => x.v > 0)
+    .sort((a, b) => b.v - a.v || b.p.total_points - a.p.total_points)
+    .slice(0, 10);
+
+  if(!rows.length)
+    return `<div class="tbox">
+      <h4>${esc(title)}</h4><p class="cap">${esc(cap)}</p>
+      <p class="tempty">Tuhle statistiku FPL zatím neposílá, nebo ji nikdo
+        nemá nenulovou.</p></div>`;
+
+  return `<div class="tbox">
+    <h4>${esc(title)}</h4><p class="cap">${esc(cap)}</p>
+    <ol class="tlist">${rows.map(x => `<li class="${
+        MY_SQUAD && MY_SQUAD.has(x.p.id) ? 'me' : ''}">
+      <button type="button" class="tname" data-pid="${x.p.id}">
+        ${crest(x.p.team, 'sm')}
+        <b>${esc(x.p.web_name)}</b>
+        <em>${esc(teams[x.p.team].short_name)}</em>
+      </button>
+      <span class="tval">${esc(String(fmt(x.v)))}</span>
+    </li>`).join('')}</ol>
+  </div>`;
+}
+
+/* ------------------------------------------------------------
+   Porovnání dvou hráčů.
+
+   Nejčastější otázka v FPL nezní „kdo je nejlepší“, ale „koho
+   z těch dvou“. Dřív se hráči vybírali tlačítkem v dlouhé tabulce;
+   teď jsou to dva seznamy s hledáním, takže jde porovnat kdokoli
+   s kýmkoli bez lovení řádku.
+   ------------------------------------------------------------ */
+let CMP_A = null, CMP_B = null;
+
+function comparePickers(){
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+  const opts = sel => BOOT.elements
+    .slice()
+    .sort((a, b) => b.total_points - a.total_points)
+    .map(p => `<option value="${p.id}"${String(sel) === String(p.id) ? ' selected' : ''}>${
+      POS[p.element_type]} · ${esc(p.web_name)} · ${esc(teams[p.team].short_name)} · ${
+      p.total_points} b</option>`).join('');
+
+  return `<div class="cmpbar">
+    <label>První hráč
+      <input type="search" id="cmpqa" placeholder="Hledej podle jména…" autocomplete="off">
+      <select id="cmpa"><option value="">Vyber hráče…</option>${opts(CMP_A)}</select>
+    </label>
+    <span class="cmpvs">vs</span>
+    <label>Druhý hráč
+      <input type="search" id="cmpqb" placeholder="Hledej podle jména…" autocomplete="off">
+      <select id="cmpb"><option value="">Vyber hráče…</option>${opts(CMP_B)}</select>
+    </label>
+  </div>`;
+}
+
+/* Řádek porovnání: [popisek, text A, text B, číslo A, číslo B, je vyšší lepší?].
+   U ceny a inkasovaných gólů je lepší nižší — proto ten poslední příznak. */
+function compareRows(a, b){
+  const num = (p, k) => stat(p, k) || 0;
+  const both = (label, fn, fmt, higher = true) =>
+    [label, fmt(fn(a)), fmt(fn(b)), fn(a), fn(b), higher];
+
+  const rows = [
+    both('Body celkem', p => p.total_points, v => v),
+    both('Body za zápas', p => parseFloat(p.points_per_game) || 0, v => v.toFixed(1)),
+    both('Forma', p => parseFloat(p.form) || 0, v => v.toFixed(1)),
+    both('Projekce FPL · příští kolo', p => epNext(p) || 0, v => v.toFixed(1)),
+    both('Cena', p => p.now_cost / 10, v => v.toFixed(1) + 'm', false),
+    both('Body za milion', p => p.total_points / (p.now_cost / 10), v => v.toFixed(1)),
+    both('Minuty', p => p.minutes, v => v),
+    both('Starty', p => p.starts || 0, v => v),
+    both('Vlastní %', p => parseFloat(p.selected_by_percent) || 0, v => v.toFixed(1) + ' %'),
+    both('Bonusové body', p => p.bonus || 0, v => v),
+  ];
+
+  // Brankáře a hráče v poli soudíme podle jiných věcí.
+  if(a.element_type === 1 && b.element_type === 1){
+    rows.push(both('Čistá konta', p => num(p, 'clean_sheets'), v => v));
+    rows.push(both('Zákroky', p => num(p, 'saves'), v => v));
+    rows.push(both('Zákroky / 90', p => num(p, 'saves_per_90'), v => v.toFixed(2)));
+    rows.push(both('Inkasované góly', p => num(p, 'goals_conceded'), v => v, false));
+  }else{
+    rows.push(both('Góly', p => p.goals_scored || 0, v => v));
+    rows.push(both('Asistence', p => p.assists || 0, v => v));
+    rows.push(both('xG', p => num(p, 'expected_goals'), v => v.toFixed(2)));
+    rows.push(both('xA', p => num(p, 'expected_assists'), v => v.toFixed(2)));
+    rows.push(both('xGI / 90', p => num(p, 'expected_goal_involvements_per_90'),
+      v => v.toFixed(2)));
+    rows.push(both('DEFCON', p => num(p, 'defensive_contribution'), v => v));
+  }
+
+  rows.push(both('ICT index', p => num(p, 'ict_index'), v => v.toFixed(1)));
+  return rows;
+}
+
+function drawCompare(){
+  const box = $('pcompare');
+  if(!box) return;
+
+  const a = CMP_A ? BOOT.elements.find(p => p.id === CMP_A) : null;
+  const b = CMP_B ? BOOT.elements.find(p => p.id === CMP_B) : null;
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+
+  let body;
+  if(!a || !b){
+    body = `<p class="note">Vyber dva hráče a porovnám je vedle sebe.
+      Zelené pole ukazuje, kdo v daném ukazateli vede.</p>`;
+  }else if(a.id === b.id){
+    body = '<p class="note">To je dvakrát ten samý hráč — vyber dva různé.</p>';
+  }else{
+    const rows = compareRows(a, b).map(([label, va, vb, na, nb, higher]) => {
+      const aw = higher ? na > nb : na < nb;
+      const bw = higher ? nb > na : nb < na;
+      return `<tr>
+        <td class="${aw ? 'win' : ''}">${esc(String(va))}</td>
+        <td class="lbl">${esc(label)}</td>
+        <td class="${bw ? 'win' : ''}">${esc(String(vb))}</td>
+      </tr>`;
+    }).join('');
+
+    /* Verdikt počítám z projekce na pět kol dopředu, ne ze sezónních
+       součtů. Ty říkají, kdo byl lepší — ne kdo bude, a to je otázka,
+       kterou si člověk u porovnání klade. */
+    const start = planStartGw();
+    const xa = projectRange(a, start, 5), xb = projectRange(b, start, 5);
+    const diff = Math.abs(xa - xb);
+    const lead = xa > xb ? a : b, other = xa > xb ? b : a;
+    const dPrice = (lead.now_cost - other.now_cost) / 10;
+
+    body = `<div class="chead">
+        <div><b>${esc(a.web_name)}</b><span>${esc(teams[a.team].short_name)} ·
+          ${POS[a.element_type]} · ${(a.now_cost / 10).toFixed(1)}m</span></div>
+        <div class="vs">vs</div>
+        <div><b>${esc(b.web_name)}</b><span>${esc(teams[b.team].short_name)} ·
+          ${POS[b.element_type]} · ${(b.now_cost / 10).toFixed(1)}m</span></div>
+      </div>
+      <table class="ctab"><tbody>${rows}</tbody></table>
+      <p class="note">${diff < 1.5
+        ? `Přes příštích pět kol jsou prakticky nerozeznatelní (rozdíl
+           ${diff.toFixed(1)} bodu). Rozhodni podle ceny nebo podle toho,
+           koho má tvoje miniliga.`
+        : `Přes příštích pět kol vede <b>${esc(lead.web_name)}</b> o
+           ${diff.toFixed(1)} bodu. ${dPrice > 0
+             ? `Stojí ale o ${dPrice.toFixed(1)}m víc — ptej se, jestli ten
+                rozdíl jinde v sestavě nevyužiješ líp.`
+             : dPrice < 0 ? 'A je zároveň levnější.' : 'Za stejné peníze.'}`}
+        ${a.element_type !== b.element_type
+          ? '<br><b>Pozor:</b> porovnáváš různé pozice, takže se liší i bodování — '
+            + 'čisté konto dá obránci 4 body, záložníkovi 1 a útočníkovi žádný.'
+          : ''}</p>`;
+  }
+
+  box.innerHTML = `<h2>Porovnání dvou hráčů</h2>${comparePickers()}
+    <div class="cmpout">${body}</div>`;
+
+  /* Hledání seznam nefiltruje, ale vybere nejlepší shodu. Filtrovat
+     <select> znamená mazat a znovu stavět stovky <option> při každém
+     stisku klávesy — tohle je rychlejší a hlavně ti pod rukama nezmizí
+     hráč, kterého jsi právě vybral. */
+  const wire = (qid, sid, set) => {
+    const sel = $(sid), q = $(qid);
+    sel.addEventListener('change', () => {
+      set(sel.value ? Number(sel.value) : null);
+      drawCompare();
+    });
+    q.addEventListener('input', () => {
+      const needle = normName(q.value);
+      if(!needle) return;
+      const hit = BOOT.elements
+        .filter(p => normName(p.web_name + ' ' + p.second_name).includes(needle))
+        .sort((x, y) => y.total_points - x.total_points)[0];
+      if(hit){ set(hit.id); drawCompare(); }
+    });
+  };
+  wire('cmpqa', 'cmpa', v => { CMP_A = v; });
+  wire('cmpqb', 'cmpb', v => { CMP_B = v; });
+}
+
+function drawTopPlayers(){
+  $('pout').innerHTML = [
+    '<h2>Hráči v poli</h2>',
+    `<div class="tgrid">${TOP_FIELD.map(topBoard).join('')}</div>`,
+    '<h2>Brankáři</h2>',
+    `<div class="tgrid">${TOP_GK.map(topBoard).join('')}</div>`,
+    `<p class="note">Top 10 v každé kategorii za celou sezónu. Zvýrazněné
+      řádky jsou hráči z tvé sestavy — kádr si nech načíst v záložce Sestava.
+      Klikni na jméno pro detail hráče.</p>`,
+  ].join('');
+
+  $('pout').querySelectorAll('button.tname').forEach(btn =>
+    btn.addEventListener('click', () => showPlayer(Number(btn.dataset.pid))));
+
+  drawCompare();
+}
 
 async function loadPlayers(){
   $('pmsg').textContent = '';
   try{
-    // Rozpis je tu povinný — bez něj neumím spočítat FDR ani projekci.
-    // Dřív se sem došlo s BOOT načteným a FIX null, playerRows() spadla
-    // a záložka zůstala prázdná bez jediného slova. Tichá chyba je horší
-    // než hlasitá.
+    /* Rozpis je potřeba kvůli projekci ve verdiktu porovnání. Dřív se sem
+       došlo s BOOT načteným a FIX null, funkce spadla a záložka zůstala
+       prázdná bez jediného slova. Tichá chyba je horší než hlasitá. */
     if(!BOOT) BOOT = await api('bootstrap-static/');
     if(!FIX) FIX = await api('fixtures/');
-
     if(!PLAYERS){
       $('pout').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';
       PLAYERS = playerRows();
-      const sel = $('fteam');
-      if(sel.options.length <= 1)
-        BOOT.teams.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach(t => {
-          const o = document.createElement('option');
-          o.value = t.id; o.textContent = t.name;
-          sel.appendChild(o);
-        });
     }
-    drawPlayers();
+    drawTopPlayers();
   }catch(e){
     $('pmsg').textContent = e.message;
     $('pout').innerHTML = '';
   }
 }
 
-function drawPlayers(){
-  const q = normName($('q').value);
-  const pos = $('fpos').value;
-  const team = $('fteam').value;
-  const sort = $('fsort').value;
-  const onlyMine = $('fmine').checked;
-
-  const myIds = MY_SQUAD;
-
-  let rows = PLAYERS.filter(r => {
-    if(pos && String(r.p.element_type) !== pos) return false;
-    if(team && String(r.p.team) !== team) return false;
-    if(q && !normName(r.p.web_name + ' ' + r.p.second_name).includes(q)) return false;
-    if(onlyMine && (!myIds || !myIds.has(r.p.id))) return false;
-    return true;
-  });
-
-  const key = {
-    ep: r => (r.ep === null ? -1 : r.ep),
-    xp: r => r.xp,
-    total_points: r => r.p.total_points,
-    form: r => parseFloat(r.p.form || 0),
-    value: r => r.value,
-    xgi: r => r.xgi,
-    minutes: r => r.p.minutes,
-  }[sort];
-
-  rows.sort((a, b) => key(b) - key(a));
-
-  const warn = onlyMine && !myIds
-    ? '<p class="note">Nejdřív si načti sestavu v záložce Sestava — do té doby nevím, koho máš.</p>' : '';
-
-  $('pout').innerHTML = warn + `
-    <p class="note">Sloupec <b>xP&nbsp;FPL</b> je oficiální projekce na příští kolo, kterou
-    počítá samo FPL — není to můj odhad. Klikni na hráče pro statistiky podle jeho pozice
-    a rozpis kolo po kole.</p>
-    <table>
-      <thead><tr>
-        <th>Hráč</th><th class="hide-s">Tým</th><th>Poz</th>
-        <th class="n">Cena</th><th class="n">Body</th><th class="n hide-s">Za mil.</th>
-        <th class="n">Forma</th><th class="n hide-s">xGI/90</th>
-        <th class="n hide-s">Min</th><th class="n">FDR</th><th class="n">xP&nbsp;FPL</th>
-      </tr></thead>
-      <tbody>${rows.slice(0, 60).map(r => `<tr class="click" data-pid="${r.p.id}">
-        <td><b>${esc(r.p.web_name)}</b>${r.chance < 100
-          ? ` <span class="st ${S[r.p.status][1]}">${r.chance}%</span>` : ''}${
-          r.gwCount === 0 ? ' <span class="st al">blank</span>'
-          : r.gwCount > 1 ? ' <span class="st ok">double</span>' : ''}
-          <button class="cmp${COMPARE.includes(r.p.id) ? ' on' : ''}" data-cmp="${r.p.id}"
-            title="Porovnat">⇄</button></td>
-        <td class="hide-s">${esc(r.team.short_name)}</td>
-        <td>${POS[r.p.element_type]}</td>
-        <td class="n">${r.price.toFixed(1)}</td>
-        <td class="n">${r.p.total_points}</td>
-        <td class="n hide-s">${r.value.toFixed(1)}</td>
-        <td class="n">${r.p.form}</td>
-        <td class="n hide-s">${r.xgi.toFixed(2)}</td>
-        <td class="n hide-s">${r.p.minutes}</td>
-        <td class="n">${r.fdr === null ? '–' : r.fdr.toFixed(1)}</td>
-        <td class="n"><b>${r.ep === null ? '–' : r.ep.toFixed(1)}</b></td>
-      </tr>`).join('')}</tbody>
-    </table>
-    ${rows.length > 60 ? `<p class="note">Zobrazeno 60 z ${rows.length} hráčů — zužuj filtry.</p>` : ''}`;
-
-  $('pout').querySelectorAll('tr.click').forEach(tr =>
-    tr.addEventListener('click', () => showPlayer(parseInt(tr.dataset.pid, 10))));
-
-  // Tlačítko porovnání nesmí zároveň otevřít detail hráče.
-  $('pout').querySelectorAll('button.cmp').forEach(b =>
-    b.addEventListener('click', ev => {
-      ev.stopPropagation();
-      toggleCompare(parseInt(b.dataset.cmp, 10));
-    }));
-}
-
-/* ------------------------------------------------------------
-   Porovnání dvou hráčů.
-
-   Nejčastější otázka v FPL nezní „kdo je nejlepší“, ale „koho z těch dvou“.
-   Držíme proto výběr maximálně dvou hráčů a ukazujeme je vedle sebe
-   s tím, kdo v jakém ukazateli vede.
-   ------------------------------------------------------------ */
-function toggleCompare(pid){
-  if(COMPARE.includes(pid)) COMPARE = COMPARE.filter(x => x !== pid);
-  else COMPARE = [...COMPARE, pid].slice(-2);
-  drawPlayers();
-  drawCompare();
-}
-
-function drawCompare(){
-  const box = $('pdetail');
-
-  if(COMPARE.length < 2){
-    if(COMPARE.length === 1)
-      box.innerHTML = `<div class="detail"><p class="note">Vybraný jeden hráč —
-        klikni na ⇄ u druhého a porovnám je vedle sebe.</p></div>`;
-    else box.innerHTML = '';
-    return;
-  }
-
-  const [a, b] = COMPARE.map(id => PLAYERS.find(r => r.p.id === id)).filter(Boolean);
-  if(!a || !b){ box.innerHTML = ''; return; }
-
-  const startGw = planStartGw();
-
-  // Každý řádek: název, hodnota u obou, a jestli vyšší číslo znamená lepší.
-  const metrics = [
-    ['Projekce FPL · příští kolo',
-      a.ep === null ? '–' : a.ep.toFixed(1), b.ep === null ? '–' : b.ep.toFixed(1),
-      a.ep || 0, b.ep || 0, true],
-    ['Body za zápas', a.p.points_per_game, b.p.points_per_game,
-      parseFloat(a.p.points_per_game), parseFloat(b.p.points_per_game), true],
-    ['Cena', a.price.toFixed(1) + 'm', b.price.toFixed(1) + 'm', a.price, b.price, false],
-    ['Body celkem', a.p.total_points, b.p.total_points, a.p.total_points, b.p.total_points, true],
-    ['Forma', a.p.form, b.p.form, parseFloat(a.p.form), parseFloat(b.p.form), true],
-    ['Minuty', a.p.minutes, b.p.minutes, a.p.minutes, b.p.minutes, true],
-    ['Starty', a.p.starts || 0, b.p.starts || 0, a.p.starts || 0, b.p.starts || 0, true],
-    ['xGI / 90', a.xgi.toFixed(2), b.xgi.toFixed(2), a.xgi, b.xgi, true],
-    ['Body za milion', a.value.toFixed(1), b.value.toFixed(1), a.value, b.value, true],
-    ['Vlastní %', a.p.selected_by_percent, b.p.selected_by_percent,
-      parseFloat(a.p.selected_by_percent), parseFloat(b.p.selected_by_percent), true],
-    ['FDR dalších 5', a.fdr === null ? '–' : a.fdr.toFixed(2),
-      b.fdr === null ? '–' : b.fdr.toFixed(2), a.fdr || 3, b.fdr || 3, false],
-    ['Model · dalších 5 kol', a.xp5.toFixed(1), b.xp5.toFixed(1), a.xp5, b.xp5, true],
-  ];
-
-  const rows = metrics.map(([label, va, vb, na, nb, higher]) => {
-    const aWins = higher ? na > nb : na < nb;
-    const bWins = higher ? nb > na : nb < na;
-    return `<tr>
-      <td class="${aWins ? 'win' : ''}">${va}</td>
-      <td class="lbl">${esc(label)}</td>
-      <td class="${bWins ? 'win' : ''}">${vb}</td>
-    </tr>`;
-  }).join('');
-
-  const verdict = a.xp5 > b.xp5 ? a : b;
-  const other = verdict === a ? b : a;
-  const diff = Math.abs(a.xp5 - b.xp5);
-
-  box.innerHTML = `<div class="detail compare">
-    <button class="close" id="pclose" aria-label="Zavřít">×</button>
-    <div class="chead">
-      <div><b>${esc(a.p.web_name)}</b><span>${esc(a.team.short_name)} · ${POS[a.p.element_type]}</span></div>
-      <div class="vs">vs</div>
-      <div><b>${esc(b.p.web_name)}</b><span>${esc(b.team.short_name)} · ${POS[b.p.element_type]}</span></div>
-    </div>
-    <table class="ctab"><tbody>${rows}</tbody></table>
-    <p class="note">${diff < 1.5
-      ? `Přes pět kol jsou prakticky nerozeznatelní (rozdíl ${diff.toFixed(1)} bodu).
-         Rozhodni podle ceny nebo podle toho, koho má tvoje liga.`
-      : `Přes pět kol vede <b>${esc(verdict.p.web_name)}</b> o ${diff.toFixed(1)} bodu
-         proti ${esc(other.p.web_name)}. ${
-           verdict.price > other.price
-             ? `Stojí ale o ${(verdict.price - other.price).toFixed(1)}m víc — ptej se,
-                jestli ten rozdíl jinde v sestavě nevyužiješ líp.`
-             : 'A je zároveň levnější.'}`}</p>
-  </div>`;
-
-  $('pclose').addEventListener('click', () => { COMPARE = []; drawPlayers(); drawCompare(); });
-}
-
 async function showPlayer(pid){
-  COMPARE = [];
   const row = PLAYERS.find(r => r.p.id === pid);
   $('pdetail').innerHTML = '<div class="detail"><p class="note">Načítám historii…</p></div>';
   $('pdetail').scrollIntoView({behavior: 'smooth', block: 'nearest'});
@@ -2642,8 +2785,6 @@ async function showPlayer(pid){
   $('pclose').addEventListener('click', () => { $('pdetail').innerHTML = ''; });
 }
 
-['q','fpos','fteam','fsort','fmine'].forEach(id =>
-  $(id).addEventListener('input', () => { if(PLAYERS) drawPlayers(); }));
 
 $('t-players').addEventListener('click', () => { loadPlayers(); });
 
@@ -4759,11 +4900,11 @@ function resetState(){
   TR_STATE = null;
   HUB = null;
   PLAYERS = null;
-  COMPARE = [];
+  CMP_A = CMP_B = null;
 
   ['out','msg','lout','lmsg','hubout','hubmsg','pout','pmsg','pdetail',
    'trout','trmsg','plout','plmsg','prout','prmsg',
-   'plnout','plnmsg'].forEach(id => {
+   'plnout','plnmsg','pcompare'].forEach(id => {
     const el = $(id);
     if(el) el.innerHTML = '';
   });
