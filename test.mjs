@@ -1788,6 +1788,68 @@ check('hlavička používá oříznutý pohár, ne celé logo', () => {
   return 'mark.webp';
 });
 
+/* ================= automatické načtení ligových záložek ================= */
+
+check('ligové záložky se načtou samy při otevření', () => {
+  const init = w.eval('Object.keys(TAB_INIT)');
+  for(const t of ['t-league', 't-hub'])
+    if(!init.includes(t)) throw new Error(t + ' není v TAB_INIT');
+  return init.length + ' záložek se inicializuje samo';
+});
+
+check('načítá se při otevření záložky, ne při startu appky', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  // TAB_INIT se volá ze selectTab, tedy až když na záložku někdo přepne.
+  if(!/TAB_INIT\[tid\]\s*&&\s*!TAB_DONE\.has\(tid\)/.test(html))
+    throw new Error('chybí spouštění přes selectTab');
+  return 'lazy';
+});
+
+check('každá záložka se spustí jen jednou', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  if(!html.includes('TAB_DONE.add(tid)')) throw new Error('chybí pojistka proti opakování');
+  if(!html.includes('TAB_DONE.clear()'))
+    throw new Error('po přepnutí týmu by zůstalo, že už je načteno');
+  return 'jednou, a po přepnutí týmu znovu';
+});
+
+check('bez ID ligy se auto-načtení jen ozve', () => {
+  w.localStorage.removeItem('fpl_league');
+  const saved = w.eval('CONFIG.leagueId');
+  w.eval("CONFIG.leagueId = '';");
+  w.eval('autoLoadLeague()');
+  const msg = w.document.getElementById('lmsg').textContent;
+  w.eval(`CONFIG.leagueId = '${saved}';`);
+  if(!msg.includes('ID miniligy')) throw new Error('mlčí: ' + msg);
+  return 'poctivá hláška';
+});
+
+check('dropCached zahodí jen odpovídající klíče', () => {
+  w.eval("API_CACHE.set('leagues-classic/1/standings/', 'A')");
+  w.eval("API_CACHE.set('entry/60480/history/', 'B')");
+  w.eval("API_CACHE.set('bootstrap-static/', 'C')");
+  w.eval('dropCached(/^(leagues-classic|entry)\\//)');
+  if(w.eval("API_CACHE.has('leagues-classic/1/standings/')")) throw new Error('nechal standings');
+  if(w.eval("API_CACHE.has('entry/60480/history/')")) throw new Error('nechal historii');
+  if(!w.eval("API_CACHE.has('bootstrap-static/')"))
+    throw new Error('zahodil i bootstrap, který se měnit nemusí');
+  w.eval("API_CACHE.delete('bootstrap-static/')");
+  return 'ligové pryč, bootstrap zůstal';
+});
+
+check('tlačítko Aktualizovat cache opravdu zneplatní', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const i = html.indexOf("$('lgo').addEventListener");
+  const blok = html.slice(i, i + 500);
+  // Bez zneplatnění by se jen překreslila tatáž data z paměti.
+  if(!blok.includes('dropCached'))
+    throw new Error('tlačítko by vrátilo stará data z cache');
+  const j = html.indexOf("$('hubgo').addEventListener");
+  if(!html.slice(j, j + 300).includes('dropCached'))
+    throw new Error('hub neaktualizuje');
+  return 'obě tlačítka';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);

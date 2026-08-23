@@ -962,6 +962,12 @@ table.hist td.empty{color:var(--mute);opacity:.45}
 table.hist td.guest{color:var(--mute)}
 table.hist td .m{font-style:normal;margin-right:3px}
 table.hist th.n{font-family:var(--f-mono);font-size:11px}
+
+/* ---------- hlavička panelu s tlačítkem vpravo ---------- */
+.panelhead{display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
+  margin-bottom:4px}
+.panelhead .hint{flex:1 1 260px;margin:0}
+.panelhead button{flex:none;margin-top:1px}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
@@ -1067,15 +1073,19 @@ table.hist th.n{font-family:var(--f-mono);font-size:11px}
     </div>
 
     <div class="panel" id="p-league" role="tabpanel" tabindex="-1" aria-labelledby="t-league" hidden>
-      <p class="hint">Pořadí, vývoj v tabulce, rozdíly proti soupeřům a kdo koho vlastní.</p>
-      <button id="lgo" style="margin-top:14px">Načíst ligu</button>
+      <div class="panelhead">
+        <p class="hint">Pořadí, vývoj v tabulce, rozdíly proti soupeřům a kdo koho vlastní.</p>
+        <button class="small ghost" id="lgo">Aktualizovat</button>
+      </div>
       <div id="lmsg" role="status" aria-live="polite"></div>
       <div id="lout"></div>
     </div>
 
     <div class="panel" id="p-hub" role="tabpanel" tabindex="-1" aria-labelledby="t-hub" hidden>
-      <p class="hint">Novinky po kole, sezónní žebříčky, zdraví kádrů a pohled na celou ligu.</p>
-      <button id="hubgo" style="margin-top:14px">Načíst hub</button>
+      <div class="panelhead">
+        <p class="hint">Novinky po kole, sezónní žebříčky, zdraví kádrů a pohled na celou ligu.</p>
+        <button class="small ghost" id="hubgo">Aktualizovat</button>
+      </div>
       <div id="hubmsg" role="status" aria-live="polite"></div>
       <div id="hubout"></div>
     </div>
@@ -1222,6 +1232,16 @@ let API_CACHE = new Map();
 function cached(p){
   if(!API_CACHE.has(p)) API_CACHE.set(p, api(p).catch(e => { API_CACHE.delete(p); throw e; }));
   return API_CACHE.get(p);
+}
+
+/* Zahodí z cache všechno, co odpovídá vzoru.
+
+   Bez tohohle by tlačítko „Aktualizovat“ nic neaktualizovalo: cache žije
+   po celou dobu života stránky, takže by se vrátila tatáž data, jen by
+   se překreslila. Po deadlinu nebo během kola je to přesně to, co člověk
+   nechce. */
+function dropCached(re){
+  for(const key of [...API_CACHE.keys()]) if(re.test(key)) API_CACHE.delete(key);
 }
 
 /* Zpracuje seznam po `limit` položkách naráz.
@@ -1756,8 +1776,33 @@ const TABS = [['t-squad','p-squad'], ['t-league','p-league'], ['t-hub','p-hub'],
               ['t-prices','p-prices'], ['t-planner','p-planner']];
 
 // Co se má spustit při prvním otevření záložky (lazy načítání).
-const TAB_INIT = {'t-plan': () => loadPlan(), 't-prices': () => loadPrices(),
-                  't-planner': () => loadPlanner()};
+/* Co se má stát při prvním otevření záložky.
+
+   Ligové záložky se dřív načítaly až po kliknutí na tlačítko, protože
+   stojí desítky dotazů. Jenže to tlačítko bylo jediné, co na panelu bylo —
+   nikdo ho nemohl minout a nikdo si ho nevybral dobrovolně.
+
+   Načítáme proto při otevření záložky, ne při startu appky: kdo se na ligu
+   nepodívá, nic nestáhne, a kdo ano, nemusí klikat. Druhá ligová záložka
+   je pak skoro zadarmo — per-member dotazy jdou přes cached() a jsou to
+   přesně tytéž adresy.
+
+   Tlačítka zůstala jako „Aktualizovat“; po deadlinu se hodí. */
+const TAB_INIT = {
+  't-league':  () => autoLoadLeague(),
+  't-hub':     () => loadHub(),
+  't-plan':    () => loadPlan(),
+  't-prices':  () => loadPrices(),
+  't-planner': () => loadPlanner(),
+};
+
+/* Miniliga potřebuje ID, které TAB_INIT nezná. Když chybí, nemá smysl
+   spouštět nic — jen to řekneme. */
+function autoLoadLeague(){
+  const lid = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY);
+  if(!lid){ $('lmsg').textContent = 'Nemáš zadané ID miniligy.'; return; }
+  return loadLeague(lid);
+}
 const TAB_DONE = new Set();
 
 function selectTab(tid){
@@ -3877,6 +3922,7 @@ function renderHub(){
 
 $('hubgo').addEventListener('click', async () => {
   $('hubgo').disabled = true;
+  dropCached(/^(leagues-classic|entry)\//);
   await loadHub();
   $('hubgo').disabled = false;
 });
@@ -5439,6 +5485,9 @@ const LEAGUE_KEY = 'fpl_league';
    analýza přestupů z předchozího ID — nový tým pak viděl cizí čísla. */
 function resetState(){
   API_CACHE = new Map();
+  // Jinak by si nový tým myslel, že ligové záložky už načtené má,
+  // a zůstal by koukat na prázdný panel.
+  TAB_DONE.clear();
   BUY_COST = null;
   PLANNER = null;
   if(RAIL_TIMER){ clearInterval(RAIL_TIMER); RAIL_TIMER = null; }
@@ -5624,6 +5673,10 @@ $('lgo').addEventListener('click', async () => {
   const lid = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY);
   if(!lid){ $('lmsg').textContent = 'Nemáš zadané ID miniligy.'; return; }
   $('lgo').disabled = true;
+  // Pořadí, historie i sestavy členů — jinak by se překreslila stará data.
+  dropCached(/^(leagues-classic|entry)\//);
+  const box = $('histbox');
+  if(box) delete box.dataset.loaded;
   await loadLeague(lid);
   $('lgo').disabled = false;
 });

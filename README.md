@@ -123,6 +123,16 @@ kdo chce jít proti proudu, najde nízké vlastnictví v záložce Hub ligy.
 a odehrané minuty. Všechno ostatní je pod tlačítkem **i** (ne hover — na
 dotykovém displeji by tooltip byl nedostupný).
 
+**Ligové záložky se načítají samy** — při prvním otevření záložky, ne při startu
+appky. Kdo se na ligu nepodívá, nestáhne nic; kdo ano, nemusí klikat. Druhá
+ligová záložka je pak skoro zadarmo, protože dotazy na jednotlivé členy jdou
+přes `cached()` a jsou to přesně tytéž adresy.
+
+Tlačítka zůstala jako **Aktualizovat**. Musí ale nejdřív zavolat `dropCached()`:
+cache žije po celou dobu života stránky, takže bez zneplatnění by se jen
+překreslila tatáž data. Zahazuje se jen `leagues-classic/` a `entry/` —
+`bootstrap-static/` se během kola nemění a stahovat ho znovu by bylo zbytečné.
+
 **Režim jedné miniligy.** Vyplněné `CONFIG.leagueId` změní appku z obecného
 nástroje na web jedné ligy: vstupní obrazovka si stáhne soupisku a nabídne
 rozbalovací seznam jmen místo pole na entry ID. Nikdo nemusí lovit svoje číslo
