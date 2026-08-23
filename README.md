@@ -163,6 +163,24 @@ jsou v lize **dneska** — kdo mezitím odešel, chybí, a pořadí není to, ja
 liga tehdy skutečně dopadla. Appka to říká i uživateli; tichý nepřesný archiv
 by byl horší než žádný.
 
+**Doporučení kapitána podle xP appka nedělá.** `ep_next` chodí od FPL
+zaokrouhlené na desetinu a u špičkových hráčů vychází prakticky stejně
+(Haaland 4.0, Fernandes 4.0), takže z něj pořadí nevznikne — appka pak sama
+psala „doporučit jednoho z nich nemá čím“, což je poctivé, ale k ničemu.
+Místo toho ukazuje **dva týmy s nejlehčím losem** v příštím kole: proti komu
+hrají, spočtenou obtížnost a koho z těch týmů máš v kádru. Pod tím tvoje tři
+nejdražší hráče se stejnou informací. Rozhodnutí zůstává na uživateli — lehký
+los sám o sobě body nedělá.
+
+**Diferenciály nikdy nevrátí prázdno.** Dřív to byl pevný strop 12 %
+vlastnictví a tvrdý filtr na minuty; když se do něj nikdo nevešel, appka
+napsala „nikdo neprošel filtrem“ a skončila. Na začátku sezóny se to stávalo
+skoro vždycky. Strop se teď uvolňuje po krocích, dokud se nenajde pět jmen,
+a appka řekne, o kolik musela slevit. Jistota minut přestala být podmínkou
+a stala se z ní **škála 0–1**, která skóre násobí: kdo odehrál dvě kola, má
+málo minut ze své podstaty, ne proto, že by nehrál. Před prvním kolem, kdy
+minuty neříkají nic, se jistota odhaduje z ceny.
+
 **Diferenciály** řadíme podle projekce dělené **odmocninou** vlastnictví.
 Odmocnina proto, že rozdíl mezi 2 % a 12 % znamená pro posun v pořadí mnohem
 víc než mezi 40 % a 50 % — tam se s tebou hýbe skoro celé pole. Páka je

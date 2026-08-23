@@ -182,8 +182,8 @@ check('render() proběhne a nakreslí panel', () => {
   w.eval('render')(entry, {picks: picksSquad}, 11);
   const html = w.document.getElementById('out').innerHTML;
   const has = t => html.includes(t);
-  if(!has('Kapitánská páska')) throw new Error('chybí kapitán');
-  if(!has('Optimální jedenáctka')) throw new Error('chybí optimální XI');
+  if(!has('Nejlehčí los')) throw new Error('chybí blok s losem');
+  if(!has('Tvoji tři nejdražší')) throw new Error('chybí nejdražší hráči');
   if(!has('Co tě čeká v rozpisu')) throw new Error('chybí upozornění na blank/double');
   return html.length + ' znaků HTML';
 });
@@ -355,17 +355,61 @@ check('renderTransfers vyrobí rozbalovací karty', () => {
 });
 
 // --- shoda projekcí u kapitána ---
-check('při shodné projekci netvrdí, že jeden je lepší', () => {
+/* Doporučení kapitána podle xP odešlo: ep_next chodí zaokrouhlené na
+   desetinu, takže u špičkových hráčů vycházelo stejně a appka sama psala,
+   že doporučit nemá čím. Test hlídá, že se to nevrátí. */
+check('appka nedoporučuje kapitána podle projekce', () => {
   const ids = picksSquad.slice(0, 11).map(p => p.element);
   bootstrap.elements.forEach(p => { p.ep_next = ids.includes(p.id) ? '4.0' : '1.0'; });
-  bootstrap.elements.find(p => p.id === picksSquad[7].element).ep_next = '4.0';
   w.eval('PLAYERS = playerRows();');
   w.eval('render')(entry, {picks: picksSquad}, 11, null);
   const txt = w.document.getElementById('out').innerHTML.replace(/<[^>]+>/g, ' ');
-  if(/dává přednost/.test(txt)) throw new Error('pořád doporučuje při shodě');
-  if(!/stejnou projekci|podle projekce sedí/.test(txt))
-    throw new Error('nezmínil shodu: ' + txt.slice(txt.indexOf('Máš'), 200));
-  return 'shoda ošetřena';
+  if(/s páskou|Kapitánská páska/.test(txt)) throw new Error('xP doporučení je zpátky');
+  if(!/Není to doporučení na kapitána/.test(txt))
+    throw new Error('chybí upřesnění, že los sám o sobě nic neříká');
+  return 'jen podklad, ne rada';
+});
+
+check('nejlehčí los vybere dva týmy a spočítá obtížnost', () => {
+  const squad = picksSquad.map((pk, i) => ({
+    p: bootstrap.elements.find(e => e.id === pk.element),
+    starting: i < 11,
+  }));
+  const html = w.eval('easiestFixtures')(squad, 11);
+  const fdrs = [...html.matchAll(/class="fdr f\d">([\d.]+)</g)].map(m => parseFloat(m[1]));
+  if(fdrs.length !== 2) throw new Error('týmů: ' + fdrs.length);
+  if(fdrs[0] > fdrs[1]) throw new Error('není seřazeno od nejlehčího: ' + fdrs);
+  if(!fdrs.every(v => v >= 1 && v <= 5)) throw new Error('mimo stupnici: ' + fdrs);
+  return fdrs.join(' a ');
+});
+
+check('u týmu bez hráčů v kádru se to řekne', () => {
+  // prázdný kádr → ani jeden z těch dvou týmů nemůže mít moje hráče
+  const html = w.eval('easiestFixtures')([], 11);
+  if(!html.includes('nemáš nikoho')) throw new Error('mlčí místo hlášky');
+  return 'poctivá hláška';
+});
+
+check('nejdražší tři jsou opravdu nejdražší', () => {
+  const squad = picksSquad.map(pk => ({
+    p: bootstrap.elements.find(e => e.id === pk.element), starting: true,
+  }));
+  const html = w.eval('topPriceBlock')(squad, 11);
+  const ceny = [...html.matchAll(/class="cost">([\d.]+)m</g)].map(m => parseFloat(m[1]));
+  if(ceny.length !== 3) throw new Error('řádků: ' + ceny.length);
+  for(let i = 1; i < ceny.length; i++)
+    if(ceny[i] > ceny[i - 1]) throw new Error('není seřazeno: ' + ceny);
+  const max = Math.max(...squad.map(s => s.p.now_cost)) / 10;
+  if(ceny[0] !== max) throw new Error(`nejdražší je ${max}m, ukazuje ${ceny[0]}m`);
+  return ceny.join(' / ') + 'm';
+});
+
+check('volné kolo u nejdražšího hráče se pozná', () => {
+  // tým 1 má v testovacích datech blank v GW11
+  const p = bootstrap.elements.find(e => e.team === 1);
+  const html = w.eval('topPriceBlock')([{p, starting: true}], 11);
+  if(!html.includes('volné kolo')) throw new Error('nepozná blank');
+  return 'označeno';
 });
 
 // --- živé body ---
@@ -1443,21 +1487,66 @@ check('záložka se jmenuje Top hráči a stará tabulka je pryč', () => {
 
 /* ================= diferenciály ================= */
 
-check('diferenciál musí mít jistotu minut', () => {
-  const f = w.eval('minutesSecure');
-  const p = {...bootstrap.elements[5], status: 'a', minutes: 900,
+/* Jistota minut je teď číslo 0–1, ne ano/ne. Tvrdý filtr nefungoval
+   první měsíc sezóny — kdo odehrál dvě kola, měl málo minut ze své
+   podstaty, ne proto, že by nehrál. */
+check('jistota minut je škála, ne ano/ne', () => {
+  const f = w.eval('minuteConfidence');
+  const zaklad = {...bootstrap.elements[5], status: 'a',
+                  chance_of_playing_next_round: 100};
+
+  const stalice = f({...zaklad, minutes: 900, starts: 10}, 10);
+  const strídající = f({...zaklad, minutes: 200, starts: 1}, 10);
+
+  if(stalice < 0.85) throw new Error('stálice má nízkou jistotu: ' + stalice);
+  if(strídající >= 0.5) throw new Error('střídající má vysokou jistotu: ' + strídající);
+  if(!(stalice > strídající)) throw new Error('nerozlišuje');
+  return `stálice ${stalice.toFixed(2)}, střídající ${strídající.toFixed(2)}`;
+});
+
+check('nedostupný hráč má nulovou jistotu', () => {
+  const f = w.eval('minuteConfidence');
+  const p = {...bootstrap.elements[5], minutes: 900, starts: 10,
              chance_of_playing_next_round: 100};
-  if(!f(p, 10)) throw new Error('odmítl hráče s 90 minutami na kolo');
-  if(f({...p, status: 'i'}, 10)) throw new Error('vzal zraněného');
-  if(f({...p, chance_of_playing_next_round: 25}, 10)) throw new Error('vzal pochybného');
-  if(f({...p, minutes: 200}, 10)) throw new Error('vzal střídajícího (20 min/kolo)');
-  return 'jistota minut hlídána';
+  for(const st of ['i', 'u', 'n', 's'])
+    if(f({...p, status: st}, 10) !== 0) throw new Error('vzal status ' + st);
+  if(f({...p, status: 'a', chance_of_playing_next_round: 25}, 10) !== 0)
+    throw new Error('vzal hráče s 25% šancí');
+  return 'nula';
+});
+
+check('před prvním kolem se jistota bere z ceny', () => {
+  const f = w.eval('minuteConfidence');
+  const zaklad = {status: 'a', minutes: 0, starts: 0,
+                  chance_of_playing_next_round: null};
+  const drahy = f({...zaklad, now_cost: 130}, 0);
+  const levny = f({...zaklad, now_cost: 40}, 0);
+  // Bez odehraných kol neříkají minuty nic — drahý hráč nesedí na lavičce.
+  if(!(drahy > levny)) throw new Error(`drahý ${drahy}, levný ${levny}`);
+  if(drahy <= 0) throw new Error('i drahý hráč vyšel na nulu');
+  return `13.0m → ${drahy.toFixed(2)}, 4.0m → ${levny.toFixed(2)}`;
+});
+
+check('žebříček diferenciálů není nikdy prázdný', () => {
+  // I s nesmyslně přísným prvním stropem musí něco vypadnout
+  const res = w.eval('diffRows')(bootstrap.elements, 11,
+    () => 90, 9, [{max: 0.1, label: 'nemožný'}, {max: 101, label: 'vše'}]);
+  if(!res.rows.length) throw new Error('vrátil prázdno');
+  if(res.tier.label !== 'vše') throw new Error('nepovolil strop: ' + res.tier.label);
+  return res.rows.length + ' hráčů, strop povolen';
+});
+
+check('appka řekne, když musela strop povolit', () => {
+  const html = w.eval('buildDifferentials()');
+  if(!/Top 5 diferenciálů · celé FPL/.test(html)) throw new Error('chybí globální blok');
+  if(/Nikdo neprošel filtrem/.test(html)) throw new Error('pořád může skončit prázdně');
+  return 'ok';
 });
 
 check('nižší vlastnictví zvedne skóre při stejné projekci', () => {
   const f = w.eval('diffScore');
   const p = bootstrap.elements[7];
-  const vzacny = f(p, 11, 2), bezny = f(p, 11, 40);
+  const vzacny = f(p, 11, 2, 1), bezny = f(p, 11, 40, 1);
   if(vzacny.xp !== bezny.xp) throw new Error('projekce se liší, test nic neměří');
   if(!(vzacny.score > bezny.score))
     throw new Error(`2 % → ${vzacny.score.toFixed(2)}, 40 % → ${bezny.score.toFixed(2)}`);
@@ -1468,14 +1557,15 @@ check('extrémně nízké vlastnictví neuteče do nekonečna', () => {
   const f = w.eval('diffScore');
   const p = bootstrap.elements[7];
   // 0,1 % a 0 % musí dát totéž — páka je useknutá zdola
-  if(f(p, 11, 0.1).score !== f(p, 11, 0).score)
+  if(f(p, 11, 0.1, 1).score !== f(p, 11, 0, 1).score)
     throw new Error('nulové vlastnictví se neusekává');
   return 'useknuto';
 });
 
 check('diferenciály vrátí nejvýš pět hráčů seřazených podle skóre', () => {
   const pool = bootstrap.elements.filter(p => p.element_type !== 1).slice(0, 60);
-  const rows = w.eval('diffRows')(pool, 11, p => parseFloat(p.selected_by_percent));
+  const {rows} = w.eval('diffRows')(pool, 11,
+    p => parseFloat(p.selected_by_percent), 9);
   if(rows.length > 5) throw new Error('řádků: ' + rows.length);
   for(let i = 1; i < rows.length; i++)
     if(rows[i].score > rows[i - 1].score) throw new Error('není seřazeno');
