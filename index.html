@@ -89,7 +89,10 @@ body{
 .bar{position:sticky;top:0;z-index:20;background:var(--aubergine);color:#fff}
 .bar .wrap{display:flex;align-items:center;gap:14px;height:58px}
 .brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none}
-.brand img{width:30px;height:30px;flex:none;object-fit:contain}
+/* Celé logo má nad pohárem i pod ním text; ve 30 px se z toho stala
+   nečitelná šmouha. V hlavičce je proto samotný pohár (assets/mark.webp),
+   oříznutý z téhož originálu. */
+.brand img{width:34px;height:34px;flex:none;object-fit:contain}
 .brand .tx{font-family:var(--f-disp);font-weight:800;font-size:15px;
   letter-spacing:-.2px;color:#fff;white-space:nowrap;line-height:1.15}
 .brand .tx small{display:block;font-family:var(--f-mono);font-size:8.5px;
@@ -141,13 +144,20 @@ body{
   font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--gold)}
 .gate h2{margin:0 0 6px;color:#fff;font-size:26px;letter-spacing:.2px;
   text-transform:none;line-height:1.15}
-.gate .sub{color:#B9AECF;margin:0 0 22px;font-size:13.5px}
-.gate label{color:#EDE7F5}
-.gate .help{color:#9C90BA}
+.gate .sub{color:#CFC5E4;margin:0 0 22px;font-size:13.5px}
+.gate label{color:#fff;font-weight:600}
+.gate .help{color:#B3A8CE}
 .gate .help code{background:rgba(204,156,72,.16);color:var(--gold-lift)}
-.gate .opt{color:#9C90BA;font-weight:500}
+.gate .opt{color:#B3A8CE;font-weight:500}
 .gate input,.gate select{background:rgba(255,255,255,.06);color:#fff;
   border-color:rgba(204,156,72,.3)}
+
+/* Rozbalenou nabídku <select> kreslí operační systém, ne naše CSS —
+   a kreslí ji na bílém. Bílá barva textu ze .gate select se do <option>
+   zdědí, takže položky byly bílé na bílém a seznam vypadal prázdný.
+   Barvy proto nastavujeme na <option> zvlášť. */
+.gate select option{background:#fff;color:#1F0A24}
+.gate select option:checked{background:#241A52;color:#fff}
 .gate input:focus,.gate select:focus{border-color:var(--gold);
   box-shadow:0 0 0 3px rgba(204,156,72,.22)}
 .gate input::placeholder{color:#7E729C}
@@ -1010,7 +1020,7 @@ table.hist th.n{font-family:var(--f-mono);font-size:11px}
   <div class="bar">
     <div class="wrap">
       <span class="brand">
-        <img src="/assets/logo-transp.webp" alt="" width="30" height="30"
+        <img src="/assets/mark.webp" alt="" width="34" height="34"
              decoding="async">
         <span class="tx"><small id="brandTop">MINILEAGUE</small>SQUAD CHECK</span>
       </span>
@@ -1146,6 +1156,16 @@ const CONFIG = {
     '2020/21': ['Krystof Benka', 'Filip Buddeus', 'Adam Vrzal'],
     '2021/22': ['Krystof Benka', 'Filip Buddeus', 'Adam Vrzal'],
     '2022/23': ['Krystof Benka', 'Filip Buddeus', 'Adam Vrzal'],
+  },
+
+  /* Kdo se do ligy přidal později. Doplňuje `officialSeasons` pro roky,
+     kdy nebyla soupiska pevná — vypsat u každé sezóny všechny členy by
+     bylo dlouhé a rozbilo by se to při každém dalším příchodu.
+
+     Sezóny před uvedenou se počítají jako „hrál FPL, ale mimo tuhle ligu“.
+     Kdo tu není, počítá se od začátku. Klíč je jméno nebo entry ID. */
+  memberSince: {
+    'Adam Marko': '2025/26',
   },
 };
 
@@ -4244,11 +4264,21 @@ const HIST_SEASONS = 6;
    tři lidi, dostávali i ti, kdo tehdy hráli sami za sebe jinde.
 
    Sezóna, která v CONFIG.officialSeasons není, se počítá pro všechny. */
+function matchesMember(key, m){
+  return String(key) === String(m.entry) || normName(key) === normName(m.player_name);
+}
+
 function officialIn(season, m){
+  // Přišel do ligy až později? Starší sezóny se nepočítají.
+  // Řetězce „2023/24“ jdou porovnávat přímo — abecední pořadí je tu i to časové.
+  const since = Object.entries(CONFIG.memberSince || {})
+    .find(([k]) => matchesMember(k, m));
+  if(since && season < since[1]) return false;
+
+  // Sezóna s pevně danou soupiskou.
   const list = (CONFIG.officialSeasons || {})[season];
   if(!list) return true;
-  return list.some(x =>
-    String(x) === String(m.entry) || normName(x) === normName(m.player_name));
+  return list.some(x => matchesMember(x, m));
 }
 
 /* Matice sezóna × manažer plus medaile.
@@ -4336,6 +4366,7 @@ function renderLeagueHistory(members, pasts, myId){
   };
 
   const off = Object.keys(CONFIG.officialSeasons || {});
+  const late = Object.entries(CONFIG.memberSince || {});
 
   return `${trophyTable(rows)}
     <table class="hist">
@@ -4351,6 +4382,8 @@ function renderLeagueHistory(members, pasts, myId){
       nastoupili${off.length
         ? ` — v ročnících ${esc(off.join(', '))} to byli jen ${
             esc((CONFIG.officialSeasons[off[0]] || []).join(', '))}`
+        : ''}${late.length
+        ? `. Později se přidali ${esc(late.map(([k, v]) => k + ' (' + v + ')').join(', '))}`
         : ''}. Šedé číslo znamená, že člověk tu sezónu hrál FPL, ale mimo
       tuhle ligu. Tečka, že nehrál vůbec.</p>
     <p class="note">FPL neposílá pořadí miniligy za minulé sezóny, jen celkové

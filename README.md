@@ -138,6 +138,13 @@ sami za sebe jinde. Jména se párují přes `normName`, takže na diakritice
 nezáleží; místo jména jde uvést i entry ID, což je odolnější. Sezóna, která
 v konfiguraci není, se počítá pro všechny členy.
 
+Soupiska se řídí dvěma nezávislými pravidly, která se skládají:
+`officialSeasons` pro roky s pevně danou soupiskou a `memberSince` pro lidi,
+kteří přišli později. Druhé existuje proto, že vypisovat u každé sezóny všechny
+členy by bylo dlouhé a rozbilo by se to při každém dalším příchodu. Sezóny před
+uvedeným datem se počítají jako „hrál FPL, ale mimo tuhle ligu“ — body v tabulce
+zůstanou šedě, medaili člověk nedostane.
+
 **Historie miniligy má strop, který nejde obejít.** FPL neposílá pořadí
 miniligy za minulé sezóny — endpoint standings vrací vždy jen tu rozehranou.
 Dostat jde `past` z `entry/{id}/history/`: celkové body a celkové pořadí

@@ -1706,9 +1706,9 @@ check('logo v hlavičce je obrázek, ne inline SVG', () => {
   const html = fs.readFileSync('index.html', 'utf8');
   const i = html.indexOf('class="brand"');
   const blok = html.slice(i, i + 320);
-  if(!blok.includes('/assets/logo-transp.webp')) throw new Error('logo se nepoužívá');
+  if(!/\/assets\/(mark|logo-transp)\.webp/.test(blok)) throw new Error('logo se nepoužívá');
   if(blok.includes('<svg')) throw new Error('zůstalo inline SVG');
-  return 'logo-transp.webp';
+  return 'obrázek z /assets';
 });
 
 check('vstupní obrazovka používá plakát', () => {
@@ -1716,6 +1716,76 @@ check('vstupní obrazovka používá plakát', () => {
   if(!html.includes('/assets/headline.webp')) throw new Error('plakát chybí');
   if(!/class="poster"/.test(html)) throw new Error('plakát nemá vlastní styl');
   return 'headline.webp';
+});
+
+/* ================= pozdější příchod do ligy ================= */
+
+check('kdo přišel později, nemá medaile ze starších sezón', () => {
+  const f = w.eval('officialIn');
+  const marko = {entry: 77, player_name: 'Adam Marko'};
+  if(f('2023/24', marko)) throw new Error('počítá ho v 2023/24');
+  if(f('2024/25', marko)) throw new Error('počítá ho v 2024/25');
+  if(!f('2025/26', marko)) throw new Error('nepočítá ho od 2025/26');
+  if(!f('2026/27', marko)) throw new Error('nepočítá ho v aktuální sezóně');
+  return 'oficiální až od 2025/26';
+});
+
+check('ostatní členy pozdější příchod neomezí', () => {
+  const f = w.eval('officialIn');
+  const kdokoli = {entry: 78, player_name: 'Daniel Fábry'};
+  if(!f('2023/24', kdokoli)) throw new Error('omezil někoho, kdo v memberSince není');
+  return 'bez omezení';
+});
+
+check('obě pravidla platí zároveň', () => {
+  const f = w.eval('officialIn');
+  // 2021/22 má pevnou soupisku i pozdější příchod — obojí musí zabrat
+  if(f('2021/22', {entry: 77, player_name: 'Adam Marko'}))
+    throw new Error('pustil ho do sezóny s pevnou soupiskou');
+  if(!f('2021/22', {entry: 79, player_name: 'Filip Buddeus'}))
+    throw new Error('nepustil člena z pevné soupisky');
+  return 'soupiska i datum příchodu';
+});
+
+check('pozdější příchod sebere medaili, ne řádek', () => {
+  const clenove = [
+    {entry: 11, player_name: 'Krystof Benka', entry_name: 'A'},
+    {entry: 77, player_name: 'Adam Marko', entry_name: 'B'},
+  ];
+  const data = [
+    {past: [{season_name: '2024/25', total_points: 2000, rank: 100}]},
+    {past: [{season_name: '2024/25', total_points: 2900, rank: 5}]},
+  ];
+  const h = w.eval('buildLeagueHistory')(clenove, data);
+  const marko = h.rows.find(r => r.m.entry === 77);
+  if(marko.medals[1]) throw new Error('dostal zlato za sezónu před příchodem');
+  if(h.order['2024/25'].get(11) !== 1) throw new Error('Benka není první');
+
+  // ale body v tabulce zůstanou, jen šedě
+  const html = w.eval('renderLeagueHistory')(clenove, data, 11);
+  if(!html.includes('2900')) throw new Error('smazal mu body úplně');
+  if(!html.includes('guest')) throw new Error('neoznačil je jako mimo ligu');
+  return 'body šedě, medaile ne';
+});
+
+/* ================= čitelnost vstupní obrazovky ================= */
+
+check('položky rozbalené nabídky nejsou bílé na bílém', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  // <option> kreslí OS na bílém a dědí color z .gate select
+  if(!/\.gate select option\{[^}]*color:#1F0A24/.test(style))
+    throw new Error('option nemá vlastní tmavou barvu textu');
+  return 'tmavý text na bílé';
+});
+
+check('hlavička používá oříznutý pohár, ne celé logo', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const i = html.indexOf('class="brand"');
+  const blok = html.slice(i, i + 300);
+  if(!blok.includes('/assets/mark.webp'))
+    throw new Error('v hlavičce je pořád logo s textem');
+  return 'mark.webp';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
