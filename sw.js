@@ -9,10 +9,12 @@
 // (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
 // nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v3';
+const SHELL = 'squadcheck-shell-v4';
 const BADGES = 'squadcheck-badges-v1';
 const FILES = ['/', '/index.html', '/manifest.webmanifest',
-               '/icon.svg', '/favicon.svg', '/club-marks.svg'];
+               '/icon.svg', '/favicon.svg', '/club-marks.svg',
+               // plakát a loga: velké, neměnné, a bez nich vypadá vstup rozbitě
+               '/assets/headline.webp', '/assets/logo-transp.webp', '/assets/logo.webp'];
 
 self.addEventListener('install', ev => {
   ev.waitUntil(

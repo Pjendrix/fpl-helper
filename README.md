@@ -123,6 +123,21 @@ kdo chce jít proti proudu, najde nízké vlastnictví v záložce Hub ligy.
 a odehrané minuty. Všechno ostatní je pod tlačítkem **i** (ne hover — na
 dotykovém displeji by tooltip byl nedostupný).
 
+**Režim jedné miniligy.** Vyplněné `CONFIG.leagueId` změní appku z obecného
+nástroje na web jedné ligy: vstupní obrazovka si stáhne soupisku a nabídne
+rozbalovací seznam jmen místo pole na entry ID. Nikdo nemusí lovit svoje číslo
+v adrese FPL. Ruční zadání zůstává schované pod odkazem — do ligy může někdo
+přibýt dřív, než se soupiska přenačte, a když se standings nenačte vůbec,
+appka na ruční režim spadne sama a řekne proč. Prázdné `leagueId` vrátí původní
+chování se dvěma poli.
+
+**Oficiální sezóny.** `CONFIG.officialSeasons` říká, kdo v daném ročníku za ligu
+opravdu nastoupil. FPL to neví — zná jen celkové body každého manažera — takže
+bez toho by medaile za roky, kdy hráli tři lidi, dostávali i ti, kdo tehdy hráli
+sami za sebe jinde. Jména se párují přes `normName`, takže na diakritice
+nezáleží; místo jména jde uvést i entry ID, což je odolnější. Sezóna, která
+v konfiguraci není, se počítá pro všechny členy.
+
 **Historie miniligy má strop, který nejde obejít.** FPL neposílá pořadí
 miniligy za minulé sezóny — endpoint standings vrací vždy jen tu rozehranou.
 Dostat jde `past` z `entry/{id}/history/`: celkové body a celkové pořadí

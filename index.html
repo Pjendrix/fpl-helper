@@ -36,6 +36,11 @@
   --mute:#6B3D74;
 
   --mint-fill:#00FF87;      /* jen výplně, nikdy text — na bílé neprojde */
+
+  /* Zlatá a půlnoční modř z plakátu poháru. Vzorkoval jsem je přímo
+     z obrázku, ať vstupní obrazovka a plakát nedrží každý jiný odstín. */
+  --night:#0B0B24; --night-2:#161034; --night-3:#241A52;
+  --gold:#CC9C48; --gold-lift:#E8C271; --gold-deep:#8A6524;
   --ok:#00874F;    --ok-bg:#E2F7EC;
   --warn:#9A6200;  --warn-bg:#FDF3E0;   --warn-line:#C98400;
   --alert:#C4004A; --alert-bg:#FDEBF1;
@@ -84,7 +89,7 @@ body{
 .bar{position:sticky;top:0;z-index:20;background:var(--aubergine);color:#fff}
 .bar .wrap{display:flex;align-items:center;gap:14px;height:58px}
 .brand{display:flex;align-items:center;gap:10px;min-width:0;text-decoration:none}
-.brand svg{width:23px;height:23px;flex:none}
+.brand img{width:30px;height:30px;flex:none;object-fit:contain}
 .brand .tx{font-family:var(--f-disp);font-weight:800;font-size:15px;
   letter-spacing:-.2px;color:#fff;white-space:nowrap;line-height:1.15}
 .brand .tx small{display:block;font-family:var(--f-mono);font-size:8.5px;
@@ -110,39 +115,49 @@ body{
    Řešení: vstupní obrazovka je auberginová. Je to „dveře“ — za nimi
    se appka rozsvítí. Bílý text tím dává smysl a formulář sedí vedle
    nadpisu, ne pod ním. */
-#landing{background:var(--aubergine);min-height:100vh;
-  display:flex;align-items:center;padding:32px 0}
-#landing .wrap{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);
-  gap:56px;align-items:center;width:100%}
+/* Vstupní obrazovka drží barvy plakátu poháru: půlnoční modř, zlato,
+   světlo shora. Karta je tmavá se zlatým lemem, ne bílá — bílý obdélník
+   vedle toho plakátu vypadal jako cizí prvek nalepený na plakát. */
+#landing{min-height:100vh;display:flex;align-items:center;padding:36px 0;
+  background:
+    radial-gradient(120% 80% at 50% -10%, rgba(204,156,72,.20), transparent 62%),
+    radial-gradient(90% 60% at 50% 105%, rgba(36,26,82,.9), transparent 70%),
+    linear-gradient(180deg,var(--night-2),var(--night) 60%)}
+#landing .wrap{display:grid;grid-template-columns:minmax(0,.92fr) minmax(0,1fr);
+  gap:52px;align-items:center;width:100%}
 
-.hero{text-align:left;min-width:0}
-.hero .mk{display:flex;align-items:center;gap:12px;margin-bottom:22px}
-.hero .mk svg{width:34px;height:34px;flex:none}
-.hero h1{
-  font-family:var(--f-disp);font-weight:800;
-  font-size:clamp(38px,5.4vw,66px);line-height:.94;
-  letter-spacing:-.02em;text-transform:uppercase;
-  color:#fff;margin:0;
-}
-.hero h1 em{font-family:var(--f-mono);font-style:normal;font-weight:700;
-  text-transform:uppercase;letter-spacing:.4em;font-size:.19em;
-  display:block;margin-bottom:12px;color:var(--mint-fill)}
-.hero .lede{color:#D9C4DE;font-size:16px;max-width:420px;
-  margin:20px 0 0;line-height:1.6}
-
-/* Tři věci, které appka umí — ať je hned vidět, o co jde. */
-.hero ul{list-style:none;margin:26px 0 0;padding:0;display:grid;gap:9px}
-.hero li{display:flex;align-items:flex-start;gap:10px;
-  color:#C7A8CE;font-size:13.5px;line-height:1.45}
-.hero li b{color:#fff;font-weight:600}
-.hero li i{flex:none;width:6px;height:6px;border-radius:50%;
-  background:var(--mint-fill);margin-top:7px}
+.hero{min-width:0;display:flex;justify-content:center}
+.hero .poster{width:100%;max-width:392px;height:auto;border-radius:var(--r-card);
+  box-shadow:0 30px 70px rgba(0,0,0,.55), 0 0 0 1px rgba(204,156,72,.28)}
 
 .gate{
-  background:var(--white);border-radius:var(--r-card);
-  padding:30px;max-width:440px;margin:0;text-align:left;
-  box-shadow:0 24px 60px rgba(0,0,0,.28);
+  background:linear-gradient(180deg,rgba(36,26,82,.92),rgba(11,11,36,.94));
+  border:1px solid rgba(204,156,72,.34);
+  border-radius:var(--r-card);
+  padding:32px;max-width:440px;margin:0;text-align:left;color:#EDE7F5;
+  box-shadow:0 26px 64px rgba(0,0,0,.5);
 }
+.gate .kicker{margin:0 0 6px;font-family:var(--f-mono);font-size:10px;
+  font-weight:700;letter-spacing:.34em;text-transform:uppercase;color:var(--gold)}
+.gate h2{margin:0 0 6px;color:#fff;font-size:26px;letter-spacing:.2px;
+  text-transform:none;line-height:1.15}
+.gate .sub{color:#B9AECF;margin:0 0 22px;font-size:13.5px}
+.gate label{color:#EDE7F5}
+.gate .help{color:#9C90BA}
+.gate .help code{background:rgba(204,156,72,.16);color:var(--gold-lift)}
+.gate .opt{color:#9C90BA;font-weight:500}
+.gate input,.gate select{background:rgba(255,255,255,.06);color:#fff;
+  border-color:rgba(204,156,72,.3)}
+.gate input:focus,.gate select:focus{border-color:var(--gold);
+  box-shadow:0 0 0 3px rgba(204,156,72,.22)}
+.gate input::placeholder{color:#7E729C}
+
+/* Zlaté tlačítko — jediný zlatý plný prvek na stránce, aby bylo jasné,
+   kam kliknout. */
+.gate button.wide{background:linear-gradient(180deg,var(--gold-lift),var(--gold));
+  border-color:var(--gold-deep);color:#2A1E06;font-weight:700}
+.gate button.wide:hover{background:linear-gradient(180deg,#F2D98A,#D9AA55)}
+.gate .lnk{color:var(--gold-lift);margin-top:12px;display:inline-block}
 .gate h2{font-size:20px;line-height:1.1;font-weight:600;margin:0 0 4px}
 .gate p.sub{color:var(--mute);font-size:13px;margin:0 0 24px}
 .field{margin-bottom:20px}
@@ -359,11 +374,23 @@ tr.click:hover td{background:var(--haze)}
 
 
 /* ---------- odpočet do deadlinu ---------- */
-.cd{font-family:var(--f-mono);font-size:11.5px;font-weight:700;
-  padding:5px 11px;border-radius:999px;white-space:nowrap;
-  background:rgba(255,255,255,.12);color:#fff;border:0}
-.cd.soon{background:#C98400;color:#fff}
-.cd.late{background:var(--alert);color:#fff}
+/* Odpočet byl monospace 11,5 px na fialové — nečitelný přesně ve chvíli,
+   kdy na něm nejvíc záleží. Teď je to dvouřádkový štítek: malý popisek
+   nahoře, velké číslo dole, a zlatý lem, aby se odlišil od navigace. */
+.cd{display:inline-flex;flex-direction:column;justify-content:center;
+  padding:4px 14px;border-radius:10px;white-space:nowrap;line-height:1.1;
+  background:rgba(255,255,255,.08);border:1px solid rgba(204,156,72,.42);
+  color:#fff}
+.cd .lbl{font-family:var(--f-mono);font-size:8.5px;font-weight:700;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--gold-lift)}
+.cd .val{font-family:var(--f-disp);font-size:16px;font-weight:800;
+  letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.cd.soon{background:rgba(232,194,113,.16);border-color:var(--gold-lift)}
+.cd.soon .val{color:var(--gold-lift)}
+.cd.late{background:var(--alert);border-color:transparent}
+.cd.late .lbl{color:rgba(255,255,255,.85)}
+.cd.live{background:rgba(0,255,135,.14);border-color:var(--mint-fill)}
+.cd.live .lbl{color:var(--mint-fill)}
 
 /* ---------- kapitánská doporučení ---------- */
 .capbar{display:grid;gap:8px;margin:12px 0}
@@ -678,11 +705,9 @@ i.mv.down{color:var(--alert)}
   .cmpbar{grid-template-columns:1fr}
   .cmpvs{padding:0;text-align:center}
   .tgrid{grid-template-columns:1fr}
-  #landing{padding:26px 0;align-items:flex-start}
-  #landing .wrap{grid-template-columns:1fr;gap:28px}
-  .hero h1{font-size:clamp(34px,10vw,48px)}
-  .hero .lede{font-size:14.5px;margin-top:14px}
-  .hero ul{display:none}
+  #landing{padding:22px 0;align-items:flex-start}
+  #landing .wrap{grid-template-columns:1fr;gap:24px}
+  .hero .poster{max-width:270px}
   .gate{padding:22px;max-width:none}
   .panel{padding:20px 16px}
   .shirt{width:74px}
@@ -909,6 +934,24 @@ table.hist td u{display:block;text-decoration:none;font-size:10px;
   color:var(--mute);font-family:var(--f-mono);white-space:nowrap}
 .psum .k2{font-size:10px;color:var(--mute);font-family:var(--f-mono);margin-top:2px}
 .pmove .cost.gain{color:var(--ok);font-weight:700}
+
+/* ---------- historie a trofeje ---------- */
+.trophies{list-style:none;margin:0 0 20px;padding:0;display:grid;gap:6px}
+.trophies li{display:flex;align-items:center;gap:12px;padding:8px 14px;
+  background:var(--haze);border-radius:var(--r-btn)}
+.trophies li.me{box-shadow:inset 3px 0 0 var(--ok)}
+.trophies .pos{font-family:var(--f-mono);font-size:11px;color:var(--mute);
+  width:14px;flex:none}
+.trophies .nm{flex:1;min-width:0}
+.trophies .mdl{display:flex;gap:10px;font-size:15px}
+.trophies .mdl u{text-decoration:none;font-family:var(--f-mono);font-size:11px;
+  font-weight:700;margin-left:2px;color:var(--charcoal)}
+
+table.hist td.n{font-family:var(--f-mono);font-size:13px;white-space:nowrap}
+table.hist td.empty{color:var(--mute);opacity:.45}
+table.hist td.guest{color:var(--mute)}
+table.hist td .m{font-style:normal;margin-right:3px}
+table.hist th.n{font-family:var(--f-mono);font-size:11px}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
@@ -926,40 +969,38 @@ table.hist td u{display:block;text-decoration:none;font-size:10px;
 <div id="landing">
   <div class="wrap">
     <div class="hero">
-      <div class="mk">
-        <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-          <rect width="64" height="64" rx="15" fill="#4B0F52"/>
-          <path d="M17 33.5 L27.5 44 L48 20" fill="none" stroke="#00FF87"
-                stroke-width="8" stroke-linecap="square"/>
-        </svg>
-      </div>
-      <h1><em>Minileague</em>Squad Check</h1>
-      <p class="lede">Zadej svoje ID a uvidíš, kdo ti nenastoupí, kdo v lize vede
-        a koho vyměnit.</p>
-      <ul>
-        <li><i></i><span><b>Kontrola kádru</b> — zranění, kapitán, optimální jedenáctka</span></li>
-        <li><i></i><span><b>Miniliga</b> — kdo koho má, průběžné body, měsíční tabulky</span></li>
-        <li><i></i><span><b>Plánování</b> — rozpis na šest kol, ceny, přestupy dopředu</span></li>
-      </ul>
+      <img class="poster" src="/assets/headline.webp" width="588" height="876"
+           alt="O pohár Ládi Stropnického — sezóna 2026/27" fetchpriority="high">
     </div>
 
     <div class="gate">
-      <h2>Začni tady</h2>
-      <p class="sub">Obojí najdeš v adrese na webu FPL.</p>
+      <p class="kicker">Fantasy Premier League</p>
+      <h2 id="gateTitle">Squad Check</h2>
+      <p class="sub" id="gateSub">Kdo ti nenastoupí, kdo v lize vede a koho vyměnit.</p>
 
-      <div class="field">
-        <label for="eid">ID tvého týmu</label>
-        <input id="eid" inputmode="numeric" placeholder="60480">
-        <p class="help">fantasy.premierleague.com/entry/<code>60480</code>/event/1</p>
+      <!-- Režim jedné ligy: seznam jmen. Naplní ho bootstrapGate(). -->
+      <div class="field" id="pickField" hidden>
+        <label for="whoami">Kdo jsi?</label>
+        <select id="whoami"><option value="">Načítám soupisku…</option></select>
+        <p class="help">Soupiska se bere přímo z miniligy.</p>
       </div>
 
-      <div class="field">
-        <label for="lid">ID miniligy <span style="color:var(--mute);font-weight:500">— nepovinné</span></label>
-        <input id="lid" inputmode="numeric" placeholder="14044">
-        <p class="help">fantasy.premierleague.com/leagues/<code>14044</code>/standings/c</p>
+      <!-- Původní režim: ruční zadání ID. -->
+      <div id="manualFields" hidden>
+        <div class="field">
+          <label for="eid">ID tvého týmu</label>
+          <input id="eid" inputmode="numeric" placeholder="60480">
+          <p class="help">fantasy.premierleague.com/entry/<code>60480</code>/event/1</p>
+        </div>
+        <div class="field">
+          <label for="lid">ID miniligy <span class="opt">— nepovinné</span></label>
+          <input id="lid" inputmode="numeric" placeholder="14044">
+          <p class="help">fantasy.premierleague.com/leagues/<code>14044</code>/standings/c</p>
+        </div>
       </div>
 
       <button class="wide" id="enter">Otevřít</button>
+      <button class="lnk" id="manualToggle" hidden>Nejsem na seznamu — zadám ID ručně</button>
       <p id="gatemsg" class="help" style="color:var(--alert);margin-top:12px"></p>
     </div>
   </div>
@@ -969,12 +1010,9 @@ table.hist td u{display:block;text-decoration:none;font-size:10px;
   <div class="bar">
     <div class="wrap">
       <span class="brand">
-        <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-          <rect width="64" height="64" rx="15" fill="#4B0F52"/>
-          <path d="M17 33.5 L27.5 44 L48 20" fill="none" stroke="#00FF87"
-                stroke-width="8" stroke-linecap="square"/>
-        </svg>
-        <span class="tx"><small>MINILEAGUE</small>SQUAD CHECK</span>
+        <img src="/assets/logo-transp.webp" alt="" width="30" height="30"
+             decoding="async">
+        <span class="tx"><small id="brandTop">MINILEAGUE</small>SQUAD CHECK</span>
       </span>
       <span class="cd" id="countdown" hidden></span>
       <span class="who">
@@ -1080,13 +1118,35 @@ table.hist td u{display:block;text-decoration:none;font-size:10px;
    KONFIGURACE — vyplň si tady svoje ID a máš appku "svoji".
    ============================================================ */
 const CONFIG = {
-  // Necháš-li obojí prázdné, appka se zeptá na vstupní obrazovce.
-  // Vyplněním přeskočíš zadávání — hodí se, když je stránka jen pro tebe.
-  leagueId: '',
+  /* ---------------------------------------------------------------
+     REŽIM JEDNÉ MINILIGY
+
+     Vyplň `leagueId` a appka přestane být obecným nástrojem: stáhne si
+     soupisku ligy a na vstupní obrazovce nabídne rozbalovací seznam
+     jmen místo pole na číselné ID. Nikdo pak nemusí lovit svoje entry ID
+     v adrese FPL — vybere se ze seznamu.
+
+     Prázdné `leagueId` vrátí původní chování se dvěma poli.
+     --------------------------------------------------------------- */
+  leagueId: '14044',
   entryId: '',
 
-  // Název, který se zobrazí v hlavičce. Prázdné = vezme se z FPL.
-  leagueName: '',
+  // Název v hlavičce a na vstupu. Prázdné = vezme se z FPL.
+  leagueName: 'O pohár Ládi Stropnického',
+
+  /* Sezóny, které se v lize hrály „oficiálně“, a kdo v nich nastoupil.
+
+     FPL zná jen celkové body každého manažera — netuší, že v prvních
+     třech ročnících byli u toho jen tři lidé. Bez tohohle by se medaile
+     rozdávaly i lidem, kteří tehdy hráli sami za sebe jinde.
+
+     Klíč je název sezóny z API, hodnota seznam jmen nebo entry ID.
+     Sezóna, která tu není, se počítá pro všechny členy ligy. */
+  officialSeasons: {
+    '2020/21': ['Krystof Benka', 'Filip Buddeus', 'Adam Vrzal'],
+    '2021/22': ['Krystof Benka', 'Filip Buddeus', 'Adam Vrzal'],
+    '2022/23': ['Krystof Benka', 'Filip Buddeus', 'Adam Vrzal'],
+  },
 };
 
 const S = {a:['OK','ok'],d:['Pochybný','wn'],i:['Zraněný','al'],
@@ -1736,11 +1796,18 @@ function startCountdown(){
 
   const deadline = new Date(nxt.deadline_time).getTime();
 
+  /* Dva řádky: co, a za jak dlouho. Jedna dlouhá řádka drobným
+     monospacem se v hlavičce nedala přečíst.
+
+     Jednotky taky zkracujeme podle toho, kolik zbývá — pět dní se měří
+     na dny a hodiny, poslední hodina na minuty. Ukazovat „5 d 4 h 54 min“
+     je přesnost, kterou nikdo nevyužije. */
   const tick = () => {
     const left = deadline - Date.now();
     if(left <= 0){
-      el.textContent = 'GW' + nxt.id + ' · deadline prošel';
-      el.className = 'cd late';
+      el.innerHTML = `<span class="lbl">GW${nxt.id}</span>
+        <span class="val">Deadline prošel</span>`;
+      el.className = 'cd live';
       clearInterval(CD_TIMER);
       return;
     }
@@ -1748,9 +1815,14 @@ function startCountdown(){
     const h = Math.floor(left / 3600000) % 24;
     const m = Math.floor(left / 60000) % 60;
 
-    el.textContent = 'GW' + nxt.id + ' za ' + (d ? d + ' d ' : '') + h + ' h ' + m + ' min';
+    const val = d >= 1 ? `${d} d ${h} h`
+              : h >= 1 ? `${h} h ${String(m).padStart(2, '0')} min`
+              : `${m} min`;
+
+    el.innerHTML = `<span class="lbl">Deadline GW${nxt.id}</span>
+      <span class="val">za ${val}</span>`;
     // pod šest hodin je to varování, ne informace
-    el.className = 'cd' + (left < 6 * 3600000 ? ' soon' : '');
+    el.className = 'cd' + (left < 3600000 ? ' late' : left < 6 * 3600000 ? ' soon' : '');
   };
 
   el.hidden = false;
@@ -4165,6 +4237,25 @@ async function loadPlan(){
 const HIST_SEASONS = 6;
 
 /* Poskládá matici sezóna × manažer z `past` jednotlivých členů. */
+/* Kdo v dané sezóně za ligu oficiálně nastoupil.
+
+   FPL zná jen celkové body každého manažera — netuší, že se liga
+   rozrůstala postupně. Bez tohohle by medaile za ročníky, kdy hráli
+   tři lidi, dostávali i ti, kdo tehdy hráli sami za sebe jinde.
+
+   Sezóna, která v CONFIG.officialSeasons není, se počítá pro všechny. */
+function officialIn(season, m){
+  const list = (CONFIG.officialSeasons || {})[season];
+  if(!list) return true;
+  return list.some(x =>
+    String(x) === String(m.entry) || normName(x) === normName(m.player_name));
+}
+
+/* Matice sezóna × manažer plus medaile.
+
+   Medaile se rozdávají jen mezi těmi, kdo v dané sezóně opravdu hráli —
+   kdo tehdy nebyl v lize, do pořadí nevstupuje ani nedostane poslední
+   místo. */
 function buildLeagueHistory(members, pasts){
   const seasons = new Set();
   const rows = [];
@@ -4172,64 +4263,99 @@ function buildLeagueHistory(members, pasts){
   members.forEach((m, i) => {
     const past = (pasts[i] && pasts[i].past) || [];
     const by = {};
-    past.forEach(s => {
-      if(!s || !s.season_name) return;
-      seasons.add(s.season_name);
-      by[s.season_name] = {pts: s.total_points, rank: s.rank};
+    past.forEach(x => {
+      if(!x || !x.season_name) return;
+      seasons.add(x.season_name);
+      by[x.season_name] = {pts: x.total_points, rank: x.rank};
     });
-    rows.push({m, by, seasons: past.length});
+    rows.push({m, by, medals: {1: 0, 2: 0, 3: 0}, played: 0});
   });
 
-  // Poslední sezóny podle názvu — „2024/25“ se řadí správně i textově.
   const cols = [...seasons].sort().slice(-HIST_SEASONS);
 
-  // Pořadí v rámci ligy počítáme pro každou sezónu zvlášť a jen z těch,
-  // kdo v ní vůbec hráli. Kdo tehdy nehrál, nemá dostat poslední místo.
   const order = {};
   cols.forEach(c => {
-    const hrali = rows.filter(r => r.by[c]).sort((a, b) => b.by[c].pts - a.by[c].pts);
+    const hrali = rows
+      .filter(r => r.by[c] && officialIn(c, r.m))
+      .sort((a, b) => b.by[c].pts - a.by[c].pts);
+
     order[c] = new Map(hrali.map((r, i) => [r.m.entry, i + 1]));
+    hrali.forEach((r, i) => { if(i < 3) r.medals[i + 1]++; });
   });
 
+  rows.forEach(r => { r.played = cols.filter(c => r.by[c]).length; });
   return {cols, rows, order};
 }
 
+const MEDAL = {1: '🥇', 2: '🥈', 3: '🥉'};
+
+/* Žebříček trofejí. Řadí se zlatem, pak stříbrem, pak bronzem —
+   jedno první místo je víc než tři druhá. */
+function trophyTable(rows){
+  const score = r => r.medals[1] * 10000 + r.medals[2] * 100 + r.medals[3];
+  const winners = rows.filter(r => score(r) > 0).sort((a, b) => score(b) - score(a));
+  if(!winners.length) return '';
+
+  return `<ol class="trophies">${winners.map((r, i) => `
+    <li${r.m.entry === HIST_ME ? ' class="me"' : ''}>
+      <span class="pos">${i + 1}</span>
+      <span class="nm"><b>${esc(r.m.player_name)}</b></span>
+      <span class="mdl">${[1, 2, 3].map(k => r.medals[k]
+        ? `<span title="${k}. místo">${MEDAL[k]}<u>${r.medals[k]}</u></span>` : ''
+      ).join('')}</span>
+    </li>`).join('')}</ol>`;
+}
+
+let HIST_ME = null;
+
 function renderLeagueHistory(members, pasts, myId){
+  HIST_ME = myId;
   const {cols, rows, order} = buildLeagueHistory(members, pasts);
 
   if(!cols.length)
     return `<p class="note">Nikdo z členů ligy nemá v FPL zaznamenanou
-      předchozí sezónu — buď jste tu všichni noví, nebo hráli pod jiným účtem.</p>`;
+      předchozí sezónu.</p>`;
 
-  // Řadíme podle počtu sezón a pak podle součtu — kdo hraje dýl, je nahoře.
-  const sum = r => cols.reduce((a, c) => a + (r.by[c] ? r.by[c].pts : 0), 0);
-  const played = r => cols.filter(c => r.by[c]).length;
-  const sorted = rows.slice().sort((a, b) => played(b) - played(a) || sum(b) - sum(a));
+  const sorted = rows.slice().sort((a, b) =>
+    (b.medals[1] - a.medals[1]) || (b.played - a.played) ||
+    cols.reduce((x, c) => x + (b.by[c] ? b.by[c].pts : 0), 0) -
+    cols.reduce((x, c) => x + (a.by[c] ? a.by[c].pts : 0), 0));
 
+  /* Buňka nese jen body a medaili. Pořadí a celkový rank šly do title —
+     dřív pod každým číslem stály dva řádky drobného textu a tabulka se
+     kvůli tomu nedala přečíst napříč. */
   const cell = (r, c) => {
     const v = r.by[c];
-    if(!v) return '<td class="n empty" title="tuhle sezónu nehrál">–</td>';
+    if(!v) return '<td class="n empty">·</td>';
     const pos = order[c].get(r.m.entry);
-    return `<td class="n${pos === 1 ? ' first' : ''}">
-      <b>${v.pts}</b><u>${pos}. v lize${
-        v.rank ? ' · ' + v.rank.toLocaleString('cs-CZ') + '. celkově' : ''}</u></td>`;
+    const host = !pos;   // hrál FPL, ale ne za tuhle ligu
+    const tip = `${v.pts} bodů · ${host ? 'mimo ligu'
+      : pos + '. v lize'}${v.rank ? ' · ' + v.rank.toLocaleString('cs-CZ') + '. celkově' : ''}`;
+    return `<td class="n${host ? ' guest' : ''}" title="${esc(tip)}">
+      ${pos && pos <= 3 ? `<i class="m">${MEDAL[pos]}</i>` : ''}${v.pts}</td>`;
   };
 
-  return `<table class="hist">
+  const off = Object.keys(CONFIG.officialSeasons || {});
+
+  return `${trophyTable(rows)}
+    <table class="hist">
       <thead><tr><th>Manažer</th>${cols.map(c =>
-        `<th class="n">${esc(c)}</th>`).join('')}<th class="n">Sezón</th></tr></thead>
+        `<th class="n">${esc(c.replace('20', ''))}</th>`).join('')}</tr></thead>
       <tbody>${sorted.map(r => `<tr${r.m.entry === myId ? ' class="me"' : ''}>
-        <td><b>${esc(r.m.player_name)}</b><span class="sub">${esc(r.m.entry_name)}</span></td>
+        <td><b>${esc(r.m.player_name)}</b></td>
         ${cols.map(c => cell(r, c)).join('')}
-        <td class="n">${played(r)}</td>
       </tr>`).join('')}</tbody>
     </table>
-    <p class="note"><b>Čti to obezřetně.</b> FPL neposílá pořadí miniligy
-      za minulé sezóny — vrací jen celkové body každého manažera. Tahle
-      tabulka je proto dopočítaná z lidí, kteří jsou v lize <b>dneska</b>:
-      kdo mezitím odešel, chybí, a pořadí není to, jak liga tehdy skutečně
-      dopadla. Celkové pořadí v závorce je pořadí mezi všemi hráči FPL
-      na světě, to je z API přímo.</p>`;
+    <p class="note">Čísla jsou celkové body za sezónu; najetím myší uvidíš
+      pořadí. Medaile se počítají jen mezi těmi, kdo v dané sezóně za ligu
+      nastoupili${off.length
+        ? ` — v ročnících ${esc(off.join(', '))} to byli jen ${
+            esc((CONFIG.officialSeasons[off[0]] || []).join(', '))}`
+        : ''}. Šedé číslo znamená, že člověk tu sezónu hrál FPL, ale mimo
+      tuhle ligu. Tečka, že nehrál vůbec.</p>
+    <p class="note">FPL neposílá pořadí miniligy za minulé sezóny, jen celkové
+      body každého manažera — tabulka je proto dopočtená z lidí, kteří jsou
+      v lize dneska.</p>`;
 }
 
 async function loadLeagueHistory(members, myId){
@@ -5332,6 +5458,11 @@ function enterApp(entryId, leagueId){
   $('landing').hidden = true;
   $('app').hidden = false;
   $('whoName').textContent = '#' + entryId;
+  // V režimu jedné ligy má smysl mít v hlavičce její název, ne obecný nadpis.
+  if(CONFIG.leagueName){
+    const bt = $('brandTop');
+    if(bt) bt.textContent = CONFIG.leagueName.toUpperCase();
+  }
 
   // ligové záložky nedávají smysl bez ID ligy
   const hasLeague = Boolean(leagueId);
@@ -5345,9 +5476,84 @@ function enterApp(entryId, leagueId){
   window.scrollTo(0, 0);
 }
 
+/* ------------------------------------------------------------------
+   Vstupní obrazovka ve dvou režimech.
+
+   S vyplněným CONFIG.leagueId si stáhneme soupisku a nabídneme seznam
+   jmen — nikdo pak nemusí hledat svoje entry ID v adrese FPL. Ruční
+   zadání zůstává schované pod odkazem, protože do ligy může někdo
+   přibýt dřív, než se soupiska přenačte.
+
+   Bez leagueId se chová appka jako dřív, se dvěma poli.
+   ------------------------------------------------------------------ */
+let GATE_MEMBERS = null;
+let MANUAL_MODE = !CONFIG.leagueId;
+
+function setGateMode(manual){
+  MANUAL_MODE = manual;
+  $('manualFields').hidden = !manual;
+  $('pickField').hidden = manual || !CONFIG.leagueId;
+  const t = $('manualToggle');
+  if(t) t.textContent = manual && CONFIG.leagueId
+    ? '← Zpět na seznam členů ligy'
+    : 'Nejsem na seznamu — zadám ID ručně';
+}
+
+async function bootstrapGate(){
+  if(CONFIG.leagueName) $('gateTitle').textContent = CONFIG.leagueName;
+
+  if(!CONFIG.leagueId){ setGateMode(true); return; }
+
+  setGateMode(false);
+  $('manualToggle').hidden = false;
+
+  try{
+    const st = await api('leagues-classic/' + CONFIG.leagueId + '/standings/');
+    GATE_MEMBERS = (st.standings && st.standings.results) || [];
+    if(!CONFIG.leagueName && st.league) $('gateTitle').textContent = st.league.name;
+
+    if(!GATE_MEMBERS.length){
+      $('whoami').innerHTML = '<option value="">Liga je zatím prázdná</option>';
+      setGateMode(true);
+      return;
+    }
+
+    const last = localStorage.getItem(ENTRY_KEY);
+    $('whoami').innerHTML = '<option value="">Vyber se ze seznamu…</option>'
+      + GATE_MEMBERS.map(m => `<option value="${m.entry}"${
+          String(m.entry) === String(last) ? ' selected' : ''
+        }>${esc(m.player_name)} — ${esc(m.entry_name)}</option>`).join('');
+
+    $('gateSub').textContent =
+      `${GATE_MEMBERS.length} manažerů. Vyber se a uvidíš svůj kádr, ligu i přestupy.`;
+  }catch(e){
+    // Když se soupiska nenačte, není důvod nikoho blokovat — jen přepneme
+    // na ruční zadání a řekneme proč.
+    $('gatemsg').textContent = 'Soupisku ligy se nepodařilo načíst: ' + e.message;
+    setGateMode(true);
+  }
+}
+
+$('manualToggle').addEventListener('click', () => {
+  $('gatemsg').textContent = '';
+  setGateMode(!MANUAL_MODE);
+});
+
 $('enter').addEventListener('click', () => {
+  if(!MANUAL_MODE){
+    const v = $('whoami').value;
+    if(!v){
+      $('gatemsg').textContent = 'Vyber se ze seznamu.';
+      $('whoami').focus();
+      return;
+    }
+    $('gatemsg').textContent = '';
+    enterApp(v, CONFIG.leagueId);
+    return;
+  }
+
   const e = $('eid').value.trim();
-  const l = $('lid').value.trim();
+  const l = $('lid').value.trim() || CONFIG.leagueId;
   if(!/^\d+$/.test(e)){
     $('gatemsg').textContent = 'ID týmu musí být číslo.';
     $('eid').focus();
@@ -5361,6 +5567,7 @@ $('enter').addEventListener('click', () => {
   $('gatemsg').textContent = '';
   enterApp(e, l);
 });
+
 
 ['eid','lid'].forEach(id => {
   $(id).addEventListener('input', () => { $('gatemsg').textContent = ''; });
@@ -5394,6 +5601,7 @@ $('lid').value = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY) || '';
 
 // když je všechno vyplněné v CONFIG, přeskoč vstupní obrazovku
 if(CONFIG.entryId) enterApp(CONFIG.entryId, CONFIG.leagueId);
+else bootstrapGate();
 
 /* Service worker drží skořápku appky offline. Data se nikdy necachují —
    zastaralé pořadí ligy je horší než chybová hláška. */

@@ -1267,13 +1267,17 @@ check('normName přežil odstranění staré záložky', () => {
 
 /* ================= vstupní obrazovka ================= */
 
-check('nadpis na vstupu není bílý na bílém', () => {
+check('vstupní obrazovka má tmavé pozadí pod světlý text', () => {
   const css = fs.readFileSync('index.html', 'utf8');
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
-  // Bílý text je v pořádku jen proto, že landing má tmavé pozadí.
-  if(!/#landing\{[^}]*background:var\(--aubergine\)/.test(style))
-    throw new Error('landing nemá tmavé pozadí, bílý nadpis by zmizel');
-  return 'tmavé pozadí + bílý nadpis';
+  const blok = style.slice(style.indexOf('#landing{'),
+                           style.indexOf('}', style.indexOf('#landing{')));
+  // Bílý text v kartě dává smysl jen na tmavém podkladu.
+  if(!/var\(--night/.test(blok))
+    throw new Error('landing nestojí na půlnočních tokenech');
+  if(!/--night:#0B0B24/.test(style)) throw new Error('chybí token --night');
+  if(!/--gold:#CC9C48/.test(style)) throw new Error('chybí token --gold');
+  return 'půlnoční modř + zlato';
 });
 
 check('formulář je vedle nadpisu, ne pod ním', () => {
@@ -1502,12 +1506,13 @@ check('s načtenou miniligou se počítá i ligové vlastnictví', () => {
 
 /* ================= historie miniligy ================= */
 
+// Sezony mimo CONFIG.officialSeasons, at fixture netestuje dve veci naraz.
 const pastFixture = [
-  {past: [{season_name: '2021/22', total_points: 2100, rank: 500000},
-          {season_name: '2022/23', total_points: 2300, rank: 200000},
-          {season_name: '2023/24', total_points: 2500, rank: 90000}]},
-  {past: [{season_name: '2022/23', total_points: 2400, rank: 150000},
-          {season_name: '2023/24', total_points: 2200, rank: 400000}]},
+  {past: [{season_name: '2023/24', total_points: 2100, rank: 500000},
+          {season_name: '2024/25', total_points: 2300, rank: 200000},
+          {season_name: '2025/26', total_points: 2500, rank: 90000}]},
+  {past: [{season_name: '2024/25', total_points: 2400, rank: 150000},
+          {season_name: '2025/26', total_points: 2200, rank: 400000}]},
   {past: []},
 ];
 const histMembers = [
@@ -1518,7 +1523,7 @@ const histMembers = [
 
 check('historie poskládá sezóny ze všech členů', () => {
   const h = w.eval('buildLeagueHistory')(histMembers, pastFixture);
-  if(h.cols.join(',') !== '2021/22,2022/23,2023/24')
+  if(h.cols.join(',') !== '2023/24,2024/25,2025/26')
     throw new Error('sloupce: ' + h.cols);
   return h.cols.length + ' sezón';
 });
@@ -1534,20 +1539,89 @@ check('historie drží nejvýš šest sezón', () => {
 
 check('kdo sezónu nehrál, nedostane poslední místo', () => {
   const h = w.eval('buildLeagueHistory')(histMembers, pastFixture);
-  // 2021/22 hrál jen Adam → je první a nikdo jiný v pořadí není
-  if(h.order['2021/22'].size !== 1) throw new Error('do pořadí se dostal někdo, kdo nehrál');
-  if(h.order['2021/22'].get(1) !== 1) throw new Error('Adam není první');
-  // 2022/23 hráli dva, Bob má víc bodů → je první
-  if(h.order['2022/23'].get(2) !== 1) throw new Error('Bob měl vyhrát 2022/23');
-  if(h.order['2022/23'].get(1) !== 2) throw new Error('Adam měl být druhý');
+  // 2023/24 hrál jen Adam → je první a nikdo jiný v pořadí není
+  if(h.order['2023/24'].size !== 1) throw new Error('do pořadí se dostal někdo, kdo nehrál');
+  if(h.order['2023/24'].get(1) !== 1) throw new Error('Adam není první');
+  // 2024/25 hráli dva, Bob má víc bodů → je první
+  if(h.order['2024/25'].get(2) !== 1) throw new Error('Bob měl vyhrát 2024/25');
+  if(h.order['2024/25'].get(1) !== 2) throw new Error('Adam měl být druhý');
   return 'pořadí jen z těch, kdo hráli';
 });
 
-check('nehraná sezóna se ukáže pomlčkou, ne nulou', () => {
+/* ================= oficiální sezóny a trofeje ================= */
+
+check('medaile dostanou jen ti, kdo za ligu tehdy nastoupili', () => {
+  // 2021/22 je v CONFIG omezená na tři jména; Adam ani Bob mezi ně nepatří
+  const rane = [
+    {past: [{season_name: '2021/22', total_points: 2400, rank: 100}]},
+    {past: [{season_name: '2021/22', total_points: 2300, rank: 200}]},
+    {past: [{season_name: '2021/22', total_points: 1000, rank: 900}]},
+  ];
+  const h = w.eval('buildLeagueHistory')(histMembers, rane);
+  if(h.order['2021/22'].size !== 0)
+    throw new Error('rozdal medaile lidem mimo ligu: ' + h.order['2021/22'].size);
+  if(h.rows.some(r => r.medals[1])) throw new Error('někdo dostal zlato');
+  return 'nikdo neoprávněně';
+});
+
+check('oficiální člen medaili v rané sezóně dostane', () => {
+  const clenove = [
+    {entry: 11, player_name: 'Krystof Benka', entry_name: 'Prague Patriots'},
+    {entry: 12, player_name: 'Filip Buddeus', entry_name: 'Debils'},
+    {entry: 13, player_name: 'Cizinec', entry_name: 'X'},
+  ];
+  const data = [
+    {past: [{season_name: '2021/22', total_points: 2430, rank: 234483}]},
+    {past: [{season_name: '2021/22', total_points: 2100, rank: 999999}]},
+    {past: [{season_name: '2021/22', total_points: 2900, rank: 10}]},   // mimo ligu
+  ];
+  const h = w.eval('buildLeagueHistory')(clenove, data);
+  const benka = h.rows.find(r => r.m.entry === 11);
+  const cizi = h.rows.find(r => r.m.entry === 13);
+  if(benka.medals[1] !== 1)
+    throw new Error('Benka nedostal zlato, i když měl nejvíc z oficiálních');
+  if(cizi.medals[1] || cizi.medals[2] || cizi.medals[3])
+    throw new Error('cizinec s nejvyššími body dostal medaili');
+  return 'Benka zlato, cizinec nic';
+});
+
+check('jméno se páruje bez ohledu na diakritiku', () => {
+  const f = w.eval('officialIn');
+  if(!f('2021/22', {entry: 1, player_name: 'Kryštof Benka'}))
+    throw new Error('nespároval Kryštof/Krystof');
+  if(f('2021/22', {entry: 1, player_name: 'Někdo Jiný'}))
+    throw new Error('pustil cizí jméno');
+  if(!f('2026/27', {entry: 1, player_name: 'Kdokoli'}))
+    throw new Error('neomezená sezóna má pustit všechny');
+  return 'diakritika i neomezené sezóny';
+});
+
+check('žebříček trofejí řadí zlatem před stříbrem', () => {
+  const rows = [
+    {m: {entry: 1, player_name: 'Jedno zlato'}, medals: {1: 1, 2: 0, 3: 0}},
+    {m: {entry: 2, player_name: 'Tři stříbra'}, medals: {1: 0, 2: 3, 3: 0}},
+    {m: {entry: 3, player_name: 'Nic'}, medals: {1: 0, 2: 0, 3: 0}},
+  ];
+  const html = w.eval('trophyTable')(rows);
+  if(html.indexOf('Jedno zlato') > html.indexOf('Tři stříbra'))
+    throw new Error('tři stříbra přeskočila zlato');
+  if(html.includes('Nic')) throw new Error('vypsal někoho bez medaile');
+  return 'zlato > stříbro';
+});
+
+check('historie neukazuje dva řádky drobného textu v každé buňce', () => {
+  const html = w.eval('renderLeagueHistory')(histMembers, pastFixture, 1);
+  if(html.includes('celkově</u>'))
+    throw new Error('pořadí je pořád vypsané v buňce místo v title');
+  if(!html.includes('title=')) throw new Error('detail se nikam neschoval');
+  return 'detail v title';
+});
+
+check('nehraná sezóna se ukáže tečkou, ne nulou', () => {
   const html = w.eval('renderLeagueHistory')(histMembers, pastFixture, 1);
   if(!html.includes('empty')) throw new Error('chybí prázdná buňka');
-  if(/>0<\/b>/.test(html)) throw new Error('vyrobil nulu tam, kde chybí data');
-  return 'pomlčka';
+  if(/class="n">0</.test(html)) throw new Error('vyrobil nulu tam, kde chybí data');
+  return 'tečka';
 });
 
 check('historie přizná, že pořadí miniligy z API není', () => {
@@ -1585,6 +1659,63 @@ check('plánovač vysvětlí, odkud se zisk bere', () => {
   if(!html.includes('můj odhad, ne oficiální číslo FPL'))
     throw new Error('nerozlišuje vlastní model od projekce FPL');
   return 'vysvětleno';
+});
+
+/* ================= režim jedné miniligy ================= */
+
+check('vstup nabídne seznam členů místo pole na ID', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  if(!html.includes('id="whoami"')) throw new Error('chybí rozbalovací seznam');
+  if(!html.includes('id="manualToggle"')) throw new Error('chybí únikový odkaz na ruční zadání');
+  if(!/leagueId:\s*'\d+'/.test(html)) throw new Error('CONFIG.leagueId není předvyplněné');
+  return 'seznam + záloha';
+});
+
+check('ruční zadání jde pořád otevřít', () => {
+  const d = w.document;
+  w.eval('setGateMode(true)');
+  if(d.getElementById('manualFields').hidden) throw new Error('ruční pole zůstala schovaná');
+  if(!d.getElementById('pickField').hidden) throw new Error('seznam se neschoval');
+  w.eval('setGateMode(false)');
+  if(!d.getElementById('manualFields').hidden) throw new Error('nevrátilo se to zpět');
+  return 'přepíná se';
+});
+
+check('odpočet je dvouřádkový a ne drobný monospace', () => {
+  w.eval('startCountdown')();
+  const el = w.document.getElementById('countdown');
+  if(!el.querySelector('.lbl') || !el.querySelector('.val'))
+    throw new Error('chybí popisek nebo hodnota');
+  const css = fs.readFileSync('index.html', 'utf8');
+  if(!/\.cd \.val\{[^}]*font-size:16px/.test(css))
+    throw new Error('hodnota není dost velká');
+  return el.querySelector('.val').textContent.trim();
+});
+
+check('odpočet zkracuje jednotky podle zbývajícího času', () => {
+  const el = w.document.getElementById('countdown');
+  w.eval('startCountdown')();
+  const txt = el.textContent;
+  // fixture má deadline za ~3 h, takže hodiny a minuty, ne dny
+  if(/\d+ d /.test(txt)) throw new Error('ukazuje dny, i když zbývají hodiny: ' + txt);
+  if(!/h \d\d min/.test(txt)) throw new Error('čekal hodiny a minuty: ' + txt);
+  return txt.replace(/\s+/g, ' ').trim();
+});
+
+check('logo v hlavičce je obrázek, ne inline SVG', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const i = html.indexOf('class="brand"');
+  const blok = html.slice(i, i + 320);
+  if(!blok.includes('/assets/logo-transp.webp')) throw new Error('logo se nepoužívá');
+  if(blok.includes('<svg')) throw new Error('zůstalo inline SVG');
+  return 'logo-transp.webp';
+});
+
+check('vstupní obrazovka používá plakát', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  if(!html.includes('/assets/headline.webp')) throw new Error('plakát chybí');
+  if(!/class="poster"/.test(html)) throw new Error('plakát nemá vlastní styl');
+  return 'headline.webp';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
