@@ -889,6 +889,15 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
   padding-bottom:9px}
 .cmpout{background:var(--haze);border-radius:var(--r-card);padding:18px 20px}
 .cmpout .note:only-child{margin:0}
+
+/* ---------- oprava počtu volných přestupů ---------- */
+.ftbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:11px 16px;margin:0 0 14px;background:var(--haze);
+  border-radius:var(--r-card);font-family:var(--f-mono);
+  font-size:12px;color:var(--mute)}
+.ftbar label{display:inline-flex;align-items:center;gap:8px}
+.ftbar .pin{width:56px}
+.ftbar .fthint{flex:1 1 240px;font-family:var(--f);font-size:12px}
 </style>
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
@@ -4611,12 +4620,54 @@ function saveMoves(m){
    FPL od letoška kumuluje víc než jeden: nevyužitý se přenese,
    strop je 1 + max_extra_free_transfers. Přesné číslo posílá
    picks.entry_history, tak ho bereme odtud a nedopočítáváme. */
-function freeTransfersNow(){
-  const cap = 1 + ((BOOT.game_settings && BOOT.game_settings.max_extra_free_transfers) || 0);
-  const eh = (TR_STATE && TR_STATE.picks && TR_STATE.picks.entry_history) || {};
-  const v = eh.event_transfers !== undefined && Number.isFinite(eh.free_transfers)
-    ? eh.free_transfers : 1;
-  return Math.max(0, Math.min(cap, Number.isFinite(v) ? v : 1));
+function ftCap(){
+  return 1 + ((BOOT.game_settings && BOOT.game_settings.max_extra_free_transfers) || 0);
+}
+
+/* Kolik volných přestupů mám k dispozici pro dané kolo.
+
+   FPL tohle číslo veřejně neposílá — v `picks.entry_history` prostě není.
+   Dřív se proto natvrdo předpokládala jednička, což u kohokoli, kdo si
+   přestup nechal přenést, sedělo jen náhodou.
+
+   Dá se ale dopočítat z historie přestupů, kterou už stahujeme kvůli
+   nákupním cenám:
+     · před prvním deadlinem jsou přestupy neomezené a nic nespotřebují,
+     · od GW2 začínáš s jedním,
+     · každé další kolo: nevyužitý zbytek + 1, strop 1 + max_extra_free_transfers,
+     · po wildcardu nebo free hitu máš příští kolo zase jeden.
+
+   Poslední pravidlo si ověř — pokud by ho FPL změnilo, projeví se to jen
+   u lidí, kteří čip letos použili, a přepsat se to dá ručně. */
+function deriveFreeTransfers(transfers, chips, targetGw){
+  const cap = ftCap();
+
+  const usedIn = {};
+  for(const t of (transfers || [])){
+    const ev = Number(t.event);
+    if(Number.isFinite(ev)) usedIn[ev] = (usedIn[ev] || 0) + 1;
+  }
+
+  const resetAfter = new Set((chips || [])
+    .filter(c => c.name === 'wildcard' || c.name === 'freehit')
+    .map(c => Number(c.event)));
+
+  let free = 1;                                   // stav pro GW2
+  for(let gw = 2; gw < targetGw; gw++){
+    free = resetAfter.has(gw)
+      ? 1
+      : Math.min(cap, Math.max(0, free - (usedIn[gw] || 0)) + 1);
+  }
+  return Math.max(0, Math.min(cap, free));
+}
+
+/* Ruční přepis, kdyby dopočet nesouhlasil s tím, co ukazuje FPL.
+   Stejný princip jako u prodejních cen: spočítat, ukázat zdroj, nechat opravit. */
+const FT_KEY = () => 'fpl_ft:' + (ENTRY_ID || '0');
+
+function ftOverride(){
+  const v = parseInt(localStorage.getItem(FT_KEY()), 10);
+  return Number.isFinite(v) && v >= 0 && v <= ftCap() ? v : null;
 }
 
 /* Průchod plánem kolo po kole.
@@ -4664,12 +4715,29 @@ function simulatePlan(moves){
     const used = mine.length;
     const paid = Math.max(0, used - free);
     hits += paid;
-    free = Math.min(cap, Math.max(0, free - used) + 1);   // za každé kolo jeden zpět
 
-    rows.push({gw, detail, bank: bank / 10, free, paid, err: gwErr});
+    /* `free` na začátku iterace je počet PRO tohle kolo — to je číslo,
+       které uživatele zajímá. Dřív se do řádku ukládala až hodnota po
+       navýšení, takže karta GW2 hlásila počet platný pro GW3 a celý
+       sloupec byl posunutý o kolo. Hity se počítaly správně, chyboval
+       jen výpis. */
+    const freeBefore = free;
+    free = Math.min(cap, Math.max(0, free - used) + 1);   // příští kolo jeden zpět
+
+    rows.push({gw, detail, bank: bank / 10,
+               free: freeBefore, freeNext: free, paid, err: gwErr});
   }
 
   return {rows, bank: bank / 10, hits, gain, net: gain - hits * 4};
+}
+
+/* Čeština má tři tvary: 1 volný přestup, 2–4 volné přestupy, 0 a 5+
+   volných přestupů. „2 volných“ je drobnost, ale čte se to jako chyba. */
+function ftLabel(n){
+  const word = n === 1 ? 'volný přestup'
+             : (n >= 2 && n <= 4) ? 'volné přestupy'
+             : 'volných přestupů';
+  return `<b>${n}</b> ${word}`;
 }
 
 function renderPlanner(){
@@ -4704,7 +4772,7 @@ function renderPlanner(){
         <h4>GW${r.gw}</h4>
         <span class="ft${r.bank < 0 ? ' neg' : ''}">
           <b>${r.bank.toFixed(1)}m</b> v bance</span>
-        <span class="ft"><b>${r.free}</b> volných po kole</span>
+        <span class="ft${r.free ? '' : ' neg'}">${ftLabel(r.free)}</span>
         ${r.paid ? `<span class="ft neg"><b>−${r.paid * 4}</b> bodů za hit</span>` : ''}
         <button class="small ghost" type="button" data-open="${r.gw}"
           aria-expanded="false">Přidat přestup</button>
@@ -4743,6 +4811,18 @@ function renderPlanner(){
         <div class="v">${sim.gain >= 0 ? '+' : ''}${sim.gain.toFixed(1)}</div></div>
       <div><div class="k">Čistě</div>
         <div class="v ${sim.net >= 0 ? 'pos' : 'neg'}">${sim.net >= 0 ? '+' : ''}${sim.net.toFixed(1)}</div></div>
+    </div>
+    <div class="ftbar">
+      <label>Volné přestupy do GW${PLANNER.startGw}
+        <input class="pin" id="ftin" type="number" min="0" max="${ftCap()}"
+               step="1" value="${PLANNER.free}">
+      </label>
+      ${PLANNER.manual
+        ? `<span class="edited">upraveno ručně</span>
+           <button class="lnk" id="ftreset">vrátit dopočet (${PLANNER.derived})</button>`
+        : '<span class="est">dopočteno z historie přestupů</span>'}
+      <span class="fthint">Nesouhlasí s tím, co ukazuje FPL? Přepiš to —
+        celý plán se přepočítá.</span>
     </div>
     ${sim.net < 0 && moves.length
       ? '<p class="note warnbox">Takhle plán <b>body ztrácí</b>. Buď některý tah '
@@ -4852,6 +4932,28 @@ function renderPlanner(){
     });
   });
 
+  $('ftin').addEventListener('change', () => {
+    const v = parseInt($('ftin').value, 10);
+    if(Number.isFinite(v) && v >= 0 && v <= ftCap()){
+      localStorage.setItem(FT_KEY(), String(v));
+      PLANNER.free = v;
+      PLANNER.manual = true;
+    }else{
+      localStorage.removeItem(FT_KEY());
+      PLANNER.free = PLANNER.derived;
+      PLANNER.manual = false;
+    }
+    renderPlanner();
+  });
+
+  const ftr = $('ftreset');
+  if(ftr) ftr.addEventListener('click', () => {
+    localStorage.removeItem(FT_KEY());
+    PLANNER.free = PLANNER.derived;
+    PLANNER.manual = false;
+    renderPlanner();
+  });
+
   $('plnclear').addEventListener('click', () => { saveMoves([]); renderPlanner(); });
 }
 
@@ -4864,11 +4966,22 @@ async function loadPlanner(){
     if(!TR_STATE) await analyzeTransfers();
     if(!TR_STATE){ $('plnmsg').textContent = 'Nejdřív si nech načíst sestavu.'; return; }
 
+    /* Historii přestupů máme z analyzeTransfers, čipy dotáhneme sem —
+       jeden dotaz navíc a je z něj poznat, kdy se počítadlo resetovalo. */
+    let transfers = [], chips = [];
+    try{ transfers = await cached('entry/' + ENTRY_ID + '/transfers/'); }catch(e){}
+    try{ chips = (await cached('entry/' + ENTRY_ID + '/history/')).chips || []; }catch(e){}
+
+    const derived = deriveFreeTransfers(transfers, chips, TR_STATE.startGw);
+    const manual = ftOverride();
+
     PLANNER = {
       startGw: TR_STATE.startGw,
       squad: TR_STATE.squad,
       bank: bankValue(),
-      free: freeTransfersNow(),
+      free: manual === null ? derived : manual,
+      derived,
+      manual: manual !== null,
     };
     $('plnmsg').textContent = '';
     renderPlanner();

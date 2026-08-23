@@ -832,16 +832,116 @@ check('rozložení tahů do dvou kol hit ušetří', () => {
   return 'bez hitu';
 });
 
-check('volné přestupy se kumulují ke stropu', () => {
+/* Řádek ukazuje počet PRO dané kolo, ne po něm. Dřív se ukládala až
+   hodnota po navýšení, takže karta prvního kola hlásila číslo platné
+   pro to druhé — přesně to, čeho si všiml uživatel s jedním volným
+   přestupem, kterému appka nabízela dva. */
+check('řádek ukazuje volné přestupy pro dané kolo, ne pro příští', () => {
+  const squad = [1, 2, 3].map(i => ({p: bootstrap.elements[i]}));
+  w.__pl = {startGw: 11, squad, bank: 2.0, free: 1};
+  w.eval('PLANNER = window.__pl;');
+  const r = w.eval('simulatePlan')([]);
+  if(r.rows[0].free !== 1)
+    throw new Error('první kolo hlásí ' + r.rows[0].free + ', čekal 1');
+  if(r.rows[0].freeNext !== 2)
+    throw new Error('příští kolo má být 2, je ' + r.rows[0].freeNext);
+  return r.rows.map(x => x.free).join(' → ');
+});
+
+check('volné přestupy se kumulují a nepřerostou strop', () => {
   const squad = [1, 2, 3].map(i => ({p: bootstrap.elements[i]}));
   w.__pl = {startGw: 11, squad, bank: 2.0, free: 1};
   w.eval('PLANNER = window.__pl;');
   const r = w.eval('simulatePlan')([]);
   const cap = 1 + bootstrap.game_settings.max_extra_free_transfers;
   const rada = r.rows.map(x => x.free);
-  if(rada[0] !== 2) throw new Error('po prvním kole bez tahu: ' + rada[0]);
-  if(rada.some(v => v > cap)) throw new Error('přerostlo strop ' + cap + ': ' + rada);
+  if(rada.join(',') !== '1,2,3,4') throw new Error('řada: ' + rada);
+  if(rada.some(v => v > cap)) throw new Error('přerostlo strop ' + cap);
   return rada.join(' → ') + ' (strop ' + cap + ')';
+});
+
+check('při jednom volném přestupu je druhý tah hit', () => {
+  const squad = [1, 2, 3, 4].map(i => ({p: bootstrap.elements[i]}));
+  w.__pl = {startGw: 11, squad, bank: 30, free: 1};
+  w.eval('PLANNER = window.__pl;');
+  const r = w.eval('simulatePlan')([
+    {gw: 11, out: squad[0].p.id, in: bootstrap.elements[90].id},
+    {gw: 11, out: squad[1].p.id, in: bootstrap.elements[91].id}]);
+  if(r.rows[0].paid !== 1) throw new Error('placených tahů: ' + r.rows[0].paid);
+  if(r.hits !== 1) throw new Error('hitů: ' + r.hits);
+  return '−4 body';
+});
+
+/* ================= dopočet volných přestupů ================= */
+
+check('bez odehraných přestupů má člověk jeden volný', () => {
+  if(w.eval('deriveFreeTransfers')([], [], 2) !== 1) throw new Error('nesedí GW2');
+  return '1';
+});
+
+check('nevyužité přestupy se kumulují', () => {
+  const f = w.eval('deriveFreeTransfers');
+  // nic neuděláno v GW2 ani GW3 → do GW4 jdou tři
+  if(f([], [], 4) !== 3) throw new Error('GW4 → ' + f([], [], 4));
+  return 'GW4 → 3';
+});
+
+check('spotřebovaný přestup se z počítadla odečte', () => {
+  const f = w.eval('deriveFreeTransfers');
+  // v GW2 jeden přestup → do GW3 jde zase jen jeden
+  if(f([{event: 2}], [], 3) !== 1) throw new Error('GW3 → ' + f([{event: 2}], [], 3));
+  // dva přestupy v GW2 (jeden za hit) → zbytek 0, do GW3 jeden
+  if(f([{event: 2}, {event: 2}], [], 3) !== 1) throw new Error('hit špatně');
+  return 'odečteno';
+});
+
+check('dopočet nepřeroste strop ani po dlouhé pauze', () => {
+  const cap = 1 + bootstrap.game_settings.max_extra_free_transfers;
+  const v = w.eval('deriveFreeTransfers')([], [], 30);
+  if(v !== cap) throw new Error(v + ' místo stropu ' + cap);
+  return 'strop ' + cap;
+});
+
+check('wildcard resetuje počítadlo na jeden', () => {
+  const f = w.eval('deriveFreeTransfers');
+  // bez čipu jdou do GW5 tři (GW2→1, GW3→2, GW4→3, GW5→4)
+  if(f([], [], 5) !== 4) throw new Error('kontrola bez čipu: ' + f([], [], 5));
+  if(f([], [{name: 'wildcard', event: 4}], 5) !== 1)
+    throw new Error('po wildcardu: ' + f([], [{name: 'wildcard', event: 4}], 5));
+  if(f([], [{name: 'freehit', event: 4}], 5) !== 1) throw new Error('po free hitu');
+  // ostatní čipy počítadlo nemažou
+  if(f([], [{name: 'bboost', event: 4}], 5) !== 4) throw new Error('bench boost resetoval');
+  return '4 → 1';
+});
+
+check('přestupy z prvního kola se nepočítají', () => {
+  const f = w.eval('deriveFreeTransfers');
+  // před prvním deadlinem jsou přestupy neomezené
+  if(f([{event: 1}, {event: 1}, {event: 1}], [], 2) !== 1)
+    throw new Error('GW1 přestupy ubraly volné');
+  return 'ignorováno';
+});
+
+check('počet volných přestupů jde přepsat ručně', () => {
+  w.localStorage.clear();
+  w.eval('ENTRY_ID = 60480;');
+  if(w.eval('ftOverride()') !== null) throw new Error('bez zápisu vrací hodnotu');
+  w.localStorage.setItem('fpl_ft:60480', '3');
+  if(w.eval('ftOverride()') !== 3) throw new Error('nepřečetl přepis');
+  // nesmysly mimo rozsah se ignorují, ať se plán nerozbije
+  w.localStorage.setItem('fpl_ft:60480', '99');
+  if(w.eval('ftOverride()') !== null) throw new Error('vzal hodnotu nad strop');
+  w.localStorage.clear();
+  return 'přepis i kontrola rozsahu';
+});
+
+check('český tvar podle počtu', () => {
+  const f = w.eval('ftLabel');
+  if(!f(1).includes('volný přestup')) throw new Error(f(1));
+  if(!f(3).includes('volné přestupy')) throw new Error(f(3));
+  if(!f(5).includes('volných přestupů')) throw new Error(f(5));
+  if(!f(0).includes('volných přestupů')) throw new Error(f(0));
+  return '1 / 2–4 / 5+';
 });
 
 check('plánovač pozná, že rozpočet nevychází', () => {
