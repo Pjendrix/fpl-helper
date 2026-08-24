@@ -2068,6 +2068,274 @@ check('čísla souhrnu drží kontrast na tmavém hřišti', () => {
   return 'mátová + stín';
 });
 
+/* ================= zdraví kádru: disjunktní sloupce ================= */
+
+check('nehrající hráč se nepočítá i pod otazník', () => {
+  // Sloupce dřív sdílely jednu množinu: „Pod otazníkem“ byla nadmnožina
+  // „Nehraje“, takže zraněný hráč zvýšil obě čísla naráz. Kontrolujeme
+  // přímo zdroj — buildHealth potřebuje načtený HUB, který v testu není.
+  const src = fs.readFileSync('index.html', 'utf8');
+  const fn = src.slice(src.indexOf('function buildHealth()'),
+                       src.indexOf('function buildHealth()') + 2200);
+
+  if(/const flagged = squad\.filter/.test(fn))
+    throw new Error('flagged se pořád počítá nezávisle na out');
+  if(!/!isOut\(p\)/.test(fn))
+    throw new Error('otazníky nevylučují nedostupné hráče');
+  if(!/const doubt =/.test(fn))
+    throw new Error('chybí samostatná množina otazníků');
+  if(!/r\.doubt\.length/.test(src.slice(src.indexOf('function buildHealth()'),
+                                        src.indexOf('function buildHealth()') + 4000)))
+    throw new Error('sloupec pořád vypisuje flagged místo doubt');
+  return 'out a doubt jsou disjunktní';
+});
+
+check('zdravý hráč s null šancí není pod otazníkem', () => {
+  // `null < 100` je v JS true — bez explicitní kontroly by do otazníků
+  // spadl celý kádr.
+  const isOut = p => p.status === 'i' || p.status === 's' || p.status === 'u'
+    || p.status === 'n' || p.chance_of_playing_next_round === 0;
+  const doubt = p => !isOut(p) && (p.status !== 'a' ||
+    (p.chance_of_playing_next_round !== null && p.chance_of_playing_next_round < 100));
+  const zdravy = {status: 'a', chance_of_playing_next_round: null};
+  if(doubt(zdravy)) throw new Error('zdravý hráč označený jako nejistý');
+  if(!doubt({status: 'a', chance_of_playing_next_round: 75}))
+    throw new Error('75 % není otazník');
+  if(doubt({status: 'a', chance_of_playing_next_round: 0}))
+    throw new Error('nula patří mezi nehrající, ne mezi otazníky');
+  return 'null zdravý, 75 nejistý, 0 nehraje';
+});
+
+/* ================= redesign žebříčků ================= */
+
+check('první řádek jsou body podle čtyř pozic', () => {
+  const rows = w.eval('TOP_POINTS');
+  if(rows.length !== 4) throw new Error('boxů: ' + rows.length);
+  const pozice = rows.map(x => x[4] && x[4][0]).sort();
+  if(pozice.join(',') !== '1,2,3,4') throw new Error('pozice: ' + pozice.join(','));
+  if(rows.some(x => x[0] !== 'total_points')) throw new Error('neřadí se podle bodů');
+  return 'GK, DEF, MID, FWD';
+});
+
+check('žebříček pozice obsahuje jen tu pozici', () => {
+  const mid = w.eval('TOP_POINTS').find(x => x[4][0] === 3);
+  const html = w.eval('topBoard')(mid);
+  const ids = [...html.matchAll(/data-pid="(\d+)"/g)].map(m => Number(m[1]));
+  if(!ids.length) throw new Error('prázdný žebříček');
+  const els = Object.fromEntries(bootstrap.elements.map(p => [p.id, p]));
+  const cizi = ids.filter(id => els[id].element_type !== 3);
+  if(cizi.length) throw new Error(cizi.length + ' nezáložníků mezi záložníky');
+  return ids.length + ' záložníků';
+});
+
+check('mřížka žebříčků má čtyři sloupce', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  const blok = style.slice(style.indexOf('.tgrid{'), style.indexOf('}', style.indexOf('.tgrid{')));
+  if(!/repeat\(4,\s*minmax\(0,\s*1fr\)\)/.test(blok))
+    throw new Error('není čtyřsloupcová: ' + blok);
+  return 'čtyři sloupce';
+});
+
+check('kategorie hráčů v poli se zalomí přesně na dva řádky', () => {
+  const n = w.eval('TOP_FIELD').length;
+  if(n % 4) throw new Error('počet ' + n + ' nevyplní čtyřsloupcovou mřížku');
+  return n + ' kategorií = ' + (n / 4) + ' řádky';
+});
+
+check('top 3 dostanou medaili místo pořadového čísla', () => {
+  const html = w.eval('topBoard')(w.eval('TOP_FIELD')[0]);
+  const mdl = (html.match(/class="tmdl"/g) || []).length;
+  if(mdl !== 3) throw new Error('medailí: ' + mdl);
+  const MEDAL = w.eval('MEDAL');
+  if(!html.includes(MEDAL[1])) throw new Error('chybí zlato');
+
+  // Medaile nesmí číslo doplňovat, jen nahradit.
+  const css = fs.readFileSync('index.html', 'utf8');
+  if(!css.includes('.tlist li:has(.tmdl)::before{display:none}'))
+    throw new Error('číslo se u medailových řádků neskrývá');
+  return '3 medaile, číslo skryté';
+});
+
+check('medaile jsou stejné jako v historických sezónách', () => {
+  // Dvě různé sady by znamenaly dva různé způsoby, jak říct „třetí místo“.
+  const html = fs.readFileSync('index.html', 'utf8');
+  const defs = html.match(/const MEDAL = /g) || [];
+  if(defs.length !== 1) throw new Error('definic MEDAL: ' + defs.length);
+  return 'jedna sada';
+});
+
+check('žebříček označí sestavu i s medailí na řádku', () => {
+  // Třídy na <li> musí zůstat čisté, jinak by zvýraznění kádru zmizelo
+  // právě u prvních tří — tedy tam, kde nejvíc zajímá.
+  const bez = w.eval('topBoard')(w.eval('TOP_FIELD')[0]);
+  const vidit = [...bez.matchAll(/data-pid="(\d+)"/g)].map(m => Number(m[1]));
+  w.eval(`MY_SQUAD = new Set([${vidit[0]}]);`);
+  const html = w.eval('topBoard')(w.eval('TOP_FIELD')[0]);
+  w.eval('MY_SQUAD = null;');
+  if((html.match(/class="me"/g) || []).length !== 1)
+    throw new Error('medaile rozbila označení kádru');
+  return 'první místo označené';
+});
+
+/* ================= watchlist ================= */
+
+check('watchlist se ukládá po hráčích a jde přepnout', () => {
+  w.localStorage.clear();
+  w.eval('WATCH = null; ENTRY_ID = 60480;');
+  const id = bootstrap.elements[0].id;
+  if(w.eval('isWatched')(id)) throw new Error('startuje neprázdný');
+  w.eval('toggleWatch')(id);
+  if(!w.eval('isWatched')(id)) throw new Error('nepřidal se');
+  w.eval('toggleWatch')(id);
+  if(w.eval('isWatched')(id)) throw new Error('neodebral se');
+  return 'přidání i odebrání';
+});
+
+check('watchlist je vázaný na entry ID', () => {
+  w.localStorage.clear();
+  w.eval('WATCH = null; ENTRY_ID = 60480;');
+  const id = bootstrap.elements[1].id;
+  w.eval('toggleWatch')(id);
+
+  // Přepnutí týmu musí seznam vyprázdnit, ne zdědit cizí.
+  w.eval('WATCH = null; ENTRY_ID = 999999;');
+  if(w.eval('isWatched')(id)) throw new Error('nový tým vidí cizí watchlist');
+
+  w.eval('WATCH = null; ENTRY_ID = 60480;');
+  if(!w.eval('isWatched')(id)) throw new Error('původní tým o seznam přišel');
+  return 'dva týmy, dva seznamy';
+});
+
+check('prázdný watchlist poradí, jak hráče přidat', () => {
+  w.localStorage.clear();
+  w.eval('WATCH = null; ENTRY_ID = 60480;');
+  const html = w.eval('buildWatch')();
+  if(!html.includes('hvězdičku')) throw new Error('mlčí místo návodu');
+  if(!html.includes('id="wsel"')) throw new Error('chybí výběr hráče');
+  return 'návod + výběr';
+});
+
+check('hvězdička nese stav a ID hráče', () => {
+  w.localStorage.clear();
+  w.eval('WATCH = null; ENTRY_ID = 60480;');
+  const id = bootstrap.elements[2].id;
+  const off = w.eval('watchStar')(id);
+  if(!off.includes('aria-pressed="false"')) throw new Error('nevypnutá hvězdička');
+  w.eval('toggleWatch')(id);
+  const on = w.eval('watchStar')(id);
+  if(!on.includes('aria-pressed="true"')) throw new Error('nezapnutá hvězdička');
+  if(!on.includes(`data-watch="${id}"`)) throw new Error('chybí ID pro delegaci');
+  return 'stav i ID';
+});
+
+check('watchlist přežije reset stavu jen jako paměť, ne jako proměnná', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const reset = html.slice(html.indexOf('function resetState()'),
+                           html.indexOf('function resetState()') + 1400);
+  if(!/WATCH = null/.test(reset))
+    throw new Error('po přepnutí týmu by zůstal cizí watchlist v paměti');
+  return 'reset čistí';
+});
+
+/* ================= úvodní přehled ================= */
+
+check('Přehled je první záložka', () => {
+  const tabs = w.eval('TABS').map(x => x[0]);
+  if(tabs[0] !== 't-home') throw new Error('první je ' + tabs[0]);
+  if(!w.document.getElementById('p-home')) throw new Error('chybí panel');
+  return tabs.length + ' záložek, Přehled první';
+});
+
+check('Přehled nemá vlastní síťové načtení', () => {
+  // Cílem je nulová cena navíc: panel čte ze stavu, který appka
+  // stahuje kvůli Sestavě.
+  const init = w.eval('TAB_INIT');
+  if(Object.keys(init).includes('t-home'))
+    throw new Error('Přehled by stahoval vlastní data');
+  return 'čte z HOME';
+});
+
+check('odpočet do deadlinu zkracuje jednotky', () => {
+  const u = w.eval('untilText');
+  if(!/^za 2 d/.test(u(2.2 * 86400000))) throw new Error('dny: ' + u(2.2 * 86400000));
+  if(!/^za 4 h/.test(u(4.5 * 3600000))) throw new Error('hodiny: ' + u(4.5 * 3600000));
+  if(u(-1000) !== 'deadline prošel') throw new Error('prošlý deadline mlčí');
+  return 'dny, hodiny, prošlý';
+});
+
+check('pozornost řadí nedostupné před otazníky a blanky', () => {
+  const els = Object.fromEntries(bootstrap.elements.map(p => [p.id, p]));
+  const vzorek = bootstrap.elements.slice(0, 400);
+  const out = vzorek.find(p => p.status === 'i' || p.status === 's');
+  const doubt = vzorek.find(p => p.status === 'a' &&
+    p.chance_of_playing_next_round !== null && p.chance_of_playing_next_round < 100);
+  if(!out || !doubt) return 'v datech není co porovnat';
+
+  w.eval(`HOME = {entry: null, startGw: 3, liveTotal: null, picks: {picks: [
+    {element: ${doubt.id}}, {element: ${out.id}}]}};`);
+  const html = w.eval('homeAttention')();
+  w.eval('HOME = null;');
+
+  const iOut = html.indexOf(out.web_name);
+  const iDoubt = html.indexOf(doubt.web_name);
+  if(iOut < 0 || iDoubt < 0) throw new Error('některý hráč chybí');
+  if(iOut > iDoubt) throw new Error('otazník je nad nedostupným');
+  return 'nedostupný nahoře';
+});
+
+check('čistý kádr to řekne, místo aby ukázal prázdný box', () => {
+  const zdravy = bootstrap.elements.find(p => p.status === 'a' &&
+    p.chance_of_playing_next_round === null);
+  if(!zdravy) return 'nikdo zdravý v datech';
+  w.eval(`HOME = {entry: null, startGw: 3, liveTotal: null,
+    picks: {picks: [{element: ${zdravy.id}}]}};`);
+  const html = w.eval('homeAttention')();
+  w.eval('HOME = null;');
+  // Blank je taky důvod k upozornění, takže hráč bez zápasu hlášku nedostane.
+  if(html.includes('Nic.') && html.includes('blank'))
+    throw new Error('tvrdí obojí naráz');
+  return html.includes('Nic.') ? 'čistý kádr' : 'blank zachycen';
+});
+
+/* ================= přepínač zobrazení ================= */
+
+check('responzivní pravidla jsou v přepínatelných tazích', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  for(const id of ['mqL', 'mqS'])
+    if(!html.includes(`<style id="${id}" media=`))
+      throw new Error('chybí tag ' + id);
+  // Duplikace by znamenala dvě místa, kde se mění stejné pravidlo.
+  const style = html.slice(html.indexOf('<style>'), html.indexOf('</style>'));
+  if(/@media\s*\(max-width:\s*(720|640)px\)/.test(style))
+    throw new Error('pravidla zůstala i v hlavním bloku');
+  return 'dva tagy, žádná kopie';
+});
+
+check('přepínač mění media, ne pravidla', () => {
+  const apply = w.eval('applyView');
+  const mqL = () => w.document.getElementById('mqL').media;
+
+  apply('mobile');
+  if(mqL() !== 'all') throw new Error('mobil nevynucen: ' + mqL());
+  apply('desktop');
+  if(mqL() !== 'not all') throw new Error('desktop nevypnul mobilní pravidla');
+  if(!/width=1100/.test(w.document.querySelector('meta[name="viewport"]').content))
+    throw new Error('viewport zůstal na device-width — na telefonu by se nic nezměnilo');
+  apply('auto');
+  if(!/max-width/.test(mqL())) throw new Error('auto nevrátilo podmínku');
+  return 'auto → mobil → desktop';
+});
+
+check('volba zobrazení se pamatuje', () => {
+  w.localStorage.clear();
+  w.document.getElementById('viewmode').click();
+  const ulozeno = w.localStorage.getItem('fpl_view');
+  if(!ulozeno || ulozeno === 'auto') throw new Error('neuložilo se: ' + ulozeno);
+  w.eval('applyView("auto")');
+  return 'uloženo jako ' + ulozeno;
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);
