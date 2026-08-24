@@ -2626,6 +2626,145 @@ check('obrázek vodoznaku v projektu existuje', () => {
   return cesta;
 });
 
+/* ================= novinky po kolech ================= */
+
+/* Malá liga s vlastní historií — novinky musí jít testovat nezávisle
+   na tom, co zrovna posílá živý bootstrap. */
+function hubStub(curId, totals){
+  const members = totals[1].map((_, i) =>
+    ({entry: 100 + i, player_name: 'M' + i, entry_name: 'T' + i}));
+  const kola = Object.keys(totals).map(Number).sort((a, b) => a - b);
+  const hists = members.map((m, i) => ({current: kola.map(g => ({
+    round: g,
+    points: totals[g][i] - (g > 1 && totals[g - 1] ? totals[g - 1][i] : 0),
+    total_points: totals[g][i],
+    event_transfers: 1,
+    event_transfers_cost: (g === 2 && i === 0) ? 4 : 0,
+    points_on_bench: (g === 2 && i === 1) ? 11 : 1,
+    value: 1000,
+  }))}));
+  w.__hub = {st: {league: {name: 'L'}}, members, hists, picks: [], cur: {id: curId}};
+  w.eval('BOOT = window.__boot; HUB = window.__hub; NEWS_GW = null; NEWS_PICKS.clear();');
+  return {members, hists};
+}
+
+function nastavFaze(mapa){
+  bootstrap.events.forEach(e => {
+    const f = mapa[e.id];
+    e.finished = f === 'unchecked' || f === 'final';
+    e.data_checked = f === 'final';
+    e.is_current = f === 'running';
+  });
+}
+
+check('fáze kola se pozná podle data_checked, ne finished', () => {
+  // finished přijde hned po posledním zápase, bonusy se dopočítávají
+  // až potom — kdo se řídí finished, ukáže neúplná čísla jako konečná.
+  nastavFaze({1: 'final', 2: 'unchecked', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [200, 180, 160], 3: [250, 240, 230]});
+  const f = w.eval('gwPhase');
+  if(f(1) !== 'final') throw new Error('dokončené kolo není final');
+  if(f(2) !== 'unchecked') throw new Error('dohrané bez bonusů není unchecked');
+  if(f(3) !== 'running') throw new Error('běžící kolo není running');
+  return 'final / unchecked / running';
+});
+
+check('běžící kolo neukazuje pohyby v tabulce', () => {
+  // Porovnávalo by rozehraný stav s dokončeným, takže by hlásilo skoky,
+  // které se do neděle několikrát otočí.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 100, 95], 3: [120, 300, 100]});
+  const bezi = w.eval('buildNews(3, [])').map(x => x.kicker);
+  if(bezi.some(k => /Skok|Pád/.test(k)))
+    throw new Error('rozehrané kolo hlásí skoky v tabulce');
+  return 'skoky se během kola neukazují';
+});
+
+check('dokončené kolo pohyby ukáže', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 100, 300]});
+  const hotove = w.eval('buildNews(2, [])').map(x => x.kicker);
+  if(!hotove.some(k => /Skok/.test(k)))
+    throw new Error('skok se u dokončeného kola neobjevil');
+  return hotove.join(', ');
+});
+
+check('pohyby se počítají k vybranému kolu, ne k poslednímu', () => {
+  // Dřív se bralo natvrdo posledních dvou kol v historii. Při proklikání
+  // zpět by pak GW2 ukazoval skoky z GW5.
+  nastavFaze({1: 'final', 2: 'final', 3: 'final'});
+  // GW2: M2 nahoru o 2. GW3: M1 nahoru o 2, M2 dolů o 2 — jiný skok
+  // než v GW2, takže se pozná, jestli se bere vybrané kolo.
+  hubStub(3, {1: [100, 90, 80], 2: [110, 100, 300], 3: [400, 500, 310]});
+  const gw2 = w.eval('buildNews(2, [])').find(x => /Skok/.test(x.kicker));
+  const gw3 = w.eval('buildNews(3, [])').find(x => /Skok/.test(x.kicker));
+  if(!gw2 || !gw3) throw new Error('některé kolo skok nemá');
+  if(gw2.head === gw3.head)
+    throw new Error('obě kola hlásí týž skok — bere se pořád poslední');
+  return 'každé kolo má svůj';
+});
+
+check('novinky jdou postavit i bez sestav', () => {
+  // Sestavy starších kol se dotahují až na kliknutí; do té doby musí
+  // panel fungovat, jen bez kapitánské novinky.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 100, 95]});
+  const n = w.eval('buildNews(2, [])');
+  if(!n.length) throw new Error('bez sestav nevzniklo nic');
+  if(n.some(x => /Kapitán/.test(x.kicker)))
+    throw new Error('kapitánská novinka vznikla bez sestav');
+  return n.length + ' novinek bez sestav';
+});
+
+check('nabízejí se jen zahájená kola', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 100, 95], 3: [120, 110, 100]});
+  const gws = w.eval('newsGws()');
+  if(gws.some(g => g > 3)) throw new Error('nabízí budoucí kolo: ' + gws.join(','));
+  if(!gws.includes(3)) throw new Error('chybí rozehrané kolo');
+  if(!gws.includes(1)) throw new Error('chybí nejstarší kolo');
+  return 'GW ' + gws.join(', ');
+});
+
+check('panel hlásí stav vybraného kola', () => {
+  nastavFaze({1: 'final', 2: 'unchecked', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 100, 95], 3: [120, 110, 100]});
+
+  w.eval('NEWS_GW = 3');
+  if(!/Kolo běží/.test(w.eval('newsPanel()')))
+    throw new Error('rozehrané kolo se netváří jako rozehrané');
+
+  w.eval('NEWS_GW = 2');
+  if(!/bonus/i.test(w.eval('newsPanel()')))
+    throw new Error('nezmíní čekání na bonusy');
+
+  w.eval('NEWS_GW = 1');
+  const fin = w.eval('newsPanel()');
+  if(!/Konečné/.test(fin)) throw new Error('dokončené kolo není označené');
+  if(!/nezmění/.test(fin)) throw new Error('neřekne, že jsou čísla definitivní');
+  return 'tři různá hlášení';
+});
+
+check('přepínač označí právě jedno kolo', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 100, 95], 3: [120, 110, 100]});
+  w.eval('NEWS_GW = 2');
+  const p = w.eval('newsPanel()');
+  const vybrano = (p.match(/aria-selected="true"/g) || []).length;
+  if(vybrano !== 1) throw new Error('vybraných kol: ' + vybrano);
+  if(!p.includes('data-newsgw="2"')) throw new Error('chybí tlačítko kola');
+  return 'jedno vybrané';
+});
+
+check('výběr kola se nepřenese na jiný tým', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const reset = html.slice(html.indexOf('function resetState()'),
+                           html.indexOf('function resetState()') + 1600);
+  if(!/NEWS_GW = null/.test(reset) || !/NEWS_PICKS\.clear\(\)/.test(reset))
+    throw new Error('po přepnutí týmu by zůstalo cizí kolo i cizí sestavy');
+  return 'reset čistí';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);
