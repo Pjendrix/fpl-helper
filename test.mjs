@@ -2485,6 +2485,102 @@ check('popup má povolené otevření', () => {
   return coop ? coop.value : 'nenastaveno';
 });
 
+/* ================= poznámka o ukládání ================= */
+
+check('bez Firebase poznámka nelže o zálohování', () => {
+  w.FB = undefined; w.eval('FB_USER = null;');
+  const n = w.eval('storageNote')('Watchlist');
+  if(/přihlas|zálohuje/i.test(n.replace(/prohlížeči/gi, '')))
+    throw new Error('nabízí přihlášení, které není k dispozici');
+  if(!/prohlížeči/.test(n)) throw new Error('neřekne, kde data leží');
+  return 'jen lokální úložiště';
+});
+
+check('nepřihlášenému poznámka nabídne přihlášení', () => {
+  w.FB = {signIn: async()=>{}, signOut: async()=>{}, onUser: ()=>{},
+          read: async()=>null, write: async()=>{}};
+  w.eval('FB_USER = null;');
+  const n = w.eval('storageNote')('Watchlist');
+  if(!n.includes('data-signin')) throw new Error('chybí tlačítko k přihlášení');
+  if(!/přijdeš/.test(n)) throw new Error('nevaruje před ztrátou dat');
+  return 'varování + nabídka';
+});
+
+check('přihlášenému poznámka řekne, kam se zálohuje', () => {
+  w.eval('FB_USER = {uid:"u1", email:"p@x.cz", displayName:"Pjendrix"};');
+  const n = w.eval('storageNote')('Watchlist');
+  if(!n.includes('p@x.cz')) throw new Error('neřekne na jaký účet');
+  if(n.includes('data-signin')) throw new Error('nabízí přihlášení přihlášenému');
+  if(!/store ok/.test(n)) throw new Error('chybí zelené odlišení');
+  w.eval('FB_USER = null;'); w.FB = undefined;
+  return 'účet i potvrzení';
+});
+
+check('poznámka má jedno znění pro celou appku', () => {
+  // Tři různě formulované věty o tomtéž by podkopaly důvěru v každou
+  // z nich. Proto jedna funkce a žádné ruční kopie.
+  const html = fs.readFileSync('index.html', 'utf8');
+  const app = html.slice(html.indexOf('/* ============ ZALOZKY ============ */'));
+  const volani = (app.match(/storageNote\(/g) || []).length;
+  if(volani < 4) throw new Error('poznámka je jen na ' + volani + ' místech');
+  // Stará ručně psaná věta nesmí zůstat vedle nové funkce.
+  if(app.includes('Seznam je uložený jen v tomhle prohlížeči'))
+    throw new Error('zůstala ruční kopie textu');
+  return volani + ' míst, jedna definice';
+});
+
+check('poznámky se překreslí po přihlášení', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const fn = html.slice(html.indexOf('function renderAuth()'),
+                        html.indexOf('function initAuth()'));
+  if(!/drawHome\(\)/.test(fn))
+    throw new Error('po přihlášení by zůstala stará poznámka');
+  return 'překresluje se';
+});
+
+/* ================= tlačítko Aktualizovat ================= */
+
+check('tlačítko Aktualizovat je v hlavičce', () => {
+  const btn = w.document.getElementById('reload');
+  if(!btn) throw new Error('chybí');
+  if(!btn.closest('.bar')) throw new Error('není v horní liště');
+  if(!btn.getAttribute('aria-label')) throw new Error('bez popisku pro odečítač');
+  return 'v liště, s popiskem';
+});
+
+check('obnovení vyhodí i bootstrap a rozpis', () => {
+  // Půlka zaseknutí je právě v nich; ponechat je v paměti by znamenalo
+  // tlačítko, které vypadá že něco dělá, ale vrátí tatáž data.
+  const html = fs.readFileSync('index.html', 'utf8');
+  const fn = html.slice(html.indexOf('async function hardReload()'),
+                        html.indexOf("if($('reload'))"));
+  for(const v of ['API_CACHE = new Map()', 'BOOT = null', 'FIX = null',
+                  'TAB_DONE.clear()'])
+    if(!fn.includes(v)) throw new Error('nezahazuje ' + v);
+  return 'cache, bootstrap, rozpis i stav záložek';
+});
+
+check('obnovení zůstane na otevřené záložce', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const fn = html.slice(html.indexOf('async function hardReload()'),
+                        html.indexOf("if($('reload'))"));
+  if(!/aria-selected'\) === 'true'/.test(fn))
+    throw new Error('nezjišťuje, kde uživatel je');
+  if(!/TAB_INIT\[open\]/.test(fn))
+    throw new Error('otevřenou záložku znovu nenačte');
+  return 'vrátí se, kde byl';
+});
+
+check('dvojklik na Aktualizovat nespustí dvě načtení', () => {
+  w.eval('RELOADING = true;');
+  const btn = w.document.getElementById('reload');
+  btn.click();
+  // Když by pojistka nebyla, druhý běh by vynuloval BOOT uprostřed prvního.
+  if(w.eval('RELOADING') !== true) throw new Error('pojistka nedrží');
+  w.eval('RELOADING = false;');
+  return 'druhý klik se ignoruje';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);

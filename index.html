@@ -749,6 +749,18 @@ button.small.icon{padding:4px 8px;font-size:14px;line-height:1;min-width:30px}
 .shirt .crest{width:24px;height:24px;margin:0 auto 3px;display:block}
 
 /* ---------- ukazatel pohybu ceny ---------- */
+/* Poznámka o tom, kde data leží. Odlišená proužkem, ne barvou pozadí —
+   je to informace, ne varování, a neměla by přebít vlastní obsah. */
+.note.store{border-left:2px solid var(--line);padding-left:10px;
+  border-radius:0;margin-top:12px}
+.note.store.ok{border-left-color:var(--ok)}
+.lnkbtn.inline{margin:0;font-size:inherit;vertical-align:baseline}
+
+/* Otáčení při načítání. Zastaví se samo, protože třídu sundá finally. */
+@keyframes spin{to{transform:rotate(360deg)}}
+button.small.icon.spin{animation:spin 900ms linear infinite}
+button.small.icon:disabled{opacity:.5;cursor:default}
+
 /* ---------- přihlášení a sync ---------- */
 .sync{font-family:var(--f-mono);font-size:10.5px;color:#B98FC2;white-space:nowrap}
 button.small.on{border-color:var(--mint-fill);color:var(--mint-fill);
@@ -1198,6 +1210,8 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
                 title="Přepnout tmavý režim" aria-label="Přepnout tmavý režim">☾</button>
         <b id="whoName">—</b>
         <span class="sync" id="syncmsg" hidden></span>
+        <button class="small icon" id="reload" title="Načíst data znovu"
+                aria-label="Načíst data znovu">⟳</button>
         <button class="small" id="gauth" hidden>Přihlásit</button>
         <button class="small" id="logout">Změnit ID</button>
       </span>
@@ -2098,6 +2112,7 @@ function homePrices(){
     ${watch.length ? watch.map(line).join('')
       : `<p class="note">Zatím nikoho nesleduješ. V záložce Ceny klikni na
          hvězdičku u hráče, kterého chceš hlídat.</p>`}
+    ${watch.length ? '' : storageNote('Watchlist')}
   </div>`;
 
   return `<div class="hgrid">${mineBox}${watchBox}</div>`;
@@ -2267,6 +2282,59 @@ TABS.forEach(([tid]) => {
     if(next){ ev.preventDefault(); selectTab(next); }
   });
 });
+
+/* ============================================================
+   TVRDÉ OBNOVENÍ
+
+   Appka drží stažené odpovědi v API_CACHE po celou dobu života
+   stránky. To je záměr — přepínání záložek je pak zadarmo. Cena je,
+   že když se něco nestáhne (FPL vrátí 403, spadne wifi uprostřed
+   dotazu), zůstane ta chyba viset až do ručního reloadu prohlížeče.
+
+   Tlačítko dělá to, co by člověk čekal od F5, ale bez ztráty stavu:
+   vyhodí cache, zapomene, které záložky už běžely, a načte znovu
+   sestavu i právě otevřenou záložku. Bootstrap a rozpis se zahazují
+   taky, protože právě v nich bývá zdroj zaseknutí.
+   ============================================================ */
+let RELOADING = false;
+
+async function hardReload(){
+  if(RELOADING) return;
+  RELOADING = true;
+
+  const btn = $('reload');
+  if(btn){ btn.disabled = true; btn.classList.add('spin'); }
+
+  try{
+    // Kompletní vyprázdnění. BOOT a FIX se stahují znovu v load().
+    API_CACHE = new Map();
+    BOOT = null;
+    FIX = null;
+    PLAYERS = null;
+    HUB = null;
+    LEAGUE_OWN = null;
+    TR_STATE = null;
+    PLANNER = null;
+
+    // Otevřenou záložku si zapamatujeme, ať člověk neskončí jinde,
+    // než byl. Ostatní se načtou samy, až na ně přijde řada.
+    const open = (TABS.find(([t]) => $(t).getAttribute('aria-selected') === 'true')
+                  || ['t-home'])[0];
+    TAB_DONE.clear();
+
+    if(ENTRY_ID) await load(ENTRY_ID);
+
+    if(TAB_INIT[open]){ TAB_DONE.add(open); await TAB_INIT[open](); }
+  }catch(e){
+    const m = $('msg');
+    if(m) m.textContent = e.message;
+  }finally{
+    RELOADING = false;
+    if(btn){ btn.disabled = false; btn.classList.remove('spin'); }
+  }
+}
+
+if($('reload')) $('reload').addEventListener('click', hardReload);
 
 /* ============ ODPOČET DO DEADLINU ============
    Nejlevnější užitečná věc v celé appce: nejčastější chyba v FPL není
@@ -4031,6 +4099,7 @@ function renderTransfers(){
     
     ${blocks.join('')}
     <button class="lnk" id="sellreset" style="margin-top:14px">Zahodit ruční přepisy</button>
+    ${storageNote('Ruční přepis cen a banky')}
     <div class="diffs">${buildDifferentials()}</div>`;
 
   /* Tlačítko „i“ místo hover tooltipu — na dotykovém displeji se hover
@@ -5386,7 +5455,8 @@ function buildWatch(){
   if(!rows.length) return `<h3>Watchlist</h3>${adder}
     <p class="note">Zatím nikoho nesleduješ. Přidej hráče výš, nebo klikni na
     hvězdičku u kohokoli v tabulkách pohybů cen — pak se ti tady i na úvodní
-    stránce ukáže, jak blízko je jeho cena ke změně.</p>`;
+    stránce ukáže, jak blízko je jeho cena ke změně.</p>
+    ${storageNote('Watchlist')}`;
 
   const dirClass = l => l > 0 ? 'up' : l < 0 ? 'down' : '';
   const stateText = r => {
@@ -5416,8 +5486,8 @@ function buildWatch(){
         <td class="hide-s ${cls}">${txt}</td>
       </tr>`;
     }).join('')}</tbody></table>
-    <p class="note">Zvýrazněné řádky jsou hráči, které už máš v kádru.
-    Seznam je uložený jen v tomhle prohlížeči.</p>`;
+    <p class="note">Zvýrazněné řádky jsou hráči, které už máš v kádru.</p>
+    ${storageNote('Watchlist')}`;
 }
 
 /* Jedna delegovaná obsluha pro všechny hvězdičky v appce. */
@@ -6212,7 +6282,8 @@ function renderPlanner(){
       proto se vyplatí tahy rozložit. Zisk počítám jako součet projekcí od kola
       tahu do konce okna, takže dřívější přestup má víc kol na to, aby se
       zaplatil.</p>
-    <button class="lnk" id="plnclear">Vyprázdnit plán</button>`;
+    <button class="lnk" id="plnclear">Vyprázdnit plán</button>
+    ${storageNote('Rozpracovaný plán')}`;
 
   const q = $('plnout');
 
@@ -6497,6 +6568,40 @@ function setSyncStatus(txt){
   if(el){ el.textContent = txt; el.hidden = !txt; }
 }
 
+/* Věta o tom, kde data leží. Používá se všude, kde si appka něco
+   pamatuje — watchlist, prodejní ceny, plánovač. Jedna funkce proto,
+   aby se znění nerozešlo: jakmile by na třech místech stálo něco
+   trochu jiného, přestane tomu člověk věřit.
+
+   Text se mění podle stavu, ne podle místa. Nepřihlášený se musí
+   dozvědět, že o data přijde s vymazáním prohlížeče; přihlášený,
+   že se mu zálohují a kam. */
+function storageNote(co){
+  const vec = co || 'Tenhle seznam';
+
+  if(!window.FB)
+    return `<p class="note store">${esc(vec)} se ukládá jen v tomhle prohlížeči.
+      Na jiném zařízení ho neuvidíš a smazáním dat prohlížeče o něj přijdeš.</p>`;
+
+  if(FB_USER)
+    return `<p class="note store ok">${esc(vec)} se zálohuje na tvůj účet
+      <b>${esc(FB_USER.email || FB_USER.displayName || 'Google')}</b>, takže ho
+      máš i na telefonu. Změny se ukládají samy pár vteřin po úpravě.</p>`;
+
+  return `<p class="note store">${esc(vec)} se ukládá jen v tomhle prohlížeči —
+    na telefonu ho neuvidíš a smazáním dat prohlížeče o něj přijdeš.
+    <button type="button" class="lnkbtn inline" data-signin>Přihlas se přes Google</button>
+    a bude se zálohovat na tvůj účet.</p>`;
+}
+
+/* Přihlášení jde vyvolat i odjinud než z hlavičky — typicky z poznámky
+   u watchlistu, kde se o něm člověk poprvé dozví. */
+document.addEventListener('click', ev => {
+  if(!ev.target.closest('button[data-signin]')) return;
+  const btn = $('gauth');
+  if(btn && !btn.hidden) btn.click();
+});
+
 function renderAuth(){
   const btn = $('gauth');
   if(!btn) return;
@@ -6514,6 +6619,14 @@ function renderAuth(){
     ? 'Přihlášen jako ' + (FB_USER.email || FB_USER.displayName) + ' — kliknutím odhlásit'
     : 'Přihlásit se přes Google a synchronizovat watchlist mezi zařízeními';
   btn.classList.toggle('on', Boolean(FB_USER));
+
+  /* Poznámky o ukládání znějí jinak pro přihlášeného a nepřihlášeného,
+     takže po změně stavu musí ven ty staré. Překreslujeme jen to, co je
+     zrovna vidět — celý panel by zbytečně blikl. */
+  if(BOOT){
+    drawHome();
+    if(TAB_DONE.has('t-prices') && !$('p-prices').hidden) loadPrices();
+  }
 }
 
 function initAuth(){
