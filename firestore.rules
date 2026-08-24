@@ -1,0 +1,22 @@
+rules_version = '2';
+
+/* Pravidla pro zálohu nastavení Squad Checku.
+
+   Model je jednoduchý: každý přihlášený člověk má právě jeden dokument
+   pojmenovaný svým UID a nikdo jiný do něj nevidí. Žádné sdílení,
+   žádné veřejné čtení — v dokumentu je watchlist a nastavení, což je
+   osobní věc, ne obsah ligy.
+
+   Výchozí pravidlo Firestore je "deny all", takže cokoli, co tu není
+   výslovně povolené, je zakázané. To je záměr: až budeš přidávat další
+   kolekce, musíš je sem dopsat, a nemůže se stát, že se něco omylem
+   otevře celému internetu. */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid} {
+      // request.auth je null pro nepřihlášené — ti neprojdou ani k sobě.
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

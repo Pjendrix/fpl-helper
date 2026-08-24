@@ -2336,6 +2336,109 @@ check('volba zobrazení se pamatuje', () => {
   return 'uloženo jako ' + ulozeno;
 });
 
+/* ================= synchronizace přes Firebase ================= */
+
+check('appka běží i bez vyplněného configu', () => {
+  // Nejdůležitější vlastnost celého sync: nesmí být podmínkou provozu.
+  // V testu žádná Firebase načtená není, a přesto musí všechno fungovat.
+  if(w.FB) throw new Error('test běží s Firebase — tenhle případ netestuje');
+  w.localStorage.clear();
+  w.eval('WATCH = null; ENTRY_ID = 60480;');
+  const id = bootstrap.elements[3].id;
+  w.eval(`toggleWatch(${id})`);
+  if(!w.eval('isWatched')(id)) throw new Error('zápis bez Firebase selhal');
+  const btn = w.document.getElementById('gauth');
+  if(!btn.hidden) throw new Error('tlačítko Přihlásit svítí bez configu');
+  return 'localStorage funguje sám';
+});
+
+check('zálohují se jen vlastní klíče', () => {
+  w.localStorage.clear();
+  w.eval('lsSet("fpl_theme", "dark")');
+  w.localStorage.setItem('cizi_knihovna', 'tajnost');
+  const keys = Object.keys(w.eval('syncPayload()').keys);
+  if(keys.includes('cizi_knihovna'))
+    throw new Error('do cloudu by šel cizí klíč');
+  if(!keys.includes('fpl_theme')) throw new Error('vlastní klíč chybí');
+  if(keys.includes('fpl_sync_ts')) throw new Error('mapa časů se zálohuje sama do sebe');
+  return keys.length + ' klíčů, žádný cizí';
+});
+
+check('smazaný klíč se z cloudu nevrátí', () => {
+  // Kdyby se mazání řešilo vynecháním, další stažení by položku obnovilo.
+  w.localStorage.clear();
+  w.eval('lsSet("fpl_bank:1", "2.5")');
+  w.eval('lsDel("fpl_bank:1")');
+  const payload = w.eval('syncPayload()');
+  if(!('fpl_bank:1' in payload.keys))
+    throw new Error('smazání se do cloudu vůbec nedostane');
+  if(payload.keys['fpl_bank:1'] !== '')
+    throw new Error('smazání není označené prázdnou hodnotou');
+  return 'náhrobek uložen';
+});
+
+check('každý zápis si poznamená čas', () => {
+  w.localStorage.clear();
+  const pred = Date.now();
+  w.eval('lsSet("fpl_view", "mobile")');
+  const ts = JSON.parse(w.localStorage.getItem('fpl_sync_ts') || '{}');
+  if(!ts['fpl_view']) throw new Error('čas se nezapsal');
+  if(ts['fpl_view'] < pred - 1000) throw new Error('čas je z minulosti');
+  return 'časy se vedou';
+});
+
+check('slučování bere novější změnu', () => {
+  // Simulujeme jádro pullSync bez sítě: lokální i vzdálená verze
+  // téhož klíče, rozhoduje čas.
+  const merge = (mine, theirs, remoteKeys, local) => {
+    const out = {...local};
+    Object.entries(remoteKeys).forEach(([k, v]) => {
+      if((theirs[k] || 0) <= (mine[k] || 0)) return;
+      if(v === '') delete out[k]; else out[k] = v;
+    });
+    return out;
+  };
+  const stary = merge({a: 200}, {a: 100}, {a: 'cloud'}, {a: 'lokal'});
+  if(stary.a !== 'lokal') throw new Error('starší cloud přepsal novější lokál');
+  const novy = merge({a: 100}, {a: 200}, {a: 'cloud'}, {a: 'lokal'});
+  if(novy.a !== 'cloud') throw new Error('novější cloud se nepoužil');
+  const smazany = merge({a: 100}, {a: 200}, {a: ''}, {a: 'lokal'});
+  if('a' in smazany) throw new Error('smazání z cloudu se neprojevilo');
+  return 'novější vyhrává, i při mazání';
+});
+
+check('zápisy jdou přes lsSet, ne přímo do localStorage', () => {
+  // Přímý zápis by se do cloudu nikdy nedostal — a projevilo by se to
+  // až tím, že jedna položka tiše nesynchronizuje.
+  const html = fs.readFileSync('index.html', 'utf8');
+  const app = html.slice(html.indexOf('/* ============ ZALOZKY ============ */'));
+  const primo = [...app.matchAll(/localStorage\.(setItem|removeItem)\(/g)];
+  // Povolené jsou jen ty uvnitř samotné synchronizační vrstvy.
+  const vrstva = app.slice(app.indexOf('const SYNC_PREFIX'),
+                           app.indexOf('function setSyncStatus'));
+  const uvnitr = [...vrstva.matchAll(/localStorage\.(setItem|removeItem)\(/g)].length;
+  if(primo.length > uvnitr)
+    throw new Error((primo.length - uvnitr) + ' zápisů obchází lsSet');
+  return 'všechny zápisy hlásí změnu';
+});
+
+check('odhlášení nemaže data v prohlížeči', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const blok = html.slice(html.indexOf("$('gauth').addEventListener"),
+                          html.indexOf("$('gauth').addEventListener") + 700);
+  if(/localStorage\.clear|removeItem/.test(blok))
+    throw new Error('odhlášení sahá na localStorage');
+  return 'data zůstávají';
+});
+
+check('sync se nepokouší zapisovat bez přihlášení', () => {
+  w.eval('FB_USER = null; SYNC_TIMER = null;');
+  w.eval('scheduleSync()');
+  if(w.eval('SYNC_TIMER') !== null)
+    throw new Error('naplánoval zápis bez uživatele');
+  return 'bez uživatele se nic neplánuje';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);

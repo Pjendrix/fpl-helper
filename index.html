@@ -749,6 +749,11 @@ button.small.icon{padding:4px 8px;font-size:14px;line-height:1;min-width:30px}
 .shirt .crest{width:24px;height:24px;margin:0 auto 3px;display:block}
 
 /* ---------- ukazatel pohybu ceny ---------- */
+/* ---------- přihlášení a sync ---------- */
+.sync{font-family:var(--f-mono);font-size:10.5px;color:#B98FC2;white-space:nowrap}
+button.small.on{border-color:var(--mint-fill);color:var(--mint-fill);
+  max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ---------- úvodní přehled ---------- */
 .hhead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
   flex-wrap:wrap;margin-bottom:14px}
@@ -1100,6 +1105,8 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
   td,th{padding:7px 5px}
   .hide-s{display:none}
   .bar .wrap{height:auto;padding-top:10px;padding-bottom:10px}
+  .sync{display:none}
+  button.small.on{max-width:92px}
   .capopt{grid-template-columns:24px 1fr auto;gap:8px;padding:9px 11px}
   .ticker td.fx span{min-width:34px;font-size:10px}
   .compare .chead{grid-template-columns:1fr}
@@ -1190,6 +1197,8 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
         <button class="small icon" id="theme" aria-pressed="false"
                 title="Přepnout tmavý režim" aria-label="Přepnout tmavý režim">☾</button>
         <b id="whoName">—</b>
+        <span class="sync" id="syncmsg" hidden></span>
+        <button class="small" id="gauth" hidden>Přihlásit</button>
         <button class="small" id="logout">Změnit ID</button>
       </span>
     </div>
@@ -1290,6 +1299,71 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
     </div>
   </div>
 </div>
+
+<!-- ============================================================
+     FIREBASE
+
+     Načítá se jako ESM modul přímo z gstatic CDN — žádný bundler,
+     žádný build step, tedy nic, co by porušilo zbytek projektu.
+     Hlavní skript appky je klasický (ne modul), takže by na importy
+     nedosáhl; most tvoří window.FB, který se naplní až po inicializaci.
+
+     apiKey není tajemství. Je to identifikátor projektu, ne přístupový
+     token — data chrání Security Rules, ne to, že klíč není vidět.
+     Vyplň si tady config z Firebase konzole (Project settings → General
+     → Your apps). Prázdný config je v pořádku: sync se prostě nezapne
+     a appka běží dál na localStorage.
+     ============================================================ -->
+<script type="module">
+const FIREBASE_CONFIG = {
+  apiKey: "",
+  authDomain: "",
+  projectId: "",
+  storageBucket: "",
+  messagingSenderId: "",
+  appId: "",
+};
+
+if(FIREBASE_CONFIG.projectId){
+  try{
+    const V = "11.0.2";
+    const [{initializeApp}, auth, store] = await Promise.all([
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),
+      import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`),
+    ]);
+
+    const app = initializeApp(FIREBASE_CONFIG);
+    const a = auth.getAuth(app);
+    const db = store.getFirestore(app);
+
+    /* Přihlášení přežije zavření prohlížeče. Bez tohohle by se člověk
+       hlásil při každém otevření appky, což je u nástroje, který se
+       otevírá jednou denně, to samé jako nemít sync vůbec. */
+    await auth.setPersistence(a, auth.browserLocalPersistence);
+
+    window.FB = {
+      signIn: () => auth.signInWithPopup(a, new auth.GoogleAuthProvider()),
+      signOut: () => auth.signOut(a),
+      onUser: cb => auth.onAuthStateChanged(a, cb),
+      read: async uid => {
+        const snap = await store.getDoc(store.doc(db, "users", uid));
+        return snap.exists() ? snap.data() : null;
+      },
+      write: (uid, data) =>
+        store.setDoc(store.doc(db, "users", uid), data, {merge: true}),
+    };
+  }catch(e){
+    // Bez sync appka funguje dál. Hlásit to na stránce nemá cenu —
+    // jediný, koho to zajímá, je ten, kdo config vyplňoval.
+    console.warn("Firebase se nepodařilo načíst:", e);
+  }
+}
+
+// I když se Firebase nenačte, hlavní skript musí vědět, že už na nic
+// nečeká — jinak by tlačítko Přihlásit zůstalo viset v „Načítám“.
+window.dispatchEvent(new Event("fb-ready"));
+</script>
 
 <script>
 
@@ -3537,7 +3611,7 @@ function loadSell(){
   try { return JSON.parse(localStorage.getItem(SELL_KEY()) || '{}'); }
   catch(e){ return {}; }
 }
-function saveSell(o){ localStorage.setItem(SELL_KEY(), JSON.stringify(o)); }
+function saveSell(o){ lsSet(SELL_KEY(), JSON.stringify(o)); }
 
 /* ------------------------------------------------------------
    Nákupní ceny z entry/{id}/transfers/.
@@ -3988,20 +4062,20 @@ function renderTransfers(){
 
   $('bankin').addEventListener('change', () => {
     const v = parseFloat($('bankin').value);
-    if(Number.isFinite(v) && v >= 0) localStorage.setItem(BANK_KEY(), String(v));
-    else localStorage.removeItem(BANK_KEY());
+    if(Number.isFinite(v) && v >= 0) lsSet(BANK_KEY(), String(v));
+    else lsDel(BANK_KEY());
     renderTransfers();
   });
 
   const br = $('bankreset');
   if(br) br.addEventListener('click', () => {
-    localStorage.removeItem(BANK_KEY());
+    lsDel(BANK_KEY());
     renderTransfers();
   });
 
   $('sellreset').addEventListener('click', () => {
-    localStorage.removeItem(SELL_KEY());
-    localStorage.removeItem(BANK_KEY());
+    lsDel(SELL_KEY());
+    lsDel(BANK_KEY());
     renderTransfers();
   });
 }
@@ -5245,7 +5319,7 @@ function loadWatch(){
 }
 
 function saveWatch(){
-  localStorage.setItem(WATCH_KEY(), JSON.stringify([...loadWatch()]));
+  lsSet(WATCH_KEY(), JSON.stringify([...loadWatch()]));
 }
 
 function isWatched(id){ return loadWatch().has(Number(id)); }
@@ -5596,7 +5670,7 @@ applyTheme(localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light');
 if($('theme')) $('theme').addEventListener('click', () => {
   const next = document.documentElement.getAttribute('data-theme') === 'dark'
     ? 'light' : 'dark';
-  localStorage.setItem(THEME_KEY, next);
+  lsSet(THEME_KEY, next);
   applyTheme(next);
 });
 
@@ -5650,7 +5724,7 @@ applyView(localStorage.getItem(VIEW_KEY) || 'auto');
 if($('viewmode')) $('viewmode').addEventListener('click', () => {
   const cur = document.documentElement.getAttribute('data-view') || 'auto';
   const next = VIEW_MODES[(VIEW_MODES.indexOf(cur) + 1) % VIEW_MODES.length];
-  localStorage.setItem(VIEW_KEY, next);
+  lsSet(VIEW_KEY, next);
   applyView(next);
 });
 
@@ -5850,7 +5924,7 @@ function saveSnap(gw, members){
   // Držíme posledních osm kol; víc se do localStorage nevejde bezpečně.
   const keys = Object.keys(all).map(Number).sort((a, b) => a - b);
   while(keys.length > 8) delete all[keys.shift()];
-  try{ localStorage.setItem(SNAP_KEY(), JSON.stringify(all)); }catch(e){}
+  try{ lsSet(SNAP_KEY(), JSON.stringify(all)); }catch(e){}
   return all;
 }
 
@@ -5898,7 +5972,7 @@ function loadMoves(){
   catch(e){ return []; }
 }
 function saveMoves(m){
-  try{ localStorage.setItem(PLANNER_KEY(), JSON.stringify(m)); }catch(e){}
+  try{ lsSet(PLANNER_KEY(), JSON.stringify(m)); }catch(e){}
 }
 
 /* Kolik volných přestupů mám na začátku plánování.
@@ -6234,11 +6308,11 @@ function renderPlanner(){
   $('ftin').addEventListener('change', () => {
     const v = parseInt($('ftin').value, 10);
     if(Number.isFinite(v) && v >= 0 && v <= ftCap()){
-      localStorage.setItem(FT_KEY(), String(v));
+      lsSet(FT_KEY(), String(v));
       PLANNER.free = v;
       PLANNER.manual = true;
     }else{
-      localStorage.removeItem(FT_KEY());
+      lsDel(FT_KEY());
       PLANNER.free = PLANNER.derived;
       PLANNER.manual = false;
     }
@@ -6247,7 +6321,7 @@ function renderPlanner(){
 
   const ftr = $('ftreset');
   if(ftr) ftr.addEventListener('click', () => {
-    localStorage.removeItem(FT_KEY());
+    lsDel(FT_KEY());
     PLANNER.free = PLANNER.derived;
     PLANNER.manual = false;
     renderPlanner();
@@ -6289,6 +6363,192 @@ async function loadPlanner(){
     $('plnout').innerHTML = '';
   }
 }
+
+/* ============================================================
+   SYNCHRONIZACE NASTAVENÍ
+
+   Watchlist, prodejní ceny, banka, volné přestupy i téma žily
+   v localStorage. Funguje to, dokud člověk používá jeden prohlížeč —
+   na telefonu má prázdný watchlist a diví se.
+
+   Firestore tady není databáze appky, jen záloha localStorage.
+   Zdrojem pravdy zůstává prohlížeč: appka čte pořád z localStorage
+   a funguje i offline, bez přihlášení a bez vyplněného configu.
+   Cloud se do toho vloží jen dvakrát — při přihlášení (stáhni a slej)
+   a po každé změně (zapiš, se zpožděním).
+
+   Slučování je last-write-wins po jednotlivých klíčích. U dvou
+   zařízení téhož člověka je konflikt vzácný a „vyhraje novější
+   změna“ je chování, které nikoho nepřekvapí. Časy si držíme sami
+   v mapě `_ts`, protože Firestore zná jen čas zápisu celého dokumentu.
+   ============================================================ */
+
+/* Zálohujeme jen vlastní klíče. Prefix je zároveň pojistka proti tomu,
+   abychom někomu do cloudu nahráli localStorage cizí knihovny. */
+const SYNC_PREFIX = 'fpl_';
+const TS_KEY = 'fpl_sync_ts';
+
+let FB_USER = null;
+let SYNC_TIMER = null;
+let SYNC_READY = false;
+
+function syncTimes(){
+  try{ return JSON.parse(localStorage.getItem(TS_KEY) || '{}'); }
+  catch(e){ return {}; }
+}
+
+function markWritten(key){
+  const t = syncTimes();
+  t[key] = Date.now();
+  try{ localStorage.setItem(TS_KEY, JSON.stringify(t)); }catch(e){}
+}
+
+/* Zápis do localStorage, který o sobě dá vědět synchronizaci.
+   Všechna místa v appce, která něco ukládají, jdou přes tyhle dvě
+   funkce — jinak by se změna do cloudu nikdy nedostala. */
+function lsSet(key, value){
+  try{ localStorage.setItem(key, value); }catch(e){ return; }
+  markWritten(key);
+  scheduleSync();
+}
+
+function lsDel(key){
+  try{ localStorage.removeItem(key); }catch(e){ return; }
+  markWritten(key);
+  scheduleSync();
+}
+
+/* Co se má nahrát. Mazání řešíme prázdným řetězcem, ne vynecháním —
+   jinak by se smazaný klíč při dalším stažení vrátil z cloudu zpátky. */
+function syncPayload(){
+  const data = {}, ts = syncTimes();
+  for(let i = 0; i < localStorage.length; i++){
+    const k = localStorage.key(i);
+    if(!k || !k.startsWith(SYNC_PREFIX) || k === TS_KEY) continue;
+    data[k] = localStorage.getItem(k);
+  }
+  // Klíče, které tu byly a už nejsou, musí do cloudu jako smazané.
+  Object.keys(ts).forEach(k => { if(!(k in data)) data[k] = ''; });
+  return {keys: data, _ts: ts};
+}
+
+function scheduleSync(){
+  if(!FB_USER || !window.FB || !SYNC_READY) return;
+  // Naklikání pěti hvězdiček za sebou má být jeden zápis, ne pět.
+  clearTimeout(SYNC_TIMER);
+  SYNC_TIMER = setTimeout(pushSync, 1200);
+}
+
+async function pushSync(){
+  if(!FB_USER || !window.FB) return;
+  try{
+    await window.FB.write(FB_USER.uid, syncPayload());
+    setSyncStatus('uloženo');
+  }catch(e){
+    setSyncStatus('nepodařilo se uložit');
+  }
+}
+
+/* Stažení a sloučení. Volá se jednou, hned po přihlášení. */
+async function pullSync(){
+  if(!FB_USER || !window.FB) return;
+  setSyncStatus('načítám…');
+  try{
+    const remote = await window.FB.read(FB_USER.uid);
+    if(remote && remote.keys){
+      const mine = syncTimes();
+      const theirs = remote._ts || {};
+      let changed = 0;
+
+      Object.entries(remote.keys).forEach(([k, v]) => {
+        if(!k.startsWith(SYNC_PREFIX) || k === TS_KEY) return;
+        // Novější vyhrává. Když čas nikde není, bereme cloud jako
+        // výchozí — na čerstvém zařízení je localStorage stejně prázdný.
+        if((theirs[k] || 0) <= (mine[k] || 0)) return;
+        if(v === '') localStorage.removeItem(k);
+        else localStorage.setItem(k, v);
+        mine[k] = theirs[k];
+        changed++;
+      });
+
+      if(changed){
+        try{ localStorage.setItem(TS_KEY, JSON.stringify(mine)); }catch(e){}
+        // Watchlist i sestava se čtou do paměti při startu — po slití
+        // z cloudu je musíme zahodit, aby se načetly znovu.
+        WATCH = null;
+        drawHome();
+        if(TAB_DONE.has('t-prices')){ TAB_DONE.delete('t-prices'); loadPrices(); }
+      }
+      setSyncStatus(changed ? changed + ' položek staženo' : 'aktuální');
+    } else {
+      setSyncStatus('aktuální');
+    }
+    SYNC_READY = true;
+    // První nahrání po přihlášení: cloud ještě nemusí mít nic.
+    await pushSync();
+  }catch(e){
+    SYNC_READY = true;
+    setSyncStatus('nepodařilo se načíst');
+  }
+}
+
+function setSyncStatus(txt){
+  const el = $('syncmsg');
+  if(el){ el.textContent = txt; el.hidden = !txt; }
+}
+
+function renderAuth(){
+  const btn = $('gauth');
+  if(!btn) return;
+
+  if(!window.FB){
+    // Nevyplněný config není chyba, jen vypnutá funkce.
+    btn.hidden = true;
+    return;
+  }
+  btn.hidden = false;
+  btn.textContent = FB_USER
+    ? (FB_USER.displayName || FB_USER.email || 'Odhlásit')
+    : 'Přihlásit';
+  btn.title = FB_USER
+    ? 'Přihlášen jako ' + (FB_USER.email || FB_USER.displayName) + ' — kliknutím odhlásit'
+    : 'Přihlásit se přes Google a synchronizovat watchlist mezi zařízeními';
+  btn.classList.toggle('on', Boolean(FB_USER));
+}
+
+function initAuth(){
+  renderAuth();
+  if(!window.FB) return;
+
+  window.FB.onUser(user => {
+    FB_USER = user || null;
+    SYNC_READY = false;
+    renderAuth();
+    if(FB_USER) pullSync();
+    else setSyncStatus('');
+  });
+
+  $('gauth').addEventListener('click', async () => {
+    try{
+      if(FB_USER){
+        // Odhlášení nechává localStorage být — data zůstanou v prohlížeči,
+        // jen se přestanou zálohovat. Mazat cizí watchlist při odhlášení
+        // by bylo překvapivé.
+        await window.FB.signOut();
+      } else {
+        setSyncStatus('přihlašuji…');
+        await window.FB.signIn();
+      }
+    }catch(e){
+      setSyncStatus(e && e.code === 'auth/popup-closed-by-user'
+        ? '' : 'přihlášení se nepovedlo');
+    }
+  });
+}
+
+// Modul s Firebase se načítá asynchronně, takže na něj musíme počkat.
+if(window.FB) initAuth();
+else window.addEventListener('fb-ready', initAuth, {once: true});
 
 /* ============ VSTUPNÍ OBRAZOVKA ============
    Nic se nestahuje, dokud uživatel nezadá ID. Jednotlivé záložky si
@@ -6353,9 +6613,9 @@ function enterApp(entryId, leagueId){
   ENTRY_ID = parseInt(entryId, 10);
   CONFIG.entryId = entryId;
   CONFIG.leagueId = leagueId || '';
-  localStorage.setItem(ENTRY_KEY, entryId);
-  if(leagueId) localStorage.setItem(LEAGUE_KEY, leagueId);
-  else localStorage.removeItem(LEAGUE_KEY);
+  lsSet(ENTRY_KEY, entryId);
+  if(leagueId) lsSet(LEAGUE_KEY, leagueId);
+  else lsDel(LEAGUE_KEY);
 
   $('landing').hidden = true;
   $('app').hidden = false;
