@@ -2439,6 +2439,52 @@ check('sync se nepokouší zapisovat bez přihlášení', () => {
   return 'bez uživatele se nic neplánuje';
 });
 
+check('CSP pouští to, co Firebase potřebuje', () => {
+  // Tohle je přesně ta chyba, na které přihlášení tiše spadlo: config
+  // i kód byly správně, ale CSP nepustila import z gstatic, takže se
+  // modul nenačetl a tlačítko se schovalo jako „bez configu“.
+  const vercel = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
+  const csp = vercel.headers
+    .flatMap(b => b.headers)
+    .find(h => h.key === 'Content-Security-Policy');
+  if(!csp) throw new Error('chybí CSP úplně');
+
+  const html = fs.readFileSync('index.html', 'utf8');
+  const zapnuto = /projectId:\s*"[^"]+"/.test(html);
+  if(!zapnuto) return 'Firebase vypnutá, CSP neřešíme';
+
+  const musi = [
+    ['script-src', 'gstatic.com', 'SDK se nestáhne'],
+    ['connect-src', 'googleapis.com', 'Firestore neodpoví'],
+    ['frame-src', 'accounts.google.com', 'přihlašovací popup se neotevře'],
+  ];
+  for(const [smernice, host, dusledek] of musi){
+    const blok = csp.value.split(';').map(x => x.trim())
+      .find(x => x.startsWith(smernice));
+    if(!blok) throw new Error('chybí ' + smernice + ' — ' + dusledek);
+    if(!blok.includes(host))
+      throw new Error(smernice + ' nepouští ' + host + ' — ' + dusledek);
+  }
+
+  // no-referrer rozbíjí Google OAuth: popup nepozná, odkud přišel.
+  const ref = vercel.headers.flatMap(b => b.headers)
+    .find(h => h.key === 'Referrer-Policy');
+  if(ref && ref.value === 'no-referrer')
+    throw new Error('no-referrer rozbije přihlášení přes Google');
+  return 'gstatic, googleapis i popup projdou';
+});
+
+check('popup má povolené otevření', () => {
+  const vercel = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
+  const coop = vercel.headers.flatMap(b => b.headers)
+    .find(h => h.key === 'Cross-Origin-Opener-Policy');
+  // same-origin by popupu zabránil mluvit zpátky na appku a přihlášení
+  // by skončilo tím, že se okno zavře a nic se nestane.
+  if(coop && coop.value === 'same-origin')
+    throw new Error('COOP same-origin umlčí přihlašovací popup');
+  return coop ? coop.value : 'nenastaveno';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);
