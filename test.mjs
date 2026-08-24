@@ -2581,6 +2581,51 @@ check('dvojklik na Aktualizovat nespustí dvě načtení', () => {
   return 'druhý klik se ignoruje';
 });
 
+check('vodoznak nechytá kliknutí', () => {
+  // Vrstva přes půl obrazovky bez pointer-events:none by tiše polykala
+  // kliknutí na všechno, co je pod ní.
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  const blok = style.slice(style.indexOf('body::before{'),
+                           style.indexOf('}', style.indexOf('body::before{')));
+  if(!/pointer-events:\s*none/.test(blok)) throw new Error('polyká kliknutí');
+  if(!/z-index:\s*-1/.test(blok)) throw new Error('leží nad obsahem');
+  if(!/position:\s*fixed/.test(blok)) throw new Error('scrolluje s obsahem');
+  return 'pod obsahem, neinteraktivní';
+});
+
+check('vodoznak je vidět i v tmavém režimu', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  const svetlo = parseFloat((style.slice(style.indexOf('body::before{'))
+    .match(/opacity:\s*([\d.]+)/) || [])[1]);
+  const tmaIdx = style.indexOf(':root[data-theme="dark"] body::before{');
+  if(tmaIdx < 0) throw new Error('tmavá varianta chybí — zlatá by zmizela');
+  const tma = parseFloat((style.slice(tmaIdx).match(/opacity:\s*([\d.]+)/) || [])[1]);
+  if(!(tma > svetlo)) throw new Error(`tma ${tma} není výraznější než světlo ${svetlo}`);
+  if(svetlo > 0.12) throw new Error('ve světlém režimu překřikuje obsah');
+  return `světlo ${svetlo}, tma ${tma}`;
+});
+
+check('vodoznak zmizí na úzké obrazovce', () => {
+  // Na mobilu nejsou postranní pruhy, takže by ležel pod textem.
+  const html = fs.readFileSync('index.html', 'utf8');
+  const mq = html.slice(html.indexOf('<style id="mqS"'), html.indexOf('</style>',
+    html.indexOf('<style id="mqS"')));
+  if(!/body::before\{display:none\}/.test(mq))
+    throw new Error('zůstává pod obsahem na mobilu');
+  return 'skryto pod 640px';
+});
+
+check('obrázek vodoznaku v projektu existuje', () => {
+  const css = fs.readFileSync('index.html', 'utf8');
+  const m = css.match(/body::before\{[\s\S]*?url\('([^']+)'\)/);
+  if(!m) throw new Error('chybí odkaz na obrázek');
+  const cesta = m[1].replace(/^\//, '');
+  if(!fs.existsSync(cesta)) throw new Error('soubor ' + cesta + ' v repu není');
+  return cesta;
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);

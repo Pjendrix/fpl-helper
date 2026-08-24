@@ -81,6 +81,42 @@ body{
   line-height:1.5;
   -webkit-font-smoothing:antialiased;
 }
+
+/* ---------- vodoznak poháru ----------
+
+   Obsah je vycentrovaný na 1180 px, takže na širokém monitoru zbydou
+   po stranách dva prázdné pruhy. Pohár je zaplní, aniž by se stal
+   obsahem: `position:fixed` znamená, že se při scrollování nehýbe,
+   takže ho oko po chvíli přestane registrovat — což je přesně to,
+   co má vodoznak dělat.
+
+   Je záměrně useknutý okrajem obrazovky. Celý pohár uprostřed pruhu
+   by vypadal jako obrázek, který tam někdo dal; ořezaný působí jako
+   podklad. Ze stejného důvodu je jen jeden, ne dva zrcadlené —
+   symetrie by přitáhla pozornost.
+
+   pointer-events:none je nutnost, ne detail: bez toho by neviditelná
+   vrstva přes půl obrazovky polykala kliknutí. */
+body::before{
+  content:'';
+  position:fixed;
+  right:-7vw;
+  bottom:-6vh;
+  width:min(58vh,620px);
+  height:min(58vh,620px);
+  background:url('/assets/logo-transp.webp') no-repeat center/contain;
+  opacity:.055;
+  pointer-events:none;
+  z-index:-1;
+}
+
+/* Na tmavém plátně zlatá ztmavne spolu s pozadím a zmizí úplně.
+   Vyšší krytí to vyrovnává; `screen` pak drží zlatou zlatou místo
+   toho, aby ji podklad stáhl do hněda. */
+:root[data-theme="dark"] body::before{
+  opacity:.12;
+  mix-blend-mode:screen;
+}
 .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
 
 /* ---------- horní lišta ---------- */
@@ -1101,6 +1137,9 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
   .fdrleg .hint{margin-left:0;flex-basis:100%}
 </style>
 <style id="mqS" media="(max-width:640px)">
+  /* Na úzké obrazovce žádné postranní pruhy nejsou — vodoznak by ležel
+     pod textem, ne vedle něj. */
+  body::before{display:none}
   .cmpbar{grid-template-columns:1fr}
   .watchadd{grid-template-columns:1fr}
   .hcards{grid-template-columns:1fr 1fr}
