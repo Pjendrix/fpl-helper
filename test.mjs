@@ -3151,10 +3151,11 @@ check('shoda všech kapitánů kartu neschová', () => {
   hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
   cenyStub(2, [1, 2, 3], {1: 2, 2: 2, 3: 2});
   const a = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))');
-  const cap = a.find(x => x.key === 'cap');
+  const cap = a.find(x => x.key === 'cap'), flop = a.find(x => x.key === 'flop');
   if(!cap) throw new Error('při shodě zmizela i cena za kapitána');
-  if(a.some(x => x.key === 'flop'))
-    throw new Error('vyhlásil propadáka, i když všichni dali stejně');
+  if(!flop) throw new Error('při shodě zmizel celý slot propadáka');
+  if(!/neodlišil/.test(flop.who))
+    throw new Error('vyhlásil propadáka, i když všichni dali stejně: ' + flop.who);
   if(!/3 kapitánů/.test(cap.sub)) throw new Error('neřekne, že jde o shodu: ' + cap.sub);
   return cap.who + ' — ' + cap.val;
 });

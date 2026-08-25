@@ -5102,13 +5102,21 @@ function buildAwards(gwId, picksFor, liveFor){
       : 'Většina ligy skončila na stejných bodech';
 
     if(nej.pts === nic.pts){
-      // celá liga na jednom čísle — dělit ani vyhlašovat není co
+      /* Celá liga na jednom čísle — dělit ani vyhlašovat není co.
+         Karty ale zůstanou obě: kdyby jedna zmizela, vypadalo by to,
+         že se propadák z nějakého důvodu nepočítal. */
       out.push({
         key: 'cap',
         who: 'Nikdo se neodlišil',
         val: nej.pts + ' b',
         sub: `Všech ${caps.length} kapitánů dalo stejně. `
           + 'Kolo se rozhodlo jinde než na páskách.',
+      });
+      out.push({
+        key: 'flop',
+        who: 'Nikdo se neodlišil',
+        val: nic.pts + ' b',
+        sub: 'Nikdo nepropadl víc než ostatní — všichni na stejných bodech.',
       });
     }else{
       out.push(vetsina(vitezove)
