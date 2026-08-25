@@ -2752,6 +2752,21 @@ check('novinky vzniknou i bez historie — z živého pořadí ligy', () => {
   return n.length + ' novinek z živého pořadí';
 });
 
+check('první kolo sezóny má víc než dvě novinky', () => {
+  // V GW1 není s čím srovnávat pořadí, takže odpadly skoky i pády —
+  // zbyly dvě věty. Průměr, těsný souboj a čelo tabulky vystačí
+  // s body a součtem, takže fungují i z živého pořadí.
+  nastavFaze({1: 'running', 2: 'running', 3: 'running'});
+  hubStub(1, {1: [71, 70, 66, 35]});
+  w.eval(`HUB.hists = HUB.hists.map(() => ({current: []}));
+          HUB.members.forEach((m, i) => { m.event_total = [71, 70, 66, 35][i]; m.total = m.event_total; });`);
+  const k = w.eval('buildNews(1, [])').map(x => x.kicker);
+  if(k.length < 4) throw new Error('jen ' + k.length + ' novinek: ' + k.join(', '));
+  if(!k.includes('Průměr kola')) throw new Error('chybí průměr kola');
+  if(!k.includes('V čele ligy')) throw new Error('chybí čelo tabulky');
+  return k.join(' · ');
+});
+
 check('průběžný řádek nehlásí přestupy ani lavičku', () => {
   // Pořadí ligy nese jen body a součet — nula by tvrdila něco, co nevíme.
   nastavFaze({1: 'running', 2: 'running', 3: 'running'});

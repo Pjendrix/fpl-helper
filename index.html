@@ -4469,9 +4469,12 @@ function buildNews(gwId, picksFor){
 
     const rebels = caps.filter(c => c.pid !== popId);
     if(rebels.length && rebels.length <= Math.ceil(caps.length / 2)){
+      /* Body rebela se berou ze stejné mapy jako zbytek novinek — tedy
+         i z živého pořadí. Dřív se sahalo přímo do historie, takže při
+         běžícím kole novinka tiše zmizela, i když všechno ostatní šlo. */
+      const evPodleTymu = new Map(gw.map(x => [x.m.entry, x.ev]));
       const best = rebels
-        .map(r => ({...r, ev: (hists[members.indexOf(r.m)] || {current: []}).current
-          .find(x => x.round === cur.id)}))
+        .map(r => ({...r, ev: evPodleTymu.get(r.m.entry)}))
         .filter(r => r.ev)
         .sort((a, b) => b.ev.points - a.ev.points)[0];
       if(best){
@@ -4506,6 +4509,59 @@ function buildNews(gwId, picksFor){
       cls: 'bad', kicker: 'Lavička hanby',
       head: `${esc(bench.m.player_name)} nechal ${bench.ev.points_on_bench} bodů na lavičce`,
       body: 'Body, které měl v týmu a nedostal je.',
+    });
+  }
+
+  /* Průměr kola. Vystačí s body, takže funguje i z živého pořadí —
+     a v prvním kole sezóny, kdy ještě není s čím srovnávat pořadí,
+     je to jediná novinka, která dává lize kontext. */
+  if(gw.length >= 3){
+    const soucet = gw.reduce((a, x) => a + x.ev.points, 0);
+    const prumer = Math.round(soucet / gw.length);
+    const nad = gw.filter(x => x.ev.points > prumer).length;
+    news.push({
+      cls: 'warn', kicker: 'Průměr kola',
+      head: `Liga dala v průměru ${prumer} bodů`,
+      body: `Nad průměrem skončilo <b>${nad}</b> z ${gw.length} manažerů. `
+        + `Rozpětí od ${bottom.ev.points} do ${top.ev.points} bodů.`,
+    });
+  }
+
+  /* Nejtěsnější souboj. Zajímavá je dvojice, která se v kole minula
+     o pár bodů — v malé lize je to obvykle ten příběh, o kterém se
+     pak píše do chatu. */
+  if(gw.length >= 3){
+    let nej = null;
+    for(let i = 1; i < sorted.length; i++){
+      const d = sorted[i - 1].ev.points - sorted[i].ev.points;
+      if(nej === null || d < nej.d) nej = {d, a: sorted[i - 1], b: sorted[i], poz: i};
+    }
+    if(nej && nej.d <= 3 && nej.poz > 1){
+      news.push({
+        cls: 'warn', kicker: 'O fous',
+        head: nej.d === 0
+          ? `${esc(nej.a.m.player_name)} a ${esc(nej.b.m.player_name)} skončili na stejných bodech`
+          : `${esc(nej.a.m.player_name)} přeskočil ${esc(nej.b.m.player_name)} o ${nej.d} body`,
+        body: `Oba kolem <b>${nej.a.ev.points}</b> bodů — nejtěsnější souboj kola.`,
+      });
+    }
+  }
+
+  /* V čele celkově. Body za kolo a celkové pořadí jsou dvě různé zprávy;
+     vítěz kola nemusí vést ligu a naopak. */
+  const celkem = gw.filter(x => Number.isFinite(x.ev.total_points))
+    .sort((a, b) => b.ev.total_points - a.ev.total_points);
+  if(celkem.length >= 2){
+    const lidr = celkem[0], druhy = celkem[1];
+    const naskok = lidr.ev.total_points - druhy.ev.total_points;
+    news.push({
+      cls: 'good', kicker: 'V čele ligy',
+      head: `${esc(lidr.m.player_name)} vede s ${lidr.ev.total_points} body`,
+      body: lidr.m.entry === top.m.entry
+        ? `Vyhrál kolo a zároveň vede tabulku — náskok <b>${naskok}</b> bodů na `
+          + `${esc(druhy.m.player_name)}.`
+        : `Kolo sice vyhrál ${esc(top.m.player_name)}, tabulku ale drží `
+          + `<b>${esc(lidr.m.player_name)}</b> s náskokem ${naskok} bodů.`,
     });
   }
 
