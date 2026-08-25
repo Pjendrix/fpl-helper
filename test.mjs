@@ -428,6 +428,34 @@ check('render s živými daty ukáže body místo FDR', () => {
   return 'ok';
 });
 
+check('karta hráče má pevnou mřížku, ne volné inline prvky', () => {
+  // Volné spany si zalomily obsah podle délky jména: body skončily
+  // jednou vedle jména a jednou pod ním.
+  const css = fs.readFileSync('index.html', 'utf8');
+  const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
+  const blok = style.slice(style.indexOf('.shirt{'), style.indexOf('}', style.indexOf('.shirt{')));
+  if(!/display:grid/.test(blok)) throw new Error('karta není mřížka');
+  if(!/grid-template-rows:[^;]*44px[^;]*17px[^;]*13px[^;]*30px[^;]*13px/.test(blok))
+    throw new Error('řádky nemají pevnou výšku');
+  return 'pět pevných řádků';
+});
+
+check('dres se kreslí a zkratka má vlastní řádek', () => {
+  const html = w.document.getElementById('out').innerHTML;
+  if(!html.includes('<span class="kit">')) throw new Error('chybí dres');
+  if(!/<div class="tm">/.test(html)) throw new Error('zkratka není vlastní řádek');
+  return 'dres + samostatná zkratka';
+});
+
+check('každý dres má vlastní clipPath id', () => {
+  const html = w.document.getElementById('out').innerHTML;
+  const ids = [...html.matchAll(/clipPath id="(kit\d+)"/g)].map(m => m[1]);
+  if(ids.length < 11) throw new Error('nevykreslilo se 15 dresů, jen ' + ids.length);
+  if(new Set(ids).size !== ids.length)
+    throw new Error('opakované id — všechny dresy by měly tvar toho prvního');
+  return ids.length + ' unikátních id';
+});
+
 check('kapitánovy body jsou zdvojené', () => {
   const capPick = picksSquad.find(p => p.is_captain);
   // kapitán musí mít odehrané minuty, jinak se místo bodů zobrazí pomlčka
@@ -2707,6 +2735,33 @@ check('pohyby v tabulce se ukážou hned po dopočtu bonusů', () => {
   if(!k.some(x => /Skok|Pád/.test(x)))
     throw new Error('dohrané kolo pořád schovává pohyby v tabulce');
   return 'novinky nečekají na příští kolo';
+});
+
+check('novinky vzniknou i bez historie — z živého pořadí ligy', () => {
+  // entry/history se po prvním kole plní se zpožděním; hub kvůli tomu
+  // hlásil „zatím nejsou data“ i den po posledním zápase.
+  nastavFaze({1: 'running', 2: 'running', 3: 'running'});
+  nastavZapasy(1, 'bonusy');
+  hubStub(1, {1: [100, 90, 80]});
+  w.eval(`HUB.hists = HUB.hists.map(() => ({current: []}));
+          HUB.members.forEach((m, i) => { m.event_total = [61, 44, 30][i]; m.total = m.event_total; });`);
+  const n = w.eval('buildNews(1, [])');
+  nastavZapasy(1, 'hraje');
+  if(!n.length) throw new Error('bez historie nevzniknou žádné novinky');
+  if(!n.some(x => /61/.test(x.head))) throw new Error('nepoužil body z pořadí ligy');
+  return n.length + ' novinek z živého pořadí';
+});
+
+check('průběžný řádek nehlásí přestupy ani lavičku', () => {
+  // Pořadí ligy nese jen body a součet — nula by tvrdila něco, co nevíme.
+  nastavFaze({1: 'running', 2: 'running', 3: 'running'});
+  hubStub(1, {1: [100, 90, 80]});
+  w.eval(`HUB.hists = HUB.hists.map(() => ({current: []}));
+          HUB.members.forEach((m, i) => { m.event_total = [61, 44, 30][i]; m.total = m.event_total; });`);
+  const k = w.eval('buildNews(1, [])').map(x => x.kicker);
+  if(k.some(x => /Netrpělivost|Lavička/.test(x)))
+    throw new Error('vymýšlí si data, která pořadí ligy nemá');
+  return 'vynecháno místo nul';
 });
 
 check('běžící kolo neukazuje pohyby v tabulce', () => {
