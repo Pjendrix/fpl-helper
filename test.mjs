@@ -2676,6 +2676,23 @@ function hubStub(curId, totals){
   return {members, hists};
 }
 
+/* Sestavy a body kola pro ceny.
+   kapitani: pole id hráčů, jeden na člena. lavicka: id hráče na lavičce.
+   body: mapa id → body hráče v tom kole. */
+function cenyStub(gw, kapitani, body, lavicka){
+  const picks = kapitani.map((pid, i) => ({picks: [
+    {element: pid, is_captain: true, multiplier: 2, position: 1},
+    {element: 900 + i, is_captain: false, multiplier: 1, position: 2},
+    ...(lavicka ? [{element: lavicka[i], is_captain: false,
+                    multiplier: 0, position: 12}] : []),
+  ]}));
+  const live = {elements: Object.entries(body).map(([id, pts]) =>
+    ({id: Number(id), stats: {total_points: pts}}))};
+  w.__picks = picks; w.__live = live;
+  w.eval(`NEWS_PICKS.set(${gw}, window.__picks); NEWS_LIVE.set(${gw}, window.__live);`);
+  return {picks, live};
+}
+
 function nastavFaze(mapa){
   bootstrap.events.forEach(e => {
     const f = mapa[e.id];
@@ -2873,6 +2890,182 @@ check('výběr kola se nepřenese na jiný tým', () => {
   if(!/NEWS_GW = null/.test(reset) || !/NEWS_PICKS\.clear\(\)/.test(reset))
     throw new Error('po přepnutí týmu by zůstalo cizí kolo i cizí sestavy');
   return 'reset čistí';
+});
+
+
+/* ---------- ceny kola ---------- */
+
+check('vítěz a smolař kola jsou ceny, ne novinky', () => {
+  // Obojí má vlastní kartu nahoře; v seznamu zpráv by to byla
+  // tatáž věta podruhé.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [160, 190, 140]});
+  w.eval('NEWS_GW = 2');
+  const panel = w.eval('newsPanel()');
+  const ceny = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))')
+    .map(x => x.key);
+  if(!ceny.includes('win')) throw new Error('chybí cena za výhru kola');
+  if(!ceny.includes('bench')) throw new Error('chybí cena pro smolaře');
+  if(/class="kicker">Kolo 2</.test(panel))
+    throw new Error('vítěz kola je i mezi novinkami');
+  if(/Lavička hanby/.test(panel))
+    throw new Error('lavička je i mezi novinkami');
+  return ceny.join(' · ');
+});
+
+check('smolař kola je ten s nejvíc body na lavičce', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  // hubStub dává v GW2 lavičku 11 bodů druhému členovi, ostatním 1
+  hubStub(3, {1: [100, 90, 80], 2: [160, 190, 140]});
+  const b = w.eval('buildAwards(2, [], null)').find(x => x.key === 'bench');
+  if(!b) throw new Error('cena pro smolaře nevznikla');
+  if(b.who !== 'M1') throw new Error('smolař je ' + b.who + ', čekal jsem M1');
+  if(!/11/.test(b.val)) throw new Error('špatný počet bodů: ' + b.val);
+  return b.who + ' — ' + b.val;
+});
+
+check('smolař pojmenuje hráče z lavičky, když má sestavy', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [160, 190, 140]});
+  const jm = elements[40].web_name;
+  cenyStub(2, [1, 2, 3], {1: 10, 2: 4, 3: 2, [elements[40].id]: 9},
+           [elements[40].id, elements[40].id, elements[40].id]);
+  const b = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))')
+    .find(x => x.key === 'bench');
+  if(!new RegExp(jm).test(b.sub))
+    throw new Error('nejmenuje hráče z lavičky: ' + b.sub);
+  return b.sub;
+});
+
+check('kapitánské ceny potřebují sestavy i body hráčů', () => {
+  // Bez event/{gw}/live/ známe jen jméno kapitána, ne jeho výkon —
+  // pak nemá smysl vyhlašovat, kdo byl nejlepší.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [160, 190, 140]});
+  const bez = w.eval('buildAwards(2, [], null)').map(x => x.key);
+  if(bez.some(k => k === 'cap' || k === 'flop'))
+    throw new Error('kapitánská cena vznikla bez dat');
+
+  cenyStub(2, [1, 2, 3], {1: 12, 2: 2, 3: 6});
+  const s = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))');
+  const cap = s.find(x => x.key === 'cap'), flop = s.find(x => x.key === 'flop');
+  if(!cap || !flop) throw new Error('kapitánské ceny nevznikly ani s daty');
+  if(cap.who !== 'M0') throw new Error('nejlepší kapitán je ' + cap.who);
+  if(flop.who !== 'M1') throw new Error('propadák je ' + flop.who);
+  if(!/24/.test(cap.val)) throw new Error('nezdvojnásobil body: ' + cap.val);
+  return cap.who + ' 24 b vs ' + flop.who + ' 4 b';
+});
+
+check('trojnásobný kapitán se počítá krát tři', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [160, 190, 140]});
+  cenyStub(2, [1, 2, 3], {1: 5, 2: 4, 3: 2});
+  w.eval('NEWS_PICKS.get(2)[1].picks[0].multiplier = 3');
+  const cap = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))')
+    .find(x => x.key === 'cap');
+  if(cap.who !== 'M1') throw new Error('TC neporazil dvojnásobek: ' + cap.who);
+  if(!/12/.test(cap.val)) throw new Error('špatné body: ' + cap.val);
+  return 'TC 4 × 3 = 12 b';
+});
+
+check('ceny se u prázdné kategorie vynechají místo pomlčky', () => {
+  // Když v kole nikdo nenechal body na lavičce, karta zmizí —
+  // mřížka se zúží, ale nezůstane v ní díra.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80]});
+  w.eval('HUB.hists.forEach(h => h.current.forEach(x => x.points_on_bench = 0))');
+  const k = w.eval('buildAwards(1, [], null)').map(x => x.key);
+  if(k.includes('bench')) throw new Error('nulová lavička dostala cenu');
+  if(!k.includes('win')) throw new Error('zmizel i vítěz kola');
+  return k.join(' · ');
+});
+
+check('ceny fungují v prvním kole z živého pořadí', () => {
+  nastavFaze({1: 'running', 2: 'running', 3: 'running'});
+  nastavZapasy(1, 'bonusy');
+  hubStub(1, {1: [100, 90, 80]});
+  w.eval(`HUB.hists = HUB.hists.map(() => ({current: []}));
+          HUB.members.forEach((m, i) => { m.event_total = [71, 44, 30][i]; m.total = m.event_total; });`);
+  const a = w.eval('buildAwards(1, [], null)');
+  nastavZapasy(1, 'hraje');
+  const win = a.find(x => x.key === 'win');
+  if(!win) throw new Error('vítěz kola nevznikl');
+  if(win.who !== 'M0' || !/71/.test(win.val))
+    throw new Error('špatný vítěz: ' + win.who + ' ' + win.val);
+  if(a.some(x => x.key === 'bench'))
+    throw new Error('lavička z pořadí ligy — to jsou vymyšlená data');
+  return win.who + ' ' + win.val;
+});
+
+/* ---------- síň slávy ---------- */
+
+check('síň slávy sčítá výhry přes celou sezónu', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'final'});
+  // GW1 vyhraje M0 (100), GW2 M1 (+100), GW3 M2 (+100)
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90], 3: [120, 200, 190]});
+  const {rows, kol} = w.eval('hallOfFame()');
+  if(kol !== 3) throw new Error('započítal ' + kol + ' kol místo tří');
+  const podle = Object.fromEntries(rows.map(r => [r.m.player_name, r.win]));
+  if(podle.M0 !== 1 || podle.M1 !== 1 || podle.M2 !== 1)
+    throw new Error('výhry: ' + JSON.stringify(podle));
+  return 'každý po jedné';
+});
+
+check('rozehrané kolo se do síně slávy nepočítá', () => {
+  // Čísla se do neděle několikrát otočí; bilance sezóny by skákala.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90], 3: [120, 200, 190]});
+  if(w.eval('hallOfFame().kol') !== 2)
+    throw new Error('rozehrané kolo se započítalo');
+  return 'jen dohraná kola';
+});
+
+check('síň slávy přizná, z kolika kol má kapitány', () => {
+  // Sestavy starších kol se dotahují líně — tabulka to musí říct,
+  // místo aby tiše ukázala nuly jako fakt.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
+  const bez = w.eval('hallOfFame()');
+  if(bez.pokryto !== 0) throw new Error('tvrdí, že má kapitány bez sestav');
+  cenyStub(2, [1, 2, 3], {1: 12, 2: 2, 3: 6});
+  const s = w.eval('hallOfFame()');
+  if(s.pokryto !== 1) throw new Error('pokrytí: ' + s.pokryto + ' z ' + s.kol);
+  const panel = w.eval('hallPanel()');
+  if(!/1 z 2 kol/.test(panel)) throw new Error('nepřizná neúplná data');
+  if(!/data-hallall/.test(panel)) throw new Error('chybí tlačítko na dotažení');
+  return s.pokryto + ' z ' + s.kol + ' kol';
+});
+
+check('síň slávy zvýrazní maximum ve sloupci', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'final'});
+  hubStub(3, {1: [100, 90, 80], 2: [300, 100, 90], 3: [500, 110, 100]});
+  const panel = w.eval('hallPanel()');
+  const lead = (panel.match(/class="c has lead"/g) || []).length;
+  if(!lead) throw new Error('nic není označené jako maximum');
+  if(!/🏆/.test(panel) || !/🤡/.test(panel))
+    throw new Error('chybí emoji v hlavičce tabulky');
+  return lead + ' zvýrazněných buněk';
+});
+
+check('panel ukáže ceny, novinky i síň slávy', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
+  w.eval('NEWS_GW = 2');
+  const p = w.eval('newsPanel()');
+  for(const [co, re] of [['ceny kola', /Ceny kola/], ['zprávy', /Co se ještě stalo/],
+                         ['síň slávy', /Síň slávy/], ['karta ceny', /class="award/]]){
+    if(!re.test(p)) throw new Error('v panelu chybí ' + co);
+  }
+  return 'tři sekce';
+});
+
+check('výběr kola nechá i body hráčů cizímu týmu', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const reset = html.slice(html.indexOf('function resetState()'),
+                           html.indexOf('function resetState()') + 1800);
+  if(!/NEWS_LIVE\.clear\(\)/.test(reset) || !/HALL_ALL = false/.test(reset))
+    throw new Error('po přepnutí týmu by zůstala cizí síň slávy');
+  return 'reset čistí i ceny';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci

@@ -44,6 +44,7 @@
   --ok:#00874F;    --ok-bg:#E2F7EC;
   --warn:#9A6200;  --warn-bg:#FDF3E0;   --warn-line:#C98400;
   --alert:#C4004A; --alert-bg:#FDEBF1;
+  --flop:#7A3E9E;           /* kapitánský propadák — mimo stupnici obtížnosti */
 
   /* ---------------------------------------------------------------
      Stupnice obtížnosti rozpisu — JEDNA definice pro celou appku.
@@ -435,6 +436,57 @@ tr.click:hover td{background:var(--haze)}
 .news .head{font-size:17px;font-weight:600;line-height:1.25}
 .news .body{font-size:13px;color:var(--mute);margin-top:6px;line-height:1.55}
 .news .body b{color:var(--charcoal);font-weight:600}
+
+/* ---------- ceny kola ----------
+   Čtyři hlavní ceny mají vlastní kartu s emoji, jménem a velkým číslem.
+   Barvu nese --accent, kterou nastavuje třída konkrétní ceny; zbytek
+   pravidel je pro všechny stejný, ať se nový award přidává jedním řádkem. */
+.secline{display:flex;align-items:center;gap:10px;margin:22px 0 11px}
+.secline:first-child{margin-top:0}
+.secline h4{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
+  margin:0;color:var(--mute);white-space:nowrap;font-weight:600}
+.secline::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.awards{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:4px}
+.award{position:relative;border:1px solid var(--line);border-radius:12px;
+  padding:14px 13px 13px;background:var(--haze);overflow:hidden}
+.award::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
+  background:var(--accent)}
+.award .emoji{font-size:25px;line-height:1;margin-bottom:6px}
+.award .title{font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent);font-weight:700}
+.award .who{font-size:15.5px;font-weight:600;line-height:1.2;margin:5px 0 2px}
+.award .val{font-family:var(--f-mono);font-size:21px;font-weight:700;
+  color:var(--accent);line-height:1.1}
+.award .sub{font-size:11.5px;color:var(--mute);line-height:1.4;margin-top:5px}
+.award .sub b{color:var(--charcoal);font-weight:600}
+.award.a-win{--accent:var(--ok)}
+.award.a-bench{--accent:var(--alert)}
+.award.a-cap{--accent:var(--gold-deep)}
+.award.a-flop{--accent:var(--flop)}
+
+/* ---------- síň slávy ---------- */
+.hall{border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  margin-bottom:8px}
+.hall table{border-collapse:collapse;width:100%;font-size:13px}
+.hall th,.hall td{padding:9px 10px;text-align:left;
+  border-bottom:1px solid var(--line-soft)}
+.hall thead th{background:var(--aubergine);color:#fff;font-size:10.5px;
+  letter-spacing:.06em;text-transform:uppercase;font-weight:600}
+.hall th.c,.hall td.c{text-align:center;width:76px}
+.hall th.c span{display:block;font-size:15px;letter-spacing:0;margin-bottom:1px}
+.hall tbody tr:last-child td{border-bottom:0}
+.hall td.name{font-weight:600}
+.hall td.c{font-family:var(--f-mono);font-weight:700;font-size:15px;color:var(--mute)}
+.hall td.c.has{color:var(--charcoal)}
+.hall td.c.lead{position:relative}
+.hall td.c.lead::after{content:"";position:absolute;inset:4px 12px;border-radius:8px;
+  background:var(--gold-lift);opacity:.3}
+.hall td.c i{position:relative;font-style:normal}
+.hallmore{font-size:12px;padding:6px 12px;border-radius:var(--r-btn);
+  border:1px solid var(--line);background:var(--white);color:var(--blue);
+  cursor:pointer;font-family:var(--f)}
+.hallmore[disabled]{opacity:.55;cursor:default}
 
 .boards{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .board{background:var(--haze);border-radius:12px;padding:16px 18px}
@@ -1001,6 +1053,7 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
     --ok:#3FD98C;    --ok-bg:#12321F;
     --warn:#E8B44A;  --warn-bg:#332612;   --warn-line:#E8B44A;
     --alert:#FF6B9D; --alert-bg:#3A1224;
+    --flop:#C79BE8;
     --f1:#2E9E62; --f1i:#EAFBF1;
     --f2:#4E7D64; --f2i:#EAFBF1;
     --f3:#3E2C45; --f3i:#D6C9DA;
@@ -1193,12 +1246,15 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
   .prow .n b{color:var(--charcoal)}
   .tick3{grid-column:1/-1;margin-top:5px}
   .fdrleg .hint{margin-left:0;flex-basis:100%}
+  .awards{grid-template-columns:repeat(2,1fr)}
+  .hall th.c,.hall td.c{width:52px;padding:8px 3px}
 </style>
 <style id="mqS" media="(max-width:640px)">
   /* Na úzké obrazovce žádné postranní pruhy nejsou — vodoznak by ležel
      pod textem, ne vedle něj. */
   body::before{display:none}
   .cmpbar{grid-template-columns:1fr}
+  .awards{grid-template-columns:1fr}
   .watchadd{grid-template-columns:1fr}
   .hcards{grid-template-columns:1fr 1fr}
   .hgrid{grid-template-columns:1fr}
@@ -2420,6 +2476,8 @@ async function hardReload(){
     HUB = null;
     NEWS_GW = null;
     NEWS_PICKS.clear();
+  NEWS_LIVE.clear();
+  HALL_ALL = false;
     LEAGUE_OWN = null;
     TR_STATE = null;
     PLANNER = null;
@@ -4397,6 +4455,31 @@ function newsGws(){
    otevření hubu nestálo dotaz za každé kolo sezóny. Když nejsou,
    kapitánská novinka se prostě vynechá — je to jediná, která je
    potřebuje. */
+/* Řádky kola pro každého člena ligy.
+
+   Primární zdroj je historie týmu (`entry/{id}/history/`). Ta se ale
+   plní se zpožděním — po prvním kole sezóny tam řádek chvíli není
+   vůbec, takže hub hlásil „za tohle kolo zatím nejsou data“ i ve
+   chvíli, kdy se dávno dohrálo.
+
+   Pořadí ligy přitom nese `event_total` a je živé: aktualizuje se
+   průběžně během kola. Použijeme ho jako záložní zdroj pro aktuální
+   kolo. Průběžný řádek je označený (`zeStandings`), protože nese jen
+   body a součet — ne přestupy ani lavičku, takže zprávy, které je
+   potřebují, se u něj vynechají místo aby hlásily nuly. */
+function gwRows(gwId){
+  const {members, hists} = HUB;
+  return members.map((m, i) => {
+    const h = hists[i];
+    let ev = h && h.current.find(x => x.round === gwId);
+    if(!ev && gwId === HUB.cur.id && Number.isFinite(m.event_total)){
+      ev = {round: gwId, points: m.event_total, total_points: m.total,
+            zeStandings: true};
+    }
+    return {m, i, ev};
+  }).filter(x => x.ev);
+}
+
 function buildNews(gwId, picksFor){
   const {members, hists} = HUB;
   const cur = {id: gwId != null ? gwId : HUB.cur.id};
@@ -4405,27 +4488,7 @@ function buildNews(gwId, picksFor){
   const news = [];
   const phase = gwPhase(cur.id);
 
-  /* Body za kolo.
-
-     Primární zdroj je historie týmu (`entry/{id}/history/`). Ta se ale
-     plní se zpožděním — po prvním kole sezóny tam řádek chvíli není
-     vůbec, takže hub hlásil „za tohle kolo zatím nejsou data“ i ve
-     chvíli, kdy se dávno dohrálo.
-
-     Pořadí ligy přitom nese `event_total` a je živé: aktualizuje se
-     průběžně během kola. Použijeme ho jako záložní zdroj pro aktuální
-     kolo. Průběžný řádek je označený, protože nese jen body a součet —
-     ne přestupy ani lavičku, takže novinky, které je potřebují, se
-     u něj vynechají místo aby hlásily nuly. */
-  const gw = members.map((m, i) => {
-    const h = hists[i];
-    let ev = h && h.current.find(x => x.round === cur.id);
-    if(!ev && cur.id === HUB.cur.id && Number.isFinite(m.event_total)){
-      ev = {round: cur.id, points: m.event_total, total_points: m.total,
-            zeStandings: true};
-    }
-    return {m, i, ev};
-  }).filter(x => x.ev);
+  const gw = gwRows(cur.id);
 
   if(!gw.length) return news;
 
@@ -4797,6 +4860,188 @@ function buildCollective(){
     `;
 }
 
+/* ============ CENY KOLA ============
+
+   Čtyři hlavní ceny stojí nad novinkami. Dvě z nich (výherce, smolař)
+   vystačí s historií, kterou hub načítá tak jako tak. Kapitánské ceny
+   potřebují navíc sestavy kola a body jednotlivých hráčů — obojí se
+   dotahuje líně, viz loadNewsGw. Když chybí, karta se prostě vynechá;
+   mřížka se tím zúží, ale nezůstane v ní díra s pomlčkou. */
+
+/* Body hráčů daného kola jako mapa id → body. Bez `event/{gw}/live/`
+   bychom u kapitána znali jen jméno, ne jeho výkon. */
+function liveMap(live){
+  const m = new Map();
+  if(live && Array.isArray(live.elements)){
+    for(const e of live.elements){
+      m.set(e.id, e.stats ? (e.stats.total_points || 0) : 0);
+    }
+  }
+  return m;
+}
+
+/* Kapitáni kola i s body po zdvojení. Trojnásobný kapitán (TC) má
+   multiplier 3, takže se bere z picku a ne natvrdo dvojka. */
+function capRows(picksFor, live){
+  const picks = picksFor || [];
+  const body = liveMap(live);
+  if(!picks.length || !body.size) return [];
+  return HUB.members.map((m, i) => {
+    const pk = picks[i];
+    if(!pk || !pk.picks) return null;
+    const c = pk.picks.find(x => x.is_captain);
+    if(!c || !body.has(c.element)) return null;
+    const mult = c.multiplier > 0 ? c.multiplier : 2;
+    return {m, i, pid: c.element, mult, pts: body.get(c.element) * mult,
+            raw: body.get(c.element)};
+  }).filter(Boolean);
+}
+
+/* Nejlepší hráč, kterého manažer nechal na lavičce. Doplňuje cenu
+   pro smolaře o jméno — samotné číslo neřekne, koho to mrzí. */
+function nejLavicka(pk, live){
+  const body = liveMap(live);
+  if(!pk || !pk.picks || !body.size) return null;
+  const lav = pk.picks.filter(p => p.multiplier === 0 && p.position <= 15);
+  if(!lav.length) return null;
+  const nej = lav.map(p => ({pid: p.element, pts: body.get(p.element) || 0}))
+    .sort((a, b) => b.pts - a.pts)[0];
+  return nej && nej.pts > 0 ? nej : null;
+}
+
+const AWARD_META = {
+  win:   {cls: 'a-win',   emoji: '🏆', title: 'Výherce kola'},
+  bench: {cls: 'a-bench', emoji: '🪑', title: 'Smolař kola'},
+  cap:   {cls: 'a-cap',   emoji: '👑', title: 'Kapitán týdne'},
+  flop:  {cls: 'a-flop',  emoji: '🤡', title: 'Kapitánský propadák'},
+};
+
+/* Vrátí pole cen ve tvaru {key, who, val, sub}. Prázdné pole znamená,
+   že za kolo zatím nejsou žádná data — panel to řekne místo mřížky. */
+function buildAwards(gwId, picksFor, liveFor){
+  const id = gwId != null ? gwId : HUB.cur.id;
+  const gw = gwRows(id);
+  const out = [];
+  if(!gw.length) return out;
+
+  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const jmeno = pid => esc(els[pid] ? els[pid].web_name : '?');
+
+  // vyherce
+  const sorted = gw.slice().sort((a, b) => b.ev.points - a.ev.points);
+  const top = sorted[0], second = sorted[1];
+  const delici = sorted.filter(x => x.ev.points === top.ev.points);
+  out.push({
+    key: 'win',
+    who: delici.length > 1
+      ? delici.map(x => esc(x.m.player_name)).join(' & ')
+      : esc(top.m.player_name),
+    val: top.ev.points + ' b',
+    sub: delici.length > 1
+      ? 'O první místo se dělí na stejných bodech.'
+      : second
+        ? (top.ev.points - second.ev.points >= 15
+            ? `Náskok <b>${top.ev.points - second.ev.points} bodů</b> — to už není náhoda.`
+            : `O <b>${top.ev.points - second.ev.points}</b> před ${esc(second.m.player_name)}.`)
+        : '',
+  });
+
+  // smolar — nejvic bodu na lavicce
+  const lav = gw.filter(x => !x.ev.zeStandings && x.ev.points_on_bench > 0)
+    .sort((a, b) => b.ev.points_on_bench - a.ev.points_on_bench)[0];
+  if(lav){
+    const pk = (picksFor || [])[lav.i];
+    const nej = nejLavicka(pk, liveFor);
+    out.push({
+      key: 'bench',
+      who: esc(lav.m.player_name),
+      val: lav.ev.points_on_bench + ' b',
+      sub: nej
+        ? `Nechal na lavičce — <b>${jmeno(nej.pid)}</b> za ${nej.pts} bodů.`
+        : 'Body, které měl v týmu a nedostal je.',
+    });
+  }
+
+  // kapitanske ceny
+  const caps = capRows(picksFor, liveFor);
+  if(caps.length >= 2){
+    const dle = caps.slice().sort((a, b) => b.pts - a.pts);
+    const nej = dle[0], nic = dle[dle.length - 1];
+    const kolik = pid => caps.filter(c => c.pid === pid).length;
+    if(nej.pts !== nic.pts){
+      out.push({
+        key: 'cap',
+        who: esc(nej.m.player_name),
+        val: nej.pts + ' b',
+        sub: `${jmeno(nej.pid)} (${nej.raw} × ${nej.mult})` +
+          (kolik(nej.pid) === 1 ? ' — jako jediný v lize.' : '.'),
+      });
+      out.push({
+        key: 'flop',
+        who: esc(nic.m.player_name),
+        val: nic.pts + ' b',
+        sub: `${jmeno(nic.pid)} (${nic.raw} × ${nic.mult})` +
+          (kolik(nic.pid) > caps.length / 2
+            ? ` — a měl ho i každý druhý.` : '.'),
+      });
+    }
+  }
+
+  return out;
+}
+
+/* ------------------------------------------------------------
+   Síň slávy: kolikrát kdo které ceny získal za celou sezónu.
+
+   Výhry a lavička se dopočítají z historie, kterou hub drží — nula
+   dotazů navíc. Kapitánské sloupce potřebují sestavy a body kola;
+   ty jsou jen pro kola, která už někdo otevřel, nebo pro všechna
+   po stisku „Načíst celou sezónu“. `pokryto` proto vrací počet kol,
+   ze kterých kapitánské sloupce vznikly, aby se dalo poznat, že jsou
+   neúplné, místo aby tabulka tiše lhala.
+   ------------------------------------------------------------ */
+function hallOfFame(){
+  const rows = HUB.members.map(m => ({
+    m, win: 0, bench: 0, cap: 0, flop: 0,
+  }));
+  const podleEntry = new Map(rows.map(r => [r.m.entry, r]));
+  let kol = 0, pokryto = 0;
+
+  for(const g of newsGws()){
+    // rozehrané kolo do bilance nepatří — čísla se ještě otočí
+    if(gwPhase(g) === 'running') continue;
+    const gw = gwRows(g);
+    if(!gw.length) continue;
+    kol++;
+
+    const sorted = gw.slice().sort((a, b) => b.ev.points - a.ev.points);
+    const max = sorted[0].ev.points;
+    sorted.filter(x => x.ev.points === max).forEach(x => {
+      const r = podleEntry.get(x.m.entry); if(r) r.win++;
+    });
+
+    const lav = gw.filter(x => !x.ev.zeStandings && x.ev.points_on_bench > 0)
+      .sort((a, b) => b.ev.points_on_bench - a.ev.points_on_bench)[0];
+    if(lav){
+      const r = podleEntry.get(lav.m.entry); if(r) r.bench++;
+    }
+
+    const caps = capRows(NEWS_PICKS.get(g), NEWS_LIVE.get(g));
+    if(caps.length >= 2){
+      const dle = caps.slice().sort((a, b) => b.pts - a.pts);
+      if(dle[0].pts !== dle[dle.length - 1].pts){
+        pokryto++;
+        const a = podleEntry.get(dle[0].m.entry); if(a) a.cap++;
+        const b = podleEntry.get(dle[dle.length - 1].m.entry); if(b) b.flop++;
+      }
+    }
+  }
+
+  rows.sort((a, b) => b.win - a.win || a.flop - b.flop || b.cap - a.cap
+    || a.m.player_name.localeCompare(b.m.player_name, 'cs'));
+  return {rows, kol, pokryto};
+}
+
 /* ------------------------------------------------------------
    Panel novinek: přepínač kol + stav + samotné zprávy.
 
@@ -4806,6 +5051,8 @@ function buildCollective(){
    ------------------------------------------------------------ */
 let NEWS_GW = null;
 const NEWS_PICKS = new Map();
+const NEWS_LIVE = new Map();
+let HALL_ALL = false;   // stiskl někdo „Načíst celou sezónu“?
 
 const PHASE_NOTE = {
   running: ['wn', 'Kolo běží',
@@ -4841,22 +5088,86 @@ function newsPanel(){
   const stav = `<p class="note store ${cls === 'ok' ? 'ok' : ''} phase">
     <b>${titulek}</b> — ${popis}</p>`;
 
-  const news = buildNews(sel, NEWS_PICKS.get(sel));
-  const body = news.length
-    ? news.map(x => `<div class="news ${x.cls}">
-        <div class="kicker">${esc(x.kicker)}</div>
-        <div class="head">${x.head}</div>
-        ${x.body ? `<div class="body">${x.body}</div>` : ''}
-      </div>`).join('')
-    : '<p class="note">Za tohle kolo zatím nejsou data.</p>';
+  /* Vítěz kola a lavička mají vlastní cenu nahoře — v seznamu zpráv
+     by to byla tatáž věta podruhé. */
+  const news = buildNews(sel, NEWS_PICKS.get(sel))
+    .filter(x => !/^Kolo \d+$|^Lavička hanby$/.test(x.kicker));
+  const zpravy = news.map(x => `<div class="news ${x.cls}">
+      <div class="kicker">${esc(x.kicker)}</div>
+      <div class="head">${x.head}</div>
+      ${x.body ? `<div class="body">${x.body}</div>` : ''}
+    </div>`).join('');
 
-  /* Kapitánská novinka potřebuje sestavy. Když je ještě nemáme,
-     řekneme to místo toho, abychom tiše ukázali o zprávu míň. */
-  const chybiPicks = !NEWS_PICKS.has(sel)
-    ? '<p class="note">Kapitánskou novinku dopočítám po načtení sestav…</p>'
+  const awards = buildAwards(sel, NEWS_PICKS.get(sel), NEWS_LIVE.get(sel));
+  if(!awards.length && !news.length){
+    return prepinac + stav + '<p class="note">Za tohle kolo zatím nejsou data.</p>';
+  }
+
+  const ceny = awards.length
+    ? `<div class="secline"><h4>Ceny kola</h4></div>
+       <div class="awards">${awards.map(a => {
+         const meta = AWARD_META[a.key];
+         return `<div class="award ${meta.cls}">
+           <div class="emoji" aria-hidden="true">${meta.emoji}</div>
+           <div class="title">${meta.title}</div>
+           <div class="who">${a.who}</div>
+           <div class="val">${a.val}</div>
+           ${a.sub ? `<div class="sub">${a.sub}</div>` : ''}
+         </div>`;
+       }).join('')}</div>`
     : '';
 
-  return prepinac + stav + body + chybiPicks;
+  /* Kapitánské ceny potřebují sestavy a body kola. Když je ještě
+     nemáme, řekneme to místo toho, abychom tiše ukázali o cenu míň. */
+  const chybiPicks = !NEWS_PICKS.has(sel) || !NEWS_LIVE.has(sel)
+    ? '<p class="note">Kapitánské ceny dopočítám po načtení sestav…</p>'
+    : '';
+
+  const zbytek = zpravy
+    ? `<div class="secline"><h4>Co se ještě stalo</h4></div>` + zpravy
+    : '';
+
+  return prepinac + stav + ceny + chybiPicks + zbytek + hallPanel();
+}
+
+/* Tabulka cen za celou sezónu. Kapitánské sloupce se počítají jen
+   z kol, pro která máme sestavy — tlačítko je dotáhne pro všechna. */
+function hallPanel(){
+  const {rows, kol, pokryto} = hallOfFame();
+  if(kol < 1 || rows.length < 2) return '';
+
+  const SLOUPCE = [
+    ['win', '🏆', 'Výhry'], ['bench', '🪑', 'Smůla'],
+    ['cap', '👑', 'Kapitán'], ['flop', '🤡', 'Propadák'],
+  ];
+  const max = {};
+  SLOUPCE.forEach(([k]) => max[k] = Math.max(...rows.map(r => r[k])));
+
+  const hlavicka = SLOUPCE.map(([, e, t]) =>
+    `<th class="c"><span aria-hidden="true">${e}</span>${t}</th>`).join('');
+
+  const telo = rows.map(r => `<tr>
+      <td class="name">${esc(r.m.player_name)}</td>
+      ${SLOUPCE.map(([k]) => {
+        const v = r[k];
+        const tridy = ['c', v > 0 ? 'has' : '', v > 0 && v === max[k] ? 'lead' : ''];
+        return `<td class="${tridy.filter(Boolean).join(' ')}"><i>${v}</i></td>`;
+      }).join('')}
+    </tr>`).join('');
+
+  const chybi = kol - pokryto;
+  const pozn = chybi > 0
+    ? `<p class="note">Kapitánské sloupce mám z ${pokryto} z ${kol} kol —
+        zbytek potřebuje sestavy. ${HALL_ALL ? ''
+          : `<button type="button" class="hallmore" data-hallall="1">Načíst celou sezónu</button>`}</p>`
+    : `<p class="note">Ze všech ${kol} dohraných kol sezóny.
+        Zlatě je maximum ve sloupci.</p>`;
+
+  return `<div class="secline"><h4>Síň slávy</h4></div>
+    <div class="hall"><table>
+      <thead><tr><th>Manažer</th>${hlavicka}</tr></thead>
+      <tbody>${telo}</tbody>
+    </table></div>${pozn}`;
 }
 
 /* Přepnutí kola. Sestavy starších kol se stahují až teď — otevření
@@ -4866,28 +5177,61 @@ async function loadNewsGw(g){
   const host = $('hs-0');
   if(host) host.innerHTML = newsPanel();
 
-  if(NEWS_PICKS.has(g)) return;
-  try{
-    const picks = await pooled(HUB.members,
-      m => cached('entry/' + m.entry + '/event/' + g + '/picks/'), 5);
-    NEWS_PICKS.set(g, picks);
-  }catch(e){
-    // Bez sestav prostě nebude kapitánská novinka. Zbytek panelu
-    // je na nich nezávislý, takže tohle není důvod nic hlásit.
-    NEWS_PICKS.set(g, []);
-  }
+  await nactiKolo(g);
   if(NEWS_GW === g && $('hs-0')) $('hs-0').innerHTML = newsPanel();
+}
+
+/* Sestavy a body jednoho kola. `live` je jeden dotaz na kolo, sestavy
+   jeden na člena — proto se tohle nedělá při otevření hubu. */
+async function nactiKolo(g){
+  if(!NEWS_PICKS.has(g)){
+    try{
+      NEWS_PICKS.set(g, await pooled(HUB.members,
+        m => cached('entry/' + m.entry + '/event/' + g + '/picks/'), 5));
+    }catch(e){
+      // Bez sestav prostě nebudou kapitánské ceny. Zbytek panelu
+      // je na nich nezávislý, takže tohle není důvod nic hlásit.
+      NEWS_PICKS.set(g, []);
+    }
+  }
+  if(!NEWS_LIVE.has(g)){
+    try{ NEWS_LIVE.set(g, await cached('event/' + g + '/live/')); }
+    catch(e){ NEWS_LIVE.set(g, null); }
+  }
+}
+
+/* Dotáhne sestavy všech dohraných kol, aby síň slávy měla i kapitány.
+   Je to počet kol × počet členů dotazů, takže to jde jen na kliknutí. */
+async function nactiCelouSezonu(btn){
+  HALL_ALL = true;
+  if(btn){ btn.disabled = true; btn.textContent = 'Načítám…'; }
+  const kola = newsGws().filter(g => gwPhase(g) !== 'running');
+  for(const g of kola){
+    await nactiKolo(g);
+    if(btn) btn.textContent = `Načítám… ${kola.indexOf(g) + 1}/${kola.length}`;
+  }
+  if($('hs-0')) $('hs-0').innerHTML = newsPanel();
 }
 
 document.addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-newsgw]');
   if(btn) loadNewsGw(Number(btn.dataset.newsgw));
+  const vse = ev.target.closest('button[data-hallall]');
+  if(vse) nactiCelouSezonu(vse);
 });
 
 function renderHub(){
   // Sestavy aktuálního kola už HUB načetl — ať se nestahují znovu.
   if(!NEWS_PICKS.has(HUB.cur.id)) NEWS_PICKS.set(HUB.cur.id, HUB.picks);
   if(NEWS_GW === null) NEWS_GW = HUB.cur.id;
+
+  /* Body hráčů aktuálního kola hub sám o sobě nepotřebuje — dotáhnou
+     se na pozadí a panel se překreslí, až kapitánské ceny půjdou spočítat. */
+  if(!NEWS_LIVE.has(HUB.cur.id)){
+    nactiKolo(HUB.cur.id).then(() => {
+      if(NEWS_GW === HUB.cur.id && $('hs-0')) $('hs-0').innerHTML = newsPanel();
+    });
+  }
 
   const SECS = [
     ['Novinky', newsPanel()],
@@ -7093,6 +7437,8 @@ function resetState(){
   HUB = null;
   NEWS_GW = null;          // jinak by nový tým začal na cizím zvoleném kole
   NEWS_PICKS.clear();
+  NEWS_LIVE.clear();
+  HALL_ALL = false;
   LEAGUE_OWN = null;
   PLAYERS = null;
   CMP_A = CMP_B = null;
