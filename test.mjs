@@ -3160,15 +3160,78 @@ check('shoda všech kapitánů kartu neschová', () => {
 });
 
 check('o kapitánskou cenu se při shodě na špici dělí víc lidí', () => {
+  // 2 z 5 je menšina, takže cena platí a dělí se.
   nastavFaze({1: 'final', 2: 'final', 3: 'running'});
-  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
-  cenyStub(2, [1, 2, 3], {1: 10, 2: 10, 3: 1});
+  hubStub(3, {1: [100, 90, 80, 70, 60], 2: [110, 190, 90, 80, 70]});
+  cenyStub(2, [1, 1, 2, 2, 3], {1: 10, 2: 5, 3: 1});
   const a = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))');
   const cap = a.find(x => x.key === 'cap'), flop = a.find(x => x.key === 'flop');
   if(!/M0/.test(cap.who) || !/M1/.test(cap.who))
     throw new Error('dělenou cenu dostal jen jeden: ' + cap.who);
-  if(flop.who !== 'M2') throw new Error('propadák je ' + flop.who);
+  if(flop.who !== 'M4') throw new Error('propadák je ' + flop.who);
   return cap.who + ' vs ' + flop.who;
+});
+
+check('cena propadne, když ji má dostat polovina ligy', () => {
+  // Práh je ostrý: 4 z 10 cenu ještě dostanou, 5 z 10 už ne — půlka
+  // ligy na jednom čísle není výkon, ale průměr kola.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80, 70], 2: [110, 190, 90, 80]});
+
+  // 2 ze 4 na špici = přesně polovina → bez ceny
+  cenyStub(2, [1, 1, 2, 3], {1: 10, 2: 5, 3: 1});
+  let cap = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))')
+    .find(x => x.key === 'cap');
+  if(cap.who !== 'Bez ceny')
+    throw new Error('polovina ligy dostala cenu: ' + cap.who);
+  if(!/neuděluje/.test(cap.sub)) throw new Error('neřekne, proč cena není');
+
+  // 1 ze 4 na špici = menšina → cena platí
+  w.eval('NEWS_PICKS.delete(2); NEWS_LIVE.delete(2);');
+  cenyStub(2, [1, 2, 2, 3], {1: 10, 2: 5, 3: 1});
+  cap = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))')
+    .find(x => x.key === 'cap');
+  if(cap.who !== 'M0') throw new Error('menšina cenu nedostala: ' + cap.who);
+  return 'polovina ne, menšina ano';
+});
+
+check('propadne-li kapitánská cena, propadák se pořád uděluje', () => {
+  // Devět lidí na stejném kapitánovi neznamená, že ten desátý,
+  // co se odlišil dolů, vyvázne.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80, 70], 2: [110, 190, 90, 80]});
+  cenyStub(2, [1, 1, 1, 2], {1: 10, 2: 1});
+  const a = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))');
+  const cap = a.find(x => x.key === 'cap'), flop = a.find(x => x.key === 'flop');
+  if(cap.who !== 'Bez ceny') throw new Error('většina dostala cenu: ' + cap.who);
+  if(flop.who !== 'M3') throw new Error('propadák nevznikl: ' + flop.who);
+  return 'kapitán bez ceny, propadák M3';
+});
+
+check('zpráva o propadlé ceně jmenuje kapitána, když ho měli všichni', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80, 70], 2: [110, 190, 90, 80]});
+  const jm = elements[5].web_name;
+  cenyStub(2, [elements[5].id, elements[5].id, elements[5].id, 2],
+           {[elements[5].id]: 10, 2: 1});
+  const cap = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))')
+    .find(x => x.key === 'cap');
+  if(!new RegExp(jm).test(cap.sub))
+    throw new Error('nejmenuje sdíleného kapitána: ' + cap.sub);
+  return cap.sub;
+});
+
+check('neudělená cena nevypadá jako výhra', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80, 70], 2: [110, 190, 90, 80]});
+  cenyStub(2, [1, 1, 1, 2], {1: 10, 2: 1});
+  w.eval('NEWS_GW = 2');
+  const p = w.eval('newsPanel()');
+  if(!/award a-cap bezceny/.test(p))
+    throw new Error('propadlá cena má stejnou kartu jako vyhraná');
+  if(/award a-flop bezceny/.test(p))
+    throw new Error('ztlumil i propadáka, který se udělil');
+  return 'ztlumená jen ta propadlá';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci

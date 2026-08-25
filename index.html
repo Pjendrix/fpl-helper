@@ -467,6 +467,12 @@ tr.click:hover td{background:var(--haze)}
 .award.a-bench{--accent:var(--alert)}
 .award.a-cap{--accent:var(--gold-deep)}
 .award.a-flop{--accent:var(--flop)}
+/* Neudělená cena nesmí vypadat jako výhra — zůstane jí jen ikona
+   a vysvětlení, barva i velké číslo zšednou. */
+.award.bezceny{--accent:var(--mute)}
+.award.bezceny .emoji{filter:grayscale(1);opacity:.5}
+.award.bezceny .who{color:var(--mute);font-weight:500}
+.award.bezceny .val{font-size:17px;opacity:.6}
 
 /* ---------- síň slávy ---------- */
 .hall{border:1px solid var(--line);border-radius:12px;overflow:hidden;
@@ -5031,46 +5037,57 @@ function buildAwards(gwId, picksFor, liveFor){
   // kapitanske ceny
   /* Kapitánské ceny.
 
-     Když všichni kapitáni dopadnou stejně, není koho vyhlašovat proti
-     komu — dřív se v tom případě obě karty tiše vynechaly, takže ze
-     sekce zbyly dvě. Kolo, ve kterém deset kapitánů udělá totéž, je ale
-     samo o sobě zpráva; ukážeme ji místo prázdna. */
+     Cena má smysl jen jako odlišení. Když se na krajní hodnotě sejde
+     polovina ligy nebo víc, není to výkon, ale průměr kola — cena se
+     tehdy neuděluje a karta to řekne. Práh je ostrý na polovině:
+     4 z 10 cenu ještě dostanou, 5 z 10 už ne.
+
+     Obě strany se posuzují zvlášť. Když devět lidí vsadí na stejného
+     kapitána a jeden ne, kapitánská cena propadne, ale ten jeden pořád
+     může dostat propadáka — a naopak. */
   const caps = capRows(picksFor, liveFor);
   if(caps.length >= 2){
     const dle = caps.slice().sort((a, b) => b.pts - a.pts);
     const nej = dle[0], nic = dle[dle.length - 1];
-    const kolik = pid => caps.filter(c => c.pid === pid).length;
+    const vitezove = dle.filter(c => c.pts === nej.pts);
+    const posledni = dle.filter(c => c.pts === nic.pts);
+    const vetsina = list => list.length * 2 >= caps.length;
+
     const jmena = list => list.length <= 3
       ? list.map(c => esc(c.m.player_name)).join(', ')
       : esc(list[0].m.player_name) + ' a další ' + (list.length - 1);
 
+    /* Když skupina drží jednoho hráče, řekneme to jménem — je to
+       konkrétnější než „dopadli stejně“. */
+    const duvod = list => list.every(c => c.pid === list[0].pid)
+      ? `Stejného kapitána (${jmeno(list[0].pid)}) měla většina ligy`
+      : 'Většina ligy skončila na stejných bodech';
+
     if(nej.pts === nic.pts){
+      // celá liga na jednom čísle — dělit ani vyhlašovat není co
       out.push({
         key: 'cap',
         who: 'Nikdo se neodlišil',
         val: nej.pts + ' b',
         sub: `Všech ${caps.length} kapitánů dalo stejně. `
-          + `Kolo se rozhodlo jinde než na páskách.`,
+          + 'Kolo se rozhodlo jinde než na páskách.',
       });
     }else{
-      const vitezove = dle.filter(c => c.pts === nej.pts);
-      const posledni = dle.filter(c => c.pts === nic.pts);
-      out.push({
-        key: 'cap',
-        who: jmena(vitezove),
-        val: nej.pts + ' b',
-        sub: `${jmeno(nej.pid)} (${nej.raw} × ${nej.mult})` +
-          (vitezove.length > 1 ? ' — o cenu se dělí.'
-            : kolik(nej.pid) === 1 ? ' — jako jediný v lize.' : '.'),
-      });
-      out.push({
-        key: 'flop',
-        who: jmena(posledni),
-        val: nic.pts + ' b',
-        sub: `${jmeno(nic.pid)} (${nic.raw} × ${nic.mult})` +
-          (posledni.length > 1 ? ' — a nebyl v tom sám.'
-            : kolik(nic.pid) > caps.length / 2 ? ' — a měl ho i každý druhý.' : '.'),
-      });
+      out.push(vetsina(vitezove)
+        ? {key: 'cap', who: 'Bez ceny', val: '—',
+           sub: `${duvod(vitezove)} — cena se za tohle kolo neuděluje.`}
+        : {key: 'cap', who: jmena(vitezove), val: nej.pts + ' b',
+           sub: `${jmeno(nej.pid)} (${nej.raw} × ${nej.mult})`
+             + (vitezove.length > 1 ? ' — o cenu se dělí.'
+               : caps.filter(c => c.pid === nej.pid).length === 1
+                 ? ' — jako jediný v lize.' : '.')});
+
+      out.push(vetsina(posledni)
+        ? {key: 'flop', who: 'Bez ceny', val: '—',
+           sub: `${duvod(posledni)} — cena se za tohle kolo neuděluje.`}
+        : {key: 'flop', who: jmena(posledni), val: nic.pts + ' b',
+           sub: `${jmeno(nic.pid)} (${nic.raw} × ${nic.mult})`
+             + (posledni.length > 1 ? ' — a nebyl v tom sám.' : '.')});
     }
   }
 
@@ -5202,7 +5219,8 @@ function newsPanel(){
     ? `<div class="secline"><h4>Ceny kola</h4>${zive}</div>
        <div class="awards">${awards.map(a => {
          const meta = AWARD_META[a.key];
-         return `<div class="award ${meta.cls}">
+         const bez = a.val === '—' ? ' bezceny' : '';
+         return `<div class="award ${meta.cls}${bez}">
            <div class="emoji" aria-hidden="true">${meta.emoji}</div>
            <div class="title">${meta.title}</div>
            <div class="who">${a.who}</div>
