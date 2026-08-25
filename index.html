@@ -5029,26 +5029,47 @@ function buildAwards(gwId, picksFor, liveFor){
   }
 
   // kapitanske ceny
+  /* Kapitánské ceny.
+
+     Když všichni kapitáni dopadnou stejně, není koho vyhlašovat proti
+     komu — dřív se v tom případě obě karty tiše vynechaly, takže ze
+     sekce zbyly dvě. Kolo, ve kterém deset kapitánů udělá totéž, je ale
+     samo o sobě zpráva; ukážeme ji místo prázdna. */
   const caps = capRows(picksFor, liveFor);
   if(caps.length >= 2){
     const dle = caps.slice().sort((a, b) => b.pts - a.pts);
     const nej = dle[0], nic = dle[dle.length - 1];
     const kolik = pid => caps.filter(c => c.pid === pid).length;
-    if(nej.pts !== nic.pts){
+    const jmena = list => list.length <= 3
+      ? list.map(c => esc(c.m.player_name)).join(', ')
+      : esc(list[0].m.player_name) + ' a další ' + (list.length - 1);
+
+    if(nej.pts === nic.pts){
       out.push({
         key: 'cap',
-        who: esc(nej.m.player_name),
+        who: 'Nikdo se neodlišil',
+        val: nej.pts + ' b',
+        sub: `Všech ${caps.length} kapitánů dalo stejně. `
+          + `Kolo se rozhodlo jinde než na páskách.`,
+      });
+    }else{
+      const vitezove = dle.filter(c => c.pts === nej.pts);
+      const posledni = dle.filter(c => c.pts === nic.pts);
+      out.push({
+        key: 'cap',
+        who: jmena(vitezove),
         val: nej.pts + ' b',
         sub: `${jmeno(nej.pid)} (${nej.raw} × ${nej.mult})` +
-          (kolik(nej.pid) === 1 ? ' — jako jediný v lize.' : '.'),
+          (vitezove.length > 1 ? ' — o cenu se dělí.'
+            : kolik(nej.pid) === 1 ? ' — jako jediný v lize.' : '.'),
       });
       out.push({
         key: 'flop',
-        who: esc(nic.m.player_name),
+        who: jmena(posledni),
         val: nic.pts + ' b',
         sub: `${jmeno(nic.pid)} (${nic.raw} × ${nic.mult})` +
-          (kolik(nic.pid) > caps.length / 2
-            ? ` — a měl ho i každý druhý.` : '.'),
+          (posledni.length > 1 ? ' — a nebyl v tom sám.'
+            : kolik(nic.pid) > caps.length / 2 ? ' — a měl ho i každý druhý.' : '.'),
       });
     }
   }

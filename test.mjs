@@ -3143,6 +3143,34 @@ check('do síně slávy jde kolo až po dopočtu bonusů', () => {
   return 'propíše se až s bonusy';
 });
 
+
+check('shoda všech kapitánů kartu neschová', () => {
+  // Dřív se při shodě vynechaly obě kapitánské ceny, takže ze čtyř
+  // karet zbyly dvě a nic nevysvětlilo proč.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
+  cenyStub(2, [1, 2, 3], {1: 2, 2: 2, 3: 2});
+  const a = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))');
+  const cap = a.find(x => x.key === 'cap');
+  if(!cap) throw new Error('při shodě zmizela i cena za kapitána');
+  if(a.some(x => x.key === 'flop'))
+    throw new Error('vyhlásil propadáka, i když všichni dali stejně');
+  if(!/3 kapitánů/.test(cap.sub)) throw new Error('neřekne, že jde o shodu: ' + cap.sub);
+  return cap.who + ' — ' + cap.val;
+});
+
+check('o kapitánskou cenu se při shodě na špici dělí víc lidí', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
+  cenyStub(2, [1, 2, 3], {1: 10, 2: 10, 3: 1});
+  const a = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))');
+  const cap = a.find(x => x.key === 'cap'), flop = a.find(x => x.key === 'flop');
+  if(!/M0/.test(cap.who) || !/M1/.test(cap.who))
+    throw new Error('dělenou cenu dostal jen jeden: ' + cap.who);
+  if(flop.who !== 'M2') throw new Error('propadák je ' + flop.who);
+  return cap.who + ' vs ' + flop.who;
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);
