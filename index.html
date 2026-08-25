@@ -267,23 +267,48 @@ h2:first-child{margin-top:0}
 .sec[hidden]{display:none}
 
 /* ---------- hřiště ----------
-   Jediné místo, kde tma zůstává i ve světlém režimu: bílé dresy na ní
-   vyniknou tak, jak na světlém podkladu nemůžou. */
+   Trávník místo tmavé plochy. Sekané pruhy a čáry nejsou dekorace: dávají
+   sestavě měřítko, takže se tvar (3-4-3 vs 4-4-2) pozná dřív, než člověk
+   začne počítat karty. Čáry jsou jeden SVG na pozadí — žádné elementy
+   navíc, nic, do čeho by se dalo kliknout.
+
+   Bílá karta na zeleni má vyšší kontrast než na auberginové, takže se
+   dresy daly zmenšit a čísla naopak zvětšit. */
 .pitch{
-  background:var(--sky-deep);border-radius:var(--r-img);
+  --turf-a:#1E7C40; --turf-b:#1A6E39;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 900' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='white' stroke-opacity='.30' stroke-width='2.5'%3E%3Crect x='18' y='18' width='564' height='864'/%3E%3Cline x1='18' y1='450' x2='582' y2='450'/%3E%3Ccircle cx='300' cy='450' r='82'/%3E%3Crect x='110' y='18' width='380' height='176'/%3E%3Crect x='205' y='18' width='190' height='68'/%3E%3Cpath d='M243 194a62 62 0 0 0 114 0'/%3E%3Crect x='110' y='706' width='380' height='176'/%3E%3Crect x='205' y='814' width='190' height='68'/%3E%3Cpath d='M243 706a62 62 0 0 1 114 0'/%3E%3C/g%3E%3Cg fill='white' fill-opacity='.30'%3E%3Ccircle cx='300' cy='450' r='4'/%3E%3Ccircle cx='300' cy='134' r='4'/%3E%3Ccircle cx='300' cy='766' r='4'/%3E%3C/g%3E%3C/svg%3E") no-repeat center/100% 100%,
+    repeating-linear-gradient(180deg,var(--turf-a) 0 58px,var(--turf-b) 58px 116px);
+  border-radius:var(--r-img);
   padding:20px 18px 24px;margin:16px 0;
-  display:flex;flex-direction:column;gap:20px;
+  display:flex;flex-direction:column;gap:18px;
+  box-shadow:inset 0 0 70px rgba(0,0,0,.30);
 }
-.row{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
-.shirt{width:88px;background:rgba(255,255,255,.93);border-radius:var(--r-btn);
-  padding:9px 5px 8px;text-align:center;border-top:4px solid var(--ok)}
-.shirt.d{border-top-color:var(--warn-line)}
-.shirt.i,.shirt.s,.shirt.u{border-top-color:var(--alert)}
-.shirt .nm{font-weight:600;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.shirt .tm{font-family:var(--f-mono);font-size:10px;color:var(--mute)}
-.shirt .fd{font-family:var(--f-mono);font-size:10px;color:var(--mute);margin-top:3px}
+.row{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}
+
+/* Karta hráče. Klubová barva drží pruh nahoře a kotouč v pozadí — dres
+   se pozná periferně, bez čtení zkratky. */
+.shirt{width:104px;background:var(--white);border-radius:10px;
+  padding:9px 7px 0;text-align:center;position:relative;overflow:hidden;
+  border:0;box-shadow:0 2px 0 rgba(0,0,0,.22)}
+.shirt .cbar{position:absolute;inset:0 0 auto;height:4px;background:var(--cc,var(--aubergine))}
+.shirt .disc{position:absolute;right:-16px;bottom:14px;width:66px;height:66px;
+  border-radius:50%;background:var(--cc,var(--aubergine));opacity:.08;pointer-events:none}
+.shirt.d .cbar{background:var(--warn-line)}
+.shirt.i .cbar,.shirt.s .cbar,.shirt.u .cbar{background:var(--alert)}
+.shirt .nm{font-family:var(--f-disp);font-weight:600;font-size:13.5px;letter-spacing:-.01em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative}
+.shirt .tm{font-family:var(--f-mono);font-size:9.5px;letter-spacing:.1em;color:var(--mute)}
+.shirt .fd{font-family:var(--f-mono);font-size:10px;color:var(--mute);margin:6px 0 9px}
 .shirt .cap{display:inline-block;background:var(--charcoal);color:var(--white);
   font-size:9px;font-weight:700;border-radius:3px;padding:0 4px;margin-left:3px;vertical-align:1px}
+
+/* Pás minut u spodní hrany. Je to hodiny zápasu: 66′ vypadá jinak než 90′
+   na první pohled a šrafování říká „ještě se nehrálo“ beze slov. */
+.shirt .clock{height:5px;background:var(--haze);margin:0 -7px;position:relative}
+.shirt .clock i{display:block;height:100%;background:var(--cc,var(--aubergine))}
+.shirt .clock.off i{width:100%;
+  background:repeating-linear-gradient(45deg,#CFC6D2,#CFC6D2 3px,#E7E0EA 3px,#E7E0EA 6px)}
 
 /* ---------- karty a tabulky ---------- */
 .meta,.kpis{display:flex;gap:24px;flex-wrap:wrap;margin:0 0 8px}
@@ -588,8 +613,10 @@ details.issue[open]>summary .more::after{content:' — sbalit'}
    číslo nekolidovalo s první řadou dresů. */
 .livebar{
   display:flex;flex-wrap:wrap;align-items:center;gap:20px;
-  padding:0 4px 16px;margin:-6px 0 6px;
-  border-bottom:1px solid rgba(255,255,255,.14);
+  padding:14px 18px 16px;margin:-4px 0 2px;
+  background:linear-gradient(135deg,var(--aubergine),var(--aubergine-lift));
+  border-radius:12px;border-bottom:3px solid rgba(0,0,0,.25);
+  box-shadow:0 6px 16px rgba(0,0,0,.28);
 }
 .livebar .big{font-family:var(--f-disp);font-size:38px;font-weight:800;line-height:.95;
   color:var(--mint-fill);text-shadow:0 2px 14px rgba(0,0,0,.45)}
@@ -600,14 +627,15 @@ details.issue[open]>summary .more::after{content:' — sbalit'}
 .livebar .txt{flex:1 1 190px;font-size:11.5px;color:#B291BA;text-align:right;
   line-height:1.45}
 
-.shirt .pts{font-family:var(--f-mono);font-size:16px;font-weight:700;margin-top:3px}
-.shirt .pts small{display:block;font-size:9px;font-weight:400;color:var(--mute);
-  letter-spacing:0;margin-top:1px}
+.shirt .pts{font-family:var(--f-disp);font-size:29px;font-weight:700;line-height:1;
+  margin:6px 0 7px;color:var(--charcoal)}
+.shirt .pts small{display:block;font-family:var(--f-mono);font-size:9.5px;font-weight:400;
+  color:var(--mute);letter-spacing:0;margin-top:5px}
 .shirt .pts.hi{color:var(--ok)}
 .shirt .pts.md{color:var(--charcoal)}
 .shirt .pts.lo{color:var(--mute)}
-.shirt .pts.wait{color:var(--mute);font-weight:400}
-.shirt.done{border-color:rgba(0,0,0,.18)}
+.shirt .pts.wait{color:var(--mute);font-weight:400;font-size:19px;margin-top:11px}
+.shirt.done{box-shadow:0 2px 0 rgba(0,0,0,.32)}
 
 td.gwpts b{font-family:var(--f-mono)}
 td.gwpts .wait{color:var(--mute)}
@@ -782,7 +810,8 @@ button.small.icon{padding:4px 8px;font-size:14px;line-height:1;min-width:30px}
 .crest{width:21px;height:21px;flex:0 0 auto;border-radius:5px;
   object-fit:contain;background:var(--haze);margin-right:1px}
 .crest.sm{width:17px;height:17px;border-radius:4px}
-.shirt .crest{width:24px;height:24px;margin:0 auto 3px;display:block}
+.shirt .crest{width:26px;height:26px;margin:0 auto 4px;display:block;
+  background:transparent;position:relative}
 
 /* ---------- ukazatel pohybu ceny ---------- */
 /* Poznámka o tom, kde data leží. Odlišená proužkem, ne barvou pozadí —
@@ -1167,7 +1196,10 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
   .hero .poster{max-width:270px}
   .gate{padding:22px;max-width:none}
   .panel{padding:20px 16px}
-  .shirt{width:74px}
+  .shirt{width:calc(33.33% - 6px);max-width:104px}
+  .shirt .nm{font-size:12.5px}
+  .shirt .pts{font-size:25px}
+  .pitch{padding:16px 10px 20px}
   td,th{padding:7px 5px}
   .hide-s{display:none}
   .bar .wrap{height:auto;padding-top:10px;padding-bottom:10px}
@@ -1177,7 +1209,7 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
   .ticker td.fx span{min-width:34px;font-size:10px}
   .compare .chead{grid-template-columns:1fr}
   .compare .vs{display:none}
-  .livebar{gap:14px;padding:12px 14px}
+  .livebar{gap:14px;padding:12px 14px 14px}
   .livebar .big{font-size:26px}
   .livebar .txt{text-align:left;flex-basis:100%}
   .candhead{display:none}
@@ -1791,15 +1823,25 @@ function render(entry, picks, startGw, liveCtx){
     const foot = live
       ? (s.played
           ? `<div class="pts ${s.gwPts >= 6 ? 'hi' : s.gwPts >= 3 ? 'md' : 'lo'}">
-               ${s.gwPts}<small>b · ${s.st.minutes}′</small></div>`
+               ${s.gwPts}<small>${s.st.minutes}′</small></div>`
           : `<div class="pts wait">–<small>zatím nehrál</small></div>`)
       : `<div class="fd">FDR ${s.f.avg ? s.f.avg.toFixed(1) : '–'}</div>`;
 
-    return `<div class="shirt ${s.p.status}${live && s.played ? ' done' : ''}">
+    /* Minuty jako podíl z 90. Nastavených 100 % u hráče, který odehrál
+       celý nastavený čas, je záměr — pás je hodiny, ne přesná statistika. */
+    const min = live && s.played ? Math.min(100, Math.round(s.st.minutes / 90 * 100)) : 0;
+    const clock = live
+      ? (s.played ? `<span class="clock"><i style="width:${min}%"></i></span>`
+                  : '<span class="clock off"><i></i></span>')
+      : '';
+
+    return `<div class="shirt ${s.p.status}${live && s.played ? ' done' : ''}"
+        style="--cc:${clubColor(s.team.short_name)}">
+      <span class="cbar"></span><span class="disc"></span>
       ${crest(s.p.team)}
       <div class="nm">${esc(s.p.web_name)}${cap}</div>
       <div class="tm">${esc(s.team.short_name)}</div>
-      ${foot}
+      ${foot}${clock}
     </div>`;
   };
 
@@ -6173,6 +6215,20 @@ function drawRail(){
    Když odznak na CDN není (typicky čerstvý nováček), spadneme na
    vlastní barevnou značku z club-marks.svg. Proto onerror.
    ============================================================ */
+/* Klubová barva pro pruh a kotouč na dresu. Jen primární odstín — na
+   sekundární není na 104px místo a dvě barvy by se praly s FDR škálou.
+   Neznámý tým dostane auberginovou, ať nic nezmizí. */
+const CLUB_COLOR = {
+  ARS:'#EF0107', AVL:'#95BFE5', BOU:'#DA291C', BRE:'#E30613', BHA:'#0057B8',
+  BUR:'#6C1D45', CHE:'#034694', CRY:'#1B458F', EVE:'#003399', FUL:'#000000',
+  IPS:'#3A64A3', LEE:'#FFCD00', LEI:'#003090', LIV:'#C8102E', MCI:'#6CABDD',
+  MUN:'#DA291C', NEW:'#241F20', NFO:'#DD0000', SOU:'#D71920', SUN:'#EB172B',
+  TOT:'#132257', WHU:'#7A263A', WOL:'#FDB913',
+};
+function clubColor(shortName){
+  return CLUB_COLOR[shortName] || 'var(--aubergine)';
+}
+
 function crest(teamId, cls){
   const t = BOOT && BOOT.teams.find(x => x.id === teamId);
   if(!t) return '';
