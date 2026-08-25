@@ -3068,6 +3068,81 @@ check('výběr kola nechá i body hráčů cizímu týmu', () => {
   return 'reset čistí i ceny';
 });
 
+
+check('smolař vznikne i v prvním kole, kdy ještě není historie', () => {
+  // entry/history se po prvním kole plní se zpožděním; body kola pak
+  // chodí z pořadí ligy, které lavičku nezná. Sestavy a body hráčů ale
+  // máme, takže se součet dá spočítat i tak.
+  nastavFaze({1: 'running', 2: 'running', 3: 'running'});
+  nastavZapasy(1, 'bonusy');
+  hubStub(1, {1: [100, 90, 80]});
+  w.eval(`HUB.hists = HUB.hists.map(() => ({current: []}));
+          HUB.members.forEach((m, i) => { m.event_total = [71, 44, 30][i]; m.total = m.event_total; });`);
+  const lav = [elements[10].id, elements[11].id, elements[12].id];
+  cenyStub(1, [1, 2, 3], {1: 5, 2: 4, 3: 2,
+    [lav[0]]: 3, [lav[1]]: 12, [lav[2]]: 1}, lav);
+  const b = w.eval('buildAwards(1, NEWS_PICKS.get(1), NEWS_LIVE.get(1))')
+    .find(x => x.key === 'bench');
+  nastavZapasy(1, 'hraje');
+  if(!b) throw new Error('smolař bez historie nevznikl');
+  if(b.who !== 'M1') throw new Error('smolař je ' + b.who + ', čekal jsem M1');
+  if(!/12/.test(b.val)) throw new Error('špatné body: ' + b.val);
+  return b.who + ' — ' + b.val;
+});
+
+check('bez sestav i bez historie se lavička nevymýšlí', () => {
+  nastavFaze({1: 'running', 2: 'running', 3: 'running'});
+  nastavZapasy(1, 'bonusy');
+  hubStub(1, {1: [100, 90, 80]});
+  w.eval(`HUB.hists = HUB.hists.map(() => ({current: []}));
+          HUB.members.forEach((m, i) => { m.event_total = [71, 44, 30][i]; m.total = m.event_total; });`);
+  const k = w.eval('buildAwards(1, [], null)').map(x => x.key);
+  nastavZapasy(1, 'hraje');
+  if(k.includes('bench')) throw new Error('vymyslel si body na lavičce');
+  return 'vynecháno místo nuly';
+});
+
+check('selhané načtení bodů hráčů se přizná', () => {
+  // Dřív se ukládalo null i při chybě, takže has() vrátilo true
+  // a panel schoval i hlášku, která to měla vysvětlit.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
+  w.eval('NEWS_GW = 2; NEWS_PICKS.set(2, []); NEWS_LIVE.set(2, null);');
+  const p = w.eval('newsPanel()');
+  if(/dopočítám po načtení/.test(p))
+    throw new Error('tváří se, že se to pořád načítá');
+  if(!/nepodařilo se/.test(p)) throw new Error('mlčí o tom, že dotaz selhal');
+  return 'panel řekne důvod';
+});
+
+check('nedopočítané kolo má u cen odznak', () => {
+  nastavFaze({1: 'final', 2: 'unchecked', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90], 3: [120, 200, 100]});
+  w.eval('NEWS_GW = 3');
+  if(!/živě/.test(w.eval('newsPanel()')))
+    throw new Error('rozehrané kolo nemá u cen odznak');
+  w.eval('NEWS_GW = 2');
+  if(!/čeká na bonusy/.test(w.eval('newsPanel()')))
+    throw new Error('kolo bez bonusů nemá odznak');
+  w.eval('NEWS_GW = 1');
+  if(/livetag/.test(w.eval('newsPanel()')))
+    throw new Error('dopočítané kolo má odznak, i když má konečná čísla');
+  return 'živě / čeká na bonusy / nic';
+});
+
+check('do síně slávy jde kolo až po dopočtu bonusů', () => {
+  // Tříbodový bonus umí otočit vítěze i propadáka; tabulka by pak
+  // přepisovala vlastní historii.
+  nastavFaze({1: 'final', 2: 'unchecked', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90], 3: [120, 200, 100]});
+  if(w.eval('hallOfFame().kol') !== 1)
+    throw new Error('započítalo se kolo, které čeká na bonusy');
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  if(w.eval('hallOfFame().kol') !== 2)
+    throw new Error('dopočítané kolo se do bilance nepropsalo');
+  return 'propíše se až s bonusy';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);

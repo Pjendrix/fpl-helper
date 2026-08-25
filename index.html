@@ -445,7 +445,10 @@ tr.click:hover td{background:var(--haze)}
 .secline:first-child{margin-top:0}
 .secline h4{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
   margin:0;color:var(--mute);white-space:nowrap;font-weight:600}
-.secline::after{content:"";flex:1;height:1px;background:var(--line)}
+.secline::after{content:"";flex:1;height:1px;background:var(--line);order:9}
+.secline .livetag{font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  font-weight:700;color:var(--warn);background:var(--warn-bg);
+  border-radius:20px;padding:2px 9px;white-space:nowrap}
 
 .awards{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:4px}
 .award{position:relative;border:1px solid var(--line);border-radius:12px;
@@ -4897,16 +4900,46 @@ function capRows(picksFor, live){
   }).filter(Boolean);
 }
 
-/* Nejlepší hráč, kterého manažer nechal na lavičce. Doplňuje cenu
-   pro smolaře o jméno — samotné číslo neřekne, koho to mrzí. */
-function nejLavicka(pk, live){
+/* Hráči, které manažer nechal na lavičce, i s body. */
+function lavickaRows(pk, live){
   const body = liveMap(live);
-  if(!pk || !pk.picks || !body.size) return null;
-  const lav = pk.picks.filter(p => p.multiplier === 0 && p.position <= 15);
-  if(!lav.length) return null;
-  const nej = lav.map(p => ({pid: p.element, pts: body.get(p.element) || 0}))
-    .sort((a, b) => b.pts - a.pts)[0];
+  if(!pk || !pk.picks || !body.size) return [];
+  return pk.picks
+    .filter(p => p.multiplier === 0 && p.position >= 12 && p.position <= 15)
+    .map(p => ({pid: p.element, pts: body.get(p.element) || 0}));
+}
+
+/* Nejlepší hráč z lavičky. Doplňuje cenu pro smolaře o jméno —
+   samotné číslo neřekne, koho to mrzí. */
+function nejLavicka(pk, live){
+  const nej = lavickaRows(pk, live).sort((a, b) => b.pts - a.pts)[0];
   return nej && nej.pts > 0 ? nej : null;
+}
+
+/* Body na lavičce pro jeden řádek kola.
+
+   Historie týmu (`entry/{id}/history/`) je nese hotové, ale plní se se
+   zpožděním — po prvním kole sezóny tam řádek chvíli není vůbec a body
+   se berou z živého pořadí ligy, které lavičku nezná. Dřív to znamenalo,
+   že cena pro smolaře v GW1 prostě nebyla. Sestavy a body hráčů přitom
+   máme, takže si součet spočítáme sami; z historie se bere jen tehdy,
+   když tam je. Vrací null, když se nedá zjistit vůbec — to je pořád
+   lepší než tvrdit nulu. */
+function lavickaBody(row, pk, live){
+  if(row.ev && !row.ev.zeStandings && Number.isFinite(row.ev.points_on_bench)){
+    return row.ev.points_on_bench;
+  }
+  const lav = lavickaRows(pk, live);
+  return lav.length ? lav.reduce((a, x) => a + x.pts, 0) : null;
+}
+
+/* Smolař kola: nejvíc bodů nechaných na lavičce. */
+function smolar(gw, picksFor, live){
+  const picks = picksFor || [];
+  const s = gw.map(x => ({...x, lav: lavickaBody(x, picks[x.i], live)}))
+    .filter(x => x.lav > 0)
+    .sort((a, b) => b.lav - a.lav);
+  return s.length ? s[0] : null;
 }
 
 const AWARD_META = {
@@ -4947,15 +4980,13 @@ function buildAwards(gwId, picksFor, liveFor){
   });
 
   // smolar — nejvic bodu na lavicce
-  const lav = gw.filter(x => !x.ev.zeStandings && x.ev.points_on_bench > 0)
-    .sort((a, b) => b.ev.points_on_bench - a.ev.points_on_bench)[0];
+  const lav = smolar(gw, picksFor, liveFor);
   if(lav){
-    const pk = (picksFor || [])[lav.i];
-    const nej = nejLavicka(pk, liveFor);
+    const nej = nejLavicka((picksFor || [])[lav.i], liveFor);
     out.push({
       key: 'bench',
       who: esc(lav.m.player_name),
-      val: lav.ev.points_on_bench + ' b',
+      val: lav.lav + ' b',
       sub: nej
         ? `Nechal na lavičce — <b>${jmeno(nej.pid)}</b> za ${nej.pts} bodů.`
         : 'Body, které měl v týmu a nedostal je.',
@@ -5008,8 +5039,10 @@ function hallOfFame(){
   let kol = 0, pokryto = 0;
 
   for(const g of newsGws()){
-    // rozehrané kolo do bilance nepatří — čísla se ještě otočí
-    if(gwPhase(g) === 'running') continue;
+    /* Do bilance sezóny jde jen dopočítané kolo. Rozehrané se mění po
+       každém zápase a u čekajícího na bonusy může tříbodový bonus otočit
+       vítěze i propadáka — tabulka by pak přepisovala historii. */
+    if(gwPhase(g) !== 'final') continue;
     const gw = gwRows(g);
     if(!gw.length) continue;
     kol++;
@@ -5020,8 +5053,7 @@ function hallOfFame(){
       const r = podleEntry.get(x.m.entry); if(r) r.win++;
     });
 
-    const lav = gw.filter(x => !x.ev.zeStandings && x.ev.points_on_bench > 0)
-      .sort((a, b) => b.ev.points_on_bench - a.ev.points_on_bench)[0];
+    const lav = smolar(gw, NEWS_PICKS.get(g), NEWS_LIVE.get(g));
     if(lav){
       const r = podleEntry.get(lav.m.entry); if(r) r.bench++;
     }
@@ -5103,8 +5135,15 @@ function newsPanel(){
     return prepinac + stav + '<p class="note">Za tohle kolo zatím nejsou data.</p>';
   }
 
+  /* Dokud se kolo nedopočítá, jsou ceny průběžné. Ať je to vidět na
+     kartě, ne jen v hlášce nad panelem — tabulka síně slávy je bere
+     až po dopočtu bonusů. */
+  const zive = phase !== 'final'
+    ? `<span class="livetag">${phase === 'running' ? 'živě' : 'čeká na bonusy'}</span>`
+    : '';
+
   const ceny = awards.length
-    ? `<div class="secline"><h4>Ceny kola</h4></div>
+    ? `<div class="secline"><h4>Ceny kola</h4>${zive}</div>
        <div class="awards">${awards.map(a => {
          const meta = AWARD_META[a.key];
          return `<div class="award ${meta.cls}">
@@ -5117,11 +5156,19 @@ function newsPanel(){
        }).join('')}</div>`
     : '';
 
-  /* Kapitánské ceny potřebují sestavy a body kola. Když je ještě
-     nemáme, řekneme to místo toho, abychom tiše ukázali o cenu míň. */
-  const chybiPicks = !NEWS_PICKS.has(sel) || !NEWS_LIVE.has(sel)
-    ? '<p class="note">Kapitánské ceny dopočítám po načtení sestav…</p>'
-    : '';
+  /* Kapitánské ceny potřebují sestavy a body kola. Když chybí, řekneme
+     to místo toho, abychom tiše ukázali o dvě ceny míň — a rozlišíme,
+     jestli se ještě načítají, nebo jestli dotaz selhal. */
+  const maPicks = NEWS_PICKS.has(sel) && (NEWS_PICKS.get(sel) || []).length;
+  const maLive = NEWS_LIVE.has(sel) && NEWS_LIVE.get(sel);
+  const chybiPicks = awards.some(a => a.key === 'cap') ? ''
+    : (!NEWS_PICKS.has(sel) || !NEWS_LIVE.has(sel))
+      ? '<p class="note">Kapitánské ceny dopočítám po načtení sestav…</p>'
+      : (!maPicks || !maLive)
+        ? `<p class="note">Kapitánské ceny teď nejdou spočítat — nepodařilo se
+            načíst ${!maPicks ? 'sestavy' : 'body hráčů'} tohohle kola.
+            Zkus <b>⟳</b> v hlavičce.</p>`
+        : '';
 
   const zbytek = zpravy
     ? `<div class="secline"><h4>Co se ještě stalo</h4></div>` + zpravy
@@ -5160,7 +5207,7 @@ function hallPanel(){
     ? `<p class="note">Kapitánské sloupce mám z ${pokryto} z ${kol} kol —
         zbytek potřebuje sestavy. ${HALL_ALL ? ''
           : `<button type="button" class="hallmore" data-hallall="1">Načíst celou sezónu</button>`}</p>`
-    : `<p class="note">Ze všech ${kol} dohraných kol sezóny.
+    : `<p class="note">Ze všech ${kol} dopočítaných kol sezóny.
         Zlatě je maximum ve sloupci.</p>`;
 
   return `<div class="secline"><h4>Síň slávy</h4></div>
@@ -5195,6 +5242,10 @@ async function nactiKolo(g){
     }
   }
   if(!NEWS_LIVE.has(g)){
+    /* Rozlišujeme „ještě nenačteno“ (klíč v mapě není) od „nepovedlo se“
+       (klíč je, hodnota null). Dřív se ukládalo null v obou případech,
+       takže `has()` vrátilo true a panel schoval i hlášku, která měla
+       říct, proč kapitánské ceny nejsou. */
     try{ NEWS_LIVE.set(g, await cached('event/' + g + '/live/')); }
     catch(e){ NEWS_LIVE.set(g, null); }
   }
@@ -5205,7 +5256,7 @@ async function nactiKolo(g){
 async function nactiCelouSezonu(btn){
   HALL_ALL = true;
   if(btn){ btn.disabled = true; btn.textContent = 'Načítám…'; }
-  const kola = newsGws().filter(g => gwPhase(g) !== 'running');
+  const kola = newsGws().filter(g => gwPhase(g) === 'final');
   for(const g of kola){
     await nactiKolo(g);
     if(btn) btn.textContent = `Načítám… ${kola.indexOf(g) + 1}/${kola.length}`;
