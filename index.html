@@ -4942,6 +4942,41 @@ function smolar(gw, picksFor, live){
   return s.length ? s[0] : null;
 }
 
+/* Diagnostika kapitánských cen.
+
+   Ceny se počítají ze dvou zdrojů (sestavy + body hráčů kola) a když
+   jeden z nich přijde v nečekaném tvaru, karta prostě není. Tohle
+   vypíše, kde se řetěz trhá, aby se to nemuselo hádat z toho, co na
+   stránce chybí. Volá se ručně z konzole: debugCeny(1). */
+window.debugCeny = function(gw){
+  const g = gw || NEWS_GW || (HUB && HUB.cur.id);
+  if(!HUB){ console.log('HUB není načtený — otevři nejdřív Hub ligy.'); return; }
+  const picks = NEWS_PICKS.get(g), live = NEWS_LIVE.get(g);
+  const body = liveMap(live);
+  console.log('kolo', g, '· fáze', gwPhase(g));
+  console.log('členů ligy:', HUB.members.length);
+  console.log('sestav:', picks ? picks.length : '(nenačteno)',
+    '· z toho prázdných:', picks ? picks.filter(p => !p || !p.picks).length : '-');
+  console.log('hráčů v mapě bodů:', body.size,
+    '· live:', live ? 'objekt' : String(live));
+  const caps = capRows(picks, live);
+  console.log('spárovaných kapitánů:', caps.length);
+  console.table(caps.map(c => ({
+    manazer: c.m.player_name, kapitan: c.pid, raw: c.raw,
+    mult: c.mult, body: c.pts,
+  })));
+  const bezBodu = (picks || []).map((pk, i) => {
+    if(!pk || !pk.picks) return null;
+    const c = pk.picks.find(x => x.is_captain);
+    if(!c) return HUB.members[i].player_name + ': žádný is_captain';
+    if(!body.has(c.element)) return HUB.members[i].player_name
+      + ': kapitán ' + c.element + ' není v mapě bodů';
+    return null;
+  }).filter(Boolean);
+  if(bezBodu.length) console.log('nespárováno:', bezBodu);
+  console.log('ceny:', buildAwards(g, picks, live).map(a => a.key).join(', ') || '(žádné)');
+};
+
 const AWARD_META = {
   win:   {cls: 'a-win',   emoji: '🏆', title: 'Výherce kola'},
   bench: {cls: 'a-bench', emoji: '🪑', title: 'Smolař kola'},
