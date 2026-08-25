@@ -4284,11 +4284,43 @@ function leagueRanks(members, hists){
      · final     — data_checked, čísla už se nezmění
 
    `data_checked` je jediné pole, které FPL nastaví až po připsání
-   bonusů. `finished` přijde dřív, takže na definitivnost nestačí. */
+   bonusů. `finished` přijde dřív, takže na definitivnost nestačí.
+
+   Jenže obojí je na úrovni celého kola a FPL je přepíná se zpožděním —
+   klidně půl dne po posledním zápase, někdy až v úterý ráno. Do té doby
+   appka tvrdila „kolo běží“, i když se dávno dohrálo a bonusy byly
+   připsané. Proto se ptáme rovnou rozpisu, který se aktualizuje hned:
+
+     · některý zápas ještě neskončil          → running
+     · všechny dohrané, bonusy nejsou v datech → unchecked
+     · všechny dohrané a bonusy zapsané        → final
+
+   Bonus je ve `stats` každého zápasu položka `bonus`; FPL ji doplní
+   ve chvíli, kdy jsou body definitivní. To je přesně ten okamžik, po
+   kterém má smysl novinky pustit — nezávisle na tom, kdy se FPL uráčí
+   překlopit `data_checked`. */
+function fixtureBonusDone(f){
+  const s = (f.stats || []).find(x => x.identifier === 'bonus');
+  if(!s) return false;
+  return (s.h && s.h.length > 0) || (s.a && s.a.length > 0);
+}
+
+function gwPhaseFromFixtures(gwId){
+  if(!Array.isArray(FIX)) return null;
+  const fs = FIX.filter(f => f.event === gwId);
+  if(!fs.length) return null;
+  // Rozpis smí fázi jen posunout dopředu, nikdy zpátky: když v něm zápasy
+  // dohrané nejsou, rozhodnou dál příznaky kola.
+  if(!fs.every(f => f.finished || f.finished_provisional)) return null;
+  return fs.every(f => f.finished && fixtureBonusDone(f)) ? 'final' : 'unchecked';
+}
+
 function gwPhase(gwId){
   const ev = BOOT.events.find(e => e.id === gwId);
   if(!ev) return 'running';
   if(ev.data_checked) return 'final';
+  const zRozpisu = gwPhaseFromFixtures(gwId);
+  if(zRozpisu) return zRozpisu;
   if(ev.finished) return 'unchecked';
   return 'running';
 }

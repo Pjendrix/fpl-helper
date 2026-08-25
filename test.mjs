@@ -2669,6 +2669,46 @@ check('fáze kola se pozná podle data_checked, ne finished', () => {
   return 'final / unchecked / running';
 });
 
+/* Přepíše stav zápasů daného kola v rozpisu.
+   stav: 'hraje' | 'dohrano' (bez bonusů) | 'bonusy' */
+function nastavZapasy(gw, stav, vyjimka){
+  fixtures.filter(f => f.event === gw).forEach((f, i) => {
+    const s = (vyjimka != null && i === 0) ? vyjimka : stav;
+    f.finished_provisional = s !== 'hraje';
+    f.finished = s !== 'hraje';
+    f.stats = s === 'bonusy'
+      ? [{identifier: 'bonus', h: [{element: 1, value: 3}], a: []}]
+      : [];
+  });
+}
+
+check('kolo je hotové, když jsou dohrané zápasy a bonusy — bez data_checked', () => {
+  // FPL překlápí data_checked klidně půl dne po posledním zápase.
+  // Do té doby appka hlásila „kolo běží“ a schovávala novinky.
+  nastavFaze({1: 'final', 2: 'running', 3: 'running'});
+  nastavZapasy(2, 'bonusy');
+  hubStub(3, {1: [100, 90, 80], 2: [200, 180, 160], 3: [250, 240, 230]});
+  const f = w.eval('gwPhase');
+  if(f(2) !== 'final') throw new Error('dohrané kolo s bonusy není final');
+  nastavZapasy(2, 'dohrano');
+  if(f(2) !== 'unchecked') throw new Error('dohrané bez bonusů není unchecked');
+  nastavZapasy(2, 'bonusy', 'hraje');
+  if(f(2) !== 'running') throw new Error('jeden nedohraný zápas nestačí na running');
+  nastavZapasy(2, 'hraje');
+  return 'rozpis rozhoduje dřív než data_checked';
+});
+
+check('pohyby v tabulce se ukážou hned po dopočtu bonusů', () => {
+  nastavFaze({1: 'final', 2: 'running', 3: 'running'});
+  nastavZapasy(2, 'bonusy');
+  hubStub(2, {1: [100, 90, 80, 70], 2: [110, 100, 95, 300]});
+  const k = w.eval('buildNews(2, [])').map(x => x.kicker);
+  nastavZapasy(2, 'hraje');
+  if(!k.some(x => /Skok|Pád/.test(x)))
+    throw new Error('dohrané kolo pořád schovává pohyby v tabulce');
+  return 'novinky nečekají na příští kolo';
+});
+
 check('běžící kolo neukazuje pohyby v tabulce', () => {
   // Porovnávalo by rozehraný stav s dokončeným, takže by hlásilo skoky,
   // které se do neděle několikrát otočí.
