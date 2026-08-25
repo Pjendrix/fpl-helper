@@ -3234,6 +3234,63 @@ check('neudělená cena nevypadá jako výhra', () => {
   return 'ztlumená jen ta propadlá';
 });
 
+
+/* Nastaví body na lavičce v historii daného kola. */
+function nastavLavicku(gw, body){
+  w.__lav = body;
+  w.eval(`HUB.hists.forEach((h, i) => h.current.forEach(x => {
+    if(x.round === ${gw}) x.points_on_bench = window.__lav[i];
+  }));`);
+}
+
+check('smolař propadne, když má stejnou lavičku polovina ligy', () => {
+  // Stejné pravidlo jako u kapitánů: cena je odlišení, ne popis kola.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80, 70], 2: [110, 190, 90, 80]});
+
+  nastavLavicku(2, [9, 9, 2, 1]);   // 2 ze 4 na maximu = polovina
+  let b = w.eval('buildAwards(2, [], null)').find(x => x.key === 'bench');
+  if(!b) throw new Error('cena pro smolaře vůbec nevznikla');
+  if(b.who !== 'Bez ceny') throw new Error('polovina ligy dostala cenu: ' + b.who);
+  if(!/neuděluje/.test(b.sub)) throw new Error('neřekne, proč cena není');
+
+  nastavLavicku(2, [9, 3, 2, 1]);   // 1 ze 4 = menšina
+  b = w.eval('buildAwards(2, [], null)').find(x => x.key === 'bench');
+  if(b.who !== 'M0') throw new Error('menšina cenu nedostala: ' + b.who);
+  return 'polovina ne, menšina ano';
+});
+
+check('o cenu smolaře se při shodě dělí menšina', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80, 70, 60], 2: [110, 190, 90, 80, 70]});
+  nastavLavicku(2, [9, 9, 2, 1, 0]);   // 2 z 5 = menšina
+  const b = w.eval('buildAwards(2, [], null)').find(x => x.key === 'bench');
+  if(!/M0/.test(b.who) || !/M1/.test(b.who))
+    throw new Error('dělenou cenu dostal jen jeden: ' + b.who);
+  if(!/dělí/.test(b.sub)) throw new Error('neřekne, že se dělí: ' + b.sub);
+  return b.who + ' — ' + b.val;
+});
+
+check('shodná lavička u všech dá kartu „nikdo se neodlišil“', () => {
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
+  nastavLavicku(2, [6, 6, 6]);
+  const b = w.eval('buildAwards(2, [], null)').find(x => x.key === 'bench');
+  if(!/neodlišil/.test(b.who)) throw new Error('čekal jsem shodu, mám: ' + b.who);
+  if(!/6/.test(b.val)) throw new Error('špatné body: ' + b.val);
+  return b.who + ' — ' + b.val;
+});
+
+check('nulová lavička u všech není shoda, ale prostě žádná cena', () => {
+  // „Všichni nechali 0 bodů“ není zpráva; karta by jen zabírala místo.
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
+  nastavLavicku(2, [0, 0, 0]);
+  const k = w.eval('buildAwards(2, [], null)').map(x => x.key);
+  if(k.includes('bench')) throw new Error('nulová lavička dostala kartu');
+  return 'karta se vynechá';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);

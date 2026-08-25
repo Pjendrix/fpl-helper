@@ -4940,12 +4940,26 @@ function lavickaBody(row, pk, live){
 }
 
 /* Smolař kola: nejvíc bodů nechaných na lavičce. */
-function smolar(gw, picksFor, live){
+/* Smolaři kola: všichni, kdo nechali na lavičce nejvíc bodů.
+
+   Vrací celou skupinu na maximu, ne jen prvního — cena se při shodě
+   dělí a nad polovinou ligy propadá, stejně jako u kapitánů. Do počtu
+   se berou jen manažeři, u kterých se lavička dá spočítat; kdo má
+   `null` (chybí historie i sestavy), do statistiky nepatří. */
+function smolari(gw, picksFor, live){
   const picks = picksFor || [];
   const s = gw.map(x => ({...x, lav: lavickaBody(x, picks[x.i], live)}))
-    .filter(x => x.lav > 0)
-    .sort((a, b) => b.lav - a.lav);
-  return s.length ? s[0] : null;
+    .filter(x => Number.isFinite(x.lav));
+  if(!s.length) return {vsichni: [], nej: []};
+  const max = Math.max(...s.map(x => x.lav));
+  return {vsichni: s, nej: max > 0 ? s.filter(x => x.lav === max) : []};
+}
+
+/* Zpětně kompatibilní jednička — používá ji síň slávy, kde se počítá
+   jen to, kdo cenu dostal. */
+function smolar(gw, picksFor, live){
+  const {nej} = smolari(gw, picksFor, live);
+  return nej.length ? nej[0] : null;
 }
 
 /* Diagnostika kapitánských cen.
@@ -5020,18 +5034,42 @@ function buildAwards(gwId, picksFor, liveFor){
         : '',
   });
 
-  // smolar — nejvic bodu na lavicce
-  const lav = smolar(gw, picksFor, liveFor);
-  if(lav){
-    const nej = nejLavicka((picksFor || [])[lav.i], liveFor);
-    out.push({
-      key: 'bench',
-      who: esc(lav.m.player_name),
-      val: lav.lav + ' b',
-      sub: nej
-        ? `Nechal na lavičce — <b>${jmeno(nej.pid)}</b> za ${nej.pts} bodů.`
-        : 'Body, které měl v týmu a nedostal je.',
-    });
+  /* Smolař — nejvíc bodů na lavičce. Platí tu totéž pravidlo jako
+     u kapitánů: cena je odlišení, takže se při polovině ligy a víc
+     neuděluje. Deset lidí se stejnou lavičkou není smolař, to je kolo. */
+  const {vsichni: lavVsichni, nej: lavNej} = smolari(gw, picksFor, liveFor);
+  if(lavNej.length){
+    const vsichniStejne = lavNej.length === lavVsichni.length;
+    const vetsinaLav = lavNej.length * 2 >= lavVsichni.length;
+    const jmenaLav = list => list.length <= 3
+      ? list.map(c => esc(c.m.player_name)).join(', ')
+      : esc(list[0].m.player_name) + ' a další ' + (list.length - 1);
+
+    if(vsichniStejne && lavVsichni.length > 1){
+      out.push({
+        key: 'bench', who: 'Nikdo se neodlišil', val: lavNej[0].lav + ' b',
+        sub: `Všech ${lavVsichni.length} manažerů nechalo na lavičce stejně.`,
+      });
+    }else if(vetsinaLav){
+      out.push({
+        key: 'bench', who: 'Bez ceny', val: '—',
+        sub: `Stejně bodů na lavičce nechala většina ligy `
+          + `(${lavNej.length} z ${lavVsichni.length}) — cena se za tohle kolo neuděluje.`,
+      });
+    }else{
+      const kdo = lavNej[0];
+      const nej = lavNej.length === 1 ? nejLavicka((picksFor || [])[kdo.i], liveFor) : null;
+      out.push({
+        key: 'bench',
+        who: jmenaLav(lavNej),
+        val: kdo.lav + ' b',
+        sub: lavNej.length > 1
+          ? 'Na lavičce nechali stejně — o cenu se dělí.'
+          : nej
+            ? `Nechal na lavičce — <b>${jmeno(nej.pid)}</b> za ${nej.pts} bodů.`
+            : 'Body, které měl v týmu a nedostal je.',
+      });
+    }
   }
 
   // kapitanske ceny
