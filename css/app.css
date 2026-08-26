@@ -1330,3 +1330,11 @@ table.h2ht tr.me td b{color:var(--ok)}
 .hrow.h2hrow .pc{font-family:var(--f-mono);font-weight:700}
 .hrow.h2hrow.w .pc{color:var(--ok)}
 .hrow.h2hrow.l .pc{color:var(--alert)}
+
+/* Volba počátečního kola H2H. Vypadá jako věta, ne jako formulář —
+   je to jedno nastavení, ne sekce. */
+.h2hstart{display:inline-flex;align-items:center;gap:7px;margin:0 0 10px;
+  font-size:12px;color:var(--mute)}
+.h2hstart select{font-family:var(--f-mono);font-size:12px;font-weight:700;
+  color:var(--charcoal);background:var(--haze);border:1px solid var(--line);
+  border-radius:7px;padding:4px 7px}
