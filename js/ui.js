@@ -43,16 +43,25 @@ if($('theme')) $('theme').addEventListener('click', () => {
 });
 
 /* ============================================================
-   ZOBRAZENÍ: AUTO / MOBIL / DESKTOP
+   ZOBRAZENÍ: MOBIL / DESKTOP
 
-   Responzivní pravidla nejsou v hlavním <style>, ale ve dvou
-   samostatných tagech s atributem `media`. Přepínač jen přepisuje
+   Responzivní pravidla nejsou v hlavním stylopisu, ale ve třech
+   samostatných tazích s atributem `media`. Přepínač jen přepisuje
    ten atribut — žádná duplicitní sada pravidel, žádné !important.
 
-     auto     — media zůstává na max-width, rozhoduje šířka okna
      mobile   — media="all", mobilní rozvržení i na širokém monitoru
      desktop  — media="not all", plus viewport na pevných 1100 px,
                 takže i na telefonu vyjde desktopová verze
+
+   Třetí režim „auto“ tady byl a je pryč. Vypadal jako přívětivé
+   výchozí nastavení, ale ve skutečnosti dělal z tlačítka hádanku:
+   ⇔ neříkalo, co je vidět teď, jen že to rozhoduje někdo jiný.
+   Cyklus přes tři stavy navíc znamenal, že přepnutí z mobilu na
+   desktop chtělo dvě kliknutí. Teď jsou stavy dva a tlačítko
+   ukazuje ten, do kterého se překlopí.
+
+   Volbu za člověka pořád udělá appka — jen jednou, při prvním
+   spuštění, podle šířky okna. Od té chvíle je to jeho volba.
 
    Viewport meta prohlížeč na desktopu ignoruje, na telefonu je to
    ale jediná cesta, jak desktopové rozvržení vůbec dostat — proto
@@ -61,19 +70,28 @@ if($('theme')) $('theme').addEventListener('click', () => {
 const VIEW_KEY = 'fpl_view';
 const VIEW_MQ = {mqL: '(max-width:720px)', mqS: '(max-width:640px)',
                  mqM: '(max-width:720px)'};
-const VIEW_MODES = ['auto', 'mobile', 'desktop'];
-const VIEW_LABEL = {auto: '⇔', mobile: '▯', desktop: '▭'};
-const VIEW_TITLE = {auto: 'Zobrazení: automatické', mobile: 'Zobrazení: mobil',
-                    desktop: 'Zobrazení: desktop'};
+const VIEW_MODES = ['mobile', 'desktop'];
+// Popisek ukazuje cíl kliknutí, ne aktuální stav: na mobilu nabízí
+// desktop a naopak. Tlačítko tak vždycky říká, co udělá.
+const VIEW_LABEL = {mobile: '▭', desktop: '▯'};
+const VIEW_TITLE = {mobile: 'Přepnout na desktop zobrazení',
+                    desktop: 'Přepnout na mobilní zobrazení'};
+
+/* Výchozí režim při prvním spuštění. Uložená volba má vždycky
+   přednost — tohle se ptá jen tehdy, když ještě žádná není. */
+function defaultView(){
+  return window.matchMedia && window.matchMedia('(max-width:720px)').matches
+    ? 'mobile' : 'desktop';
+}
 
 function applyView(mode){
-  if(!VIEW_MODES.includes(mode)) mode = 'auto';
+  if(!VIEW_MODES.includes(mode)) mode = defaultView();
   document.documentElement.setAttribute('data-view', mode);
 
   Object.entries(VIEW_MQ).forEach(([id, mq]) => {
     const el = document.getElementById(id);
     if(!el) return;
-    el.media = mode === 'mobile' ? 'all' : mode === 'desktop' ? 'not all' : mq;
+    el.media = mode === 'mobile' ? 'all' : 'not all';
   });
 
   const vp = document.querySelector('meta[name="viewport"]');
@@ -88,11 +106,11 @@ function applyView(mode){
   }
 }
 
-applyView(localStorage.getItem(VIEW_KEY) || 'auto');
+applyView(localStorage.getItem(VIEW_KEY) || defaultView());
 
 if($('viewmode')) $('viewmode').addEventListener('click', () => {
-  const cur = document.documentElement.getAttribute('data-view') || 'auto';
-  const next = VIEW_MODES[(VIEW_MODES.indexOf(cur) + 1) % VIEW_MODES.length];
+  const cur = document.documentElement.getAttribute('data-view');
+  const next = cur === 'mobile' ? 'desktop' : 'mobile';
   lsSet(VIEW_KEY, next);
   applyView(next);
 });

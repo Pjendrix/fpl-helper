@@ -95,8 +95,6 @@
       '<div class="mgrid">' +
         actionBtn('theme',   'Tmavý režim',   '<path d="M20 14.4A8.4 8.4 0 0 1 9.6 4 8.4 8.4 0 1 0 20 14.4z"/>') +
         actionBtn('reload',  'Načíst znovu',  '<path d="M20 5.6v5h-5"/><path d="M19.3 14a7.6 7.6 0 1 1-1.5-7"/>') +
-        actionBtn('viewmode', VIEW_TITLE[document.documentElement.getAttribute('data-view') || 'auto'] || 'Zobrazení',
-                  '<path d="M3.6 5.2h16.8v11H3.6z"/><path d="M8.8 19.6h6.4"/>') +
         actionBtn('gauth',   'Přihlásit',     '<path d="M15.2 20v-1.8a3.6 3.6 0 0 0-3.6-3.6H7.2A3.6 3.6 0 0 0 3.6 18.2V20"/><path d="M9.4 11.2a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2z"/><path d="M17.6 8.4h4"/>') +
         actionBtn('logout',  'Změnit ID',     '<path d="M9.6 20H5.2A1.6 1.6 0 0 1 3.6 18.4V5.6A1.6 1.6 0 0 1 5.2 4h4.4"/><path d="M15.6 16.4 20 12l-4.4-4.4"/><path d="M20 12H9.6"/>') +
       '</div>';

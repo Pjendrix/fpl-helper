@@ -491,7 +491,19 @@ function render(entry, picks, startGw, liveCtx){
     const dot = s2.p.status !== 'a' || s2.chance <= 50 ? 'bad'
               : s2.chance < 100 ? 'warn' : 'ok';
 
-    return `<div class="prow${s2.starting ? '' : ' benched'}${owned < 5 ? ' diff' : ''}">
+    /* Hodnoty pro řazení jdou do data-atributů, ne do parsování textu.
+       V buňkách je „5.5▲“, „8.7 %“ a „–“ — z toho by se čísla tahala
+       regulárem a první nečíselný stav (blank, nehrál) by řazení tiše
+       rozhodil. Chybějící hodnota je -1, aby padala na konec. */
+    return `<div class="prow${s2.starting ? '' : ' benched'}${owned < 5 ? ' diff' : ''}"
+      data-cena="${s2.p.now_cost}"
+      data-body="${s2.p.total_points}"
+      data-forma="${parseFloat(s2.p.form) || 0}"
+      data-fdr="${s2.f.avg != null ? s2.f.avg : -1}"
+      data-gw="${live ? (s2.played ? s2.gwPts : -1) : -1}"
+      data-own="${owned}"
+      data-pos="${s2.p.element_type}"
+      data-poradi="${s2.pk.position}">
       <span class="who">
         <i class="dot ${dot}" title="${esc(S[s2.p.status][0])}"></i>
         ${crest(s2.p.team, 'sm')}
@@ -517,11 +529,23 @@ function render(entry, picks, startGw, liveCtx){
     [1, 'Brankáři'], [2, 'Obránci'], [3, 'Záložníci'], [4, 'Útočníci'],
   ];
 
+  /* Hlavičky jsou tlačítka jen v režimu Celkem. Po pozicích by řazení
+     buď muselo míchat hráče přes skupiny (a pak ty skupiny nedávají
+     smysl), nebo řadit uvnitř nich (a pak není poznat, že se něco
+     stalo). Radši jedno místo, kde to dělá přesně to, co slibuje.
+
+     Směr: u FDR dává smysl začít od nejmenšího (nejlehčí los), u všeho
+     ostatního od největšího. */
+  const th = (key, label, cls) => `<span class="${cls}"
+    data-sort="${key}" role="button" tabindex="0">${label}<i class="sar"></i></span>`;
+
   const head = `<div class="phead${live ? ' live' : ''}">
-    <span>Hráč</span><span class="n">Cena</span><span class="n">Body</span>
-    <span class="n">Forma</span><span class="n">FDR</span>
-    ${live ? `<span class="n">GW${liveGw}</span>` : ''}
-    <span class="tickhead">GW${startGw}–${startGw + 2}</span><span class="n">Vlastní</span>
+    <span>Hráč</span>
+    ${th('cena', 'Cena', 'n')}${th('body', 'Body', 'n')}
+    ${th('forma', 'Forma', 'n')}${th('fdr', 'FDR', 'n')}
+    ${live ? th('gw', 'GW' + liveGw, 'n') : ''}
+    <span class="tickhead">GW${startGw}–${startGw + 2}</span>
+    ${th('own', 'Vlastní', 'n')}
   </div>`;
 
   const groupHtml = GROUPS.map(([type, label]) => {
@@ -543,7 +567,17 @@ function render(entry, picks, startGw, liveCtx){
         live ? ` · ${benchTotal} bodů` : ''}</span>
     </div>${benchList.map(pRow).join('')}` : '';
 
-  const squadTable = `<div class="squadlist${live ? ' live' : ''}">
+  /* Řádky jsou v DOM jednou. Přepínač i řazení jen přeskládají to,
+     co už tam je — žádné druhé vykreslení, žádná druhá kopie dat,
+     která by se mohla rozejít s první. */
+  const squadTable = `<div class="subnav" role="tablist" aria-label="Zobrazení kádru">
+      <button type="button" role="tab" data-squadview="pos"
+        aria-selected="${SQUAD_VIEW === 'pos'}">Po pozicích</button>
+      <button type="button" role="tab" data-squadview="all"
+        aria-selected="${SQUAD_VIEW === 'all'}">Kádr celkem</button>
+    </div>
+    <div class="squadlist${live ? ' live' : ''}${
+      SQUAD_VIEW === 'all' ? ' flat' : ''}" id="squadlist">
       ${head}${groupHtml}${benchHtml}
     </div>
     <div class="fdrleg">
@@ -581,7 +615,10 @@ function render(entry, picks, startGw, liveCtx){
 
     ${shapeHtml}
 
-    <h2>Kádr po pozicích${info(`${live
+    <h2>Kádr${info(`<b>Po pozicích</b> drží hráče ve skupinách i s cenou za
+    skupinu. <b>Kádr celkem</b> je jeden seznam všech patnácti, který se dá
+    seřadit kliknutím na hlavičku sloupce — podle ceny, bodů, formy, FDR,
+    bodů posledního kola i vlastnictví. Druhé kliknutí obrátí směr.<br><br>${live
       ? `Sloupec GW${liveGw} jsou body, které hráč v tomhle kole opravdu má (u kapitána
          už zdvojené). `
       : ''}Sloupec FDR je průměr přes dalších pět kol, barevný rozpis vedle něj ukazuje
@@ -596,6 +633,10 @@ function render(entry, picks, startGw, liveCtx){
         + 'vyplněné vůbec.'}`)}</h2>
     
     ${squadTable}`;
+
+  /* Zobrazení i řazení přežívají překreslení sestavy (⟳, změna kola).
+     Volá se až po zápisu do DOM — applySquadSort si řádky hledá. */
+  applySquadSort();
 }
 
 /* ============================================================
@@ -811,6 +852,181 @@ function homeOutlook(){
   return `<div class="hgrid">${epBox || shapeBox}${epBox ? shapeBox : ''}</div>`;
 }
 
+/* ============================================================
+   KÁDR: PO POZICÍCH / CELKEM
+
+   Sestava se dá číst dvěma způsoby a každý odpovídá na jinou otázku.
+   Po pozicích: „kolik mám zabité v obraně“. Celkem: „kdo z mých
+   patnácti má nejhorší los“ — a na to skupiny překážejí.
+
+   Přepínač nic nepřekresluje. Patnáct řádků je v DOM jednou a obě
+   zobrazení s nimi jen jinak zacházejí: skupinové hlavičky se v
+   režimu Celkem schovají CSS pravidlem a řádky se přeskládají podle
+   data-atributů. Kdyby se místo toho vykresloval druhý seznam,
+   existovala by data dvakrát — a stačilo by opravit jedno místo ze
+   dvou, aby si tabulka začala odporovat sama se sebou.
+
+   Volba se drží v proměnné, ne v localStorage: je to způsob čtení
+   jedné obrazovky, ne nastavení appky. Po reloadu je zpátky výchozí
+   rozdělení po pozicích, které je pro většinu pohledů užitečnější.
+   ============================================================ */
+let SQUAD_VIEW = 'pos';        // 'pos' | 'all'
+let SQUAD_SORT = null;         // {key, dir} — null = pořadí v sestavě
+
+/* Sloupce, u kterých „lepší“ znamená menší číslo. FDR je jediný:
+   nejlehčí los je 1, ne 5. Ostatní se řadí od největšího. */
+const SORT_ASC_FIRST = new Set(['fdr']);
+
+function applySquadSort(){
+  const list = $('squadlist');
+  if(!list) return;
+
+  list.classList.toggle('flat', SQUAD_VIEW === 'all');
+
+  list.querySelectorAll('[data-sort]').forEach(h => {
+    const on = SQUAD_SORT && SQUAD_SORT.key === h.dataset.sort;
+    h.setAttribute('aria-sort', on
+      ? (SQUAD_SORT.dir === 1 ? 'ascending' : 'descending') : 'none');
+  });
+
+  const rows = [...list.querySelectorAll('.prow')];
+  if(!rows.length) return;
+
+  /* Bez řazení se vrací pořadí ze sestavy — jinak by přepnutí zpátky
+     na Po pozicích nechalo hráče zamíchané pod hlavičkami skupin. */
+  const key = SQUAD_SORT ? SQUAD_SORT.key : null;
+  const dir = SQUAD_SORT ? SQUAD_SORT.dir : 1;
+  const num = (el, k) => parseFloat(el.dataset[k]);
+
+  rows.sort((a, b) => {
+    if(!key) return (num(a, 'pos') - num(b, 'pos'))
+                 || (num(a, 'poradi') - num(b, 'poradi'));
+    const va = num(a, key), vb = num(b, key);
+    // -1 je „hodnota není“ (blank, nehrál). Patří na konec při obou směrech.
+    if(va < 0 !== vb < 0) return va < 0 ? 1 : -1;
+    return (va - vb) * dir || (num(a, 'poradi') - num(b, 'poradi'));
+  });
+
+  /* Skupinové hlavičky zůstávají na místě; přesouvají se jen řádky,
+     a to na konec seznamu v novém pořadí. V režimu Celkem jsou
+     hlavičky schované, takže se to nepozná; v režimu Po pozicích
+     se sem nikdy nedostaneme s aktivním řazením. */
+  rows.forEach(r => list.appendChild(r));
+}
+
+document.addEventListener('click', ev => {
+  const sw = ev.target.closest('button[data-squadview]');
+  if(sw){
+    SQUAD_VIEW = sw.dataset.squadview;
+    // Řazení patří k seznamu, ne ke skupinám — při návratu se ruší.
+    if(SQUAD_VIEW === 'pos') SQUAD_SORT = null;
+    document.querySelectorAll('button[data-squadview]').forEach(b =>
+      b.setAttribute('aria-selected', String(b.dataset.squadview === SQUAD_VIEW)));
+    applySquadSort();
+    return;
+  }
+
+  const th = ev.target.closest('.squadlist.flat [data-sort]');
+  if(th){
+    const key = th.dataset.sort;
+    SQUAD_SORT = SQUAD_SORT && SQUAD_SORT.key === key
+      ? {key, dir: -SQUAD_SORT.dir}
+      : {key, dir: SORT_ASC_FIRST.has(key) ? 1 : -1};
+    applySquadSort();
+  }
+});
+
+// Klávesnice: hlavička je tlačítko, tak se musí chovat jako tlačítko.
+document.addEventListener('keydown', ev => {
+  if(ev.key !== 'Enter' && ev.key !== ' ') return;
+  const th = ev.target.closest && ev.target.closest('.squadlist.flat [data-sort]');
+  if(th){ ev.preventDefault(); th.click(); }
+});
+
+/* ============================================================
+   CENY POSLEDNÍHO KOLA NA PŘEHLEDU
+
+   Ceny počítá buildAwards() v js/tabs.js a dosud žily jen v Hubu.
+   Na Přehled patří proto, že jsou to jediná čísla o lize, která se
+   čtou zpětně — kdo vyhrál kolo se člověk chce dozvědět, ne si to
+   jít vyhledat.
+
+   Data pro ně stojí desítky dotazů (pořadí + historie + sestavy
+   všech členů), takže se nestahují při startu appky. Hub si je
+   načte sám, když se otevře; když se neotevřel, spustí to Přehled
+   na pozadí a po dojetí se překreslí. Do té doby je na místě panelu
+   kostra, ne prázdno — panel tak nemění výšku a nic nepodskočí.
+
+   HUB_FOR_HOME hlídá, že se to spustí jednou. Bez toho by každé
+   překreslení Přehledu (a to dělá i změna watchlistu) pustilo další
+   várku dotazů.
+   ============================================================ */
+let HUB_FOR_HOME = false;
+
+function homeAwardsLoad(){
+  if(HUB_FOR_HOME || typeof loadHub !== 'function') return;
+  const lid = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY);
+  if(!lid) return;
+  HUB_FOR_HOME = true;
+
+  /* Hub si tímhle odbyl i své vlastní načtení — kdyby se otevřel
+     potom, TAB_INIT by pustil loadHub podruhé. */
+  TAB_DONE.add('t-hub');
+
+  Promise.resolve()
+    .then(() => loadHub())
+    // Kapitánské ceny potřebují navíc body hráčů kola. renderHub()
+    // si je tahá sám na pozadí, ale my nevíme kdy — tak si počkáme.
+    .then(() => HUB && nactiKolo(HUB.cur.id))
+    .then(() => drawHome())
+    .catch(() => { HUB_FOR_HOME = false; });
+}
+
+function homeAwards(){
+  // Ceny stojí na kódu z js/tabs.js. Ten se načítá až po core.js,
+  // takže se na jeho funkce smí sahat jen za běhu, ne při definici.
+  const box = inner => `<div class="hgrid one"><div class="hbox hawards">
+    <h3><i class="hi">🏆</i>Ceny posledního kola${
+      typeof HUB !== 'undefined' && HUB ? ` · GW${HUB.cur.id}` : ''
+      }<button type="button" class="lnkbtn" data-goto="t-hub">Hub ligy</button></h3>
+    ${inner}</div></div>`;
+
+  const lid = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY);
+  if(!lid){
+    return box(`<p class="note">Ceny se počítají z výsledků miniligy — zadej
+      si její ID v záložce Miniliga.</p>`);
+  }
+
+  if(typeof HUB === 'undefined' || !HUB){
+    homeAwardsLoad();
+    return box('<div class="skel"><i></i><i></i></div>');
+  }
+
+  const awards = buildAwards(HUB.cur.id, NEWS_PICKS.get(HUB.cur.id),
+                             NEWS_LIVE.get(HUB.cur.id));
+  if(!awards.length){
+    return box('<p class="note">Za poslední kolo zatím nejsou data.</p>');
+  }
+
+  /* Dokud kolo neprojde dopočtem bonusů, jsou ceny průběžné. Stejný
+     štítek jako v Hubu — jinak by Přehled tvrdil něco jiného. */
+  const phase = gwPhase(HUB.cur.id);
+  const zive = phase !== 'final'
+    ? `<span class="livetag">${phase === 'running' ? 'živě' : 'čeká na bonusy'}</span>`
+    : '';
+
+  return box(`${zive}<div class="awards mini">${awards.map(a => {
+    const meta = AWARD_META[a.key];
+    const bez = a.val === '—' ? ' bezceny' : '';
+    return `<div class="award ${meta.cls}${bez}">
+      <div class="emoji" aria-hidden="true">${meta.emoji}</div>
+      <div class="title">${meta.title}</div>
+      <div class="who">${a.who}</div>
+      <div class="val">${a.val}</div>
+    </div>`;
+  }).join('')}</div>`);
+}
+
 function drawHome(){
   const out = $('hmout');
   if(!out || !BOOT) return;
@@ -835,7 +1051,8 @@ function drawHome(){
     ${homeMetrics()}
     ${homeAttention()}
     ${homePrices()}
-    ${homeOutlook()}`;
+    ${homeOutlook()}
+    ${homeAwards()}`;
 }
 
 /* Odkazy „Spravovat“ a spol. přepínají záložky. Delegovaně, protože
