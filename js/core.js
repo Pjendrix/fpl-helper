@@ -529,10 +529,9 @@ function render(entry, picks, startGw, liveCtx){
     [1, 'Brankáři'], [2, 'Obránci'], [3, 'Záložníci'], [4, 'Útočníci'],
   ];
 
-  /* Hlavičky jsou tlačítka jen v režimu Celkem. Po pozicích by řazení
-     buď muselo míchat hráče přes skupiny (a pak ty skupiny nedávají
-     smysl), nebo řadit uvnitř nich (a pak není poznat, že se něco
-     stalo). Radši jedno místo, kde to dělá přesně to, co slibuje.
+  /* Hlavička je tlačítko v obou režimech. Po pozicích řadí uvnitř
+     skupin, v režimu Celkem přes celý kádr — v obou případech dělá to,
+     co slibuje, jen v jiném rozsahu.
 
      Směr: u FDR dává smysl začít od nejmenšího (nejlehčí los), u všeho
      ostatního od největšího. */
@@ -877,6 +876,42 @@ let SQUAD_SORT = null;         // {key, dir} — null = pořadí v sestavě
    nejlehčí los je 1, ne 5. Ostatní se řadí od největšího. */
 const SORT_ASC_FIRST = new Set(['fdr']);
 
+/* Rozřezání seznamu na skupiny: hlavička a řádky, které pod ni patří.
+
+   Čte se z původního pořadí, ne z aktuálního stavu DOM — jinak by se
+   po prvním přeskládání rozpadlo, které řádky ke které skupině patří.
+   Původní pořadí si seznam zapamatuje při prvním doteku; překreslení
+   sestavy vyrobí nový element, takže se paměť sama zahodí. */
+function squadGroups(list){
+  if(!list._order) list._order = [...list.children];
+
+  const out = [];
+  let akt = null;
+  for(const el of list._order){
+    if(el.classList.contains('pgroup')){ akt = {head: el, rows: []}; out.push(akt); }
+    else if(el.classList.contains('prow')){
+      if(!akt){ akt = {head: null, rows: []}; out.push(akt); }
+      akt.rows.push(el);
+    }
+  }
+  return out;
+}
+
+function squadSorter(){
+  const key = SQUAD_SORT ? SQUAD_SORT.key : null;
+  const dir = SQUAD_SORT ? SQUAD_SORT.dir : 1;
+  const num = (el, k) => parseFloat(el.dataset[k]);
+
+  return (a, b) => {
+    // Bez aktivního řazení platí pořadí ze sestavy.
+    if(!key) return num(a, 'poradi') - num(b, 'poradi');
+    const va = num(a, key), vb = num(b, key);
+    // -1 je „hodnota není“ (blank, nehrál). Patří na konec při obou směrech.
+    if(va < 0 !== vb < 0) return va < 0 ? 1 : -1;
+    return (va - vb) * dir || (num(a, 'poradi') - num(b, 'poradi'));
+  };
+}
+
 function applySquadSort(){
   const list = $('squadlist');
   if(!list) return;
@@ -889,44 +924,41 @@ function applySquadSort(){
       ? (SQUAD_SORT.dir === 1 ? 'ascending' : 'descending') : 'none');
   });
 
-  const rows = [...list.querySelectorAll('.prow')];
-  if(!rows.length) return;
+  const skupiny = squadGroups(list);
+  if(!skupiny.length) return;
+  const cmp = squadSorter();
 
-  /* Bez řazení se vrací pořadí ze sestavy — jinak by přepnutí zpátky
-     na Po pozicích nechalo hráče zamíchané pod hlavičkami skupin. */
-  const key = SQUAD_SORT ? SQUAD_SORT.key : null;
-  const dir = SQUAD_SORT ? SQUAD_SORT.dir : 1;
-  const num = (el, k) => parseFloat(el.dataset[k]);
+  if(SQUAD_VIEW === 'all'){
+    /* Jeden seznam: skupiny padají a řadí se všech patnáct dohromady.
+       Hlavičky jdou na konec — jsou schované, ale musí být z cesty,
+       jinak by mezi řádky zůstala prázdná místa po nich. */
+    const rows = skupiny.flatMap(g => g.rows).sort(cmp);
+    skupiny.forEach(g => { if(g.head) list.appendChild(g.head); });
+    rows.forEach(r => list.appendChild(r));
+    return;
+  }
 
-  rows.sort((a, b) => {
-    if(!key) return (num(a, 'pos') - num(b, 'pos'))
-                 || (num(a, 'poradi') - num(b, 'poradi'));
-    const va = num(a, key), vb = num(b, key);
-    // -1 je „hodnota není“ (blank, nehrál). Patří na konec při obou směrech.
-    if(va < 0 !== vb < 0) return va < 0 ? 1 : -1;
-    return (va - vb) * dir || (num(a, 'poradi') - num(b, 'poradi'));
+  /* Po pozicích: každá skupina se seřadí sama v sobě a vrátí se pod
+     svou hlavičku. Tohle byla ta chyba — řádky se připojovaly na konec
+     seznamu, takže skončily všechny pod poslední hlavičkou (Lavička)
+     a skupiny nad nimi zůstaly prázdné. */
+  skupiny.forEach(g => {
+    if(g.head) list.appendChild(g.head);
+    g.rows.slice().sort(cmp).forEach(r => list.appendChild(r));
   });
-
-  /* Skupinové hlavičky zůstávají na místě; přesouvají se jen řádky,
-     a to na konec seznamu v novém pořadí. V režimu Celkem jsou
-     hlavičky schované, takže se to nepozná; v režimu Po pozicích
-     se sem nikdy nedostaneme s aktivním řazením. */
-  rows.forEach(r => list.appendChild(r));
 }
 
 document.addEventListener('click', ev => {
   const sw = ev.target.closest('button[data-squadview]');
   if(sw){
     SQUAD_VIEW = sw.dataset.squadview;
-    // Řazení patří k seznamu, ne ke skupinám — při návratu se ruší.
-    if(SQUAD_VIEW === 'pos') SQUAD_SORT = null;
     document.querySelectorAll('button[data-squadview]').forEach(b =>
       b.setAttribute('aria-selected', String(b.dataset.squadview === SQUAD_VIEW)));
     applySquadSort();
     return;
   }
 
-  const th = ev.target.closest('.squadlist.flat [data-sort]');
+  const th = ev.target.closest('.squadlist [data-sort]');
   if(th){
     const key = th.dataset.sort;
     SQUAD_SORT = SQUAD_SORT && SQUAD_SORT.key === key
@@ -939,7 +971,7 @@ document.addEventListener('click', ev => {
 // Klávesnice: hlavička je tlačítko, tak se musí chovat jako tlačítko.
 document.addEventListener('keydown', ev => {
   if(ev.key !== 'Enter' && ev.key !== ' ') return;
-  const th = ev.target.closest && ev.target.closest('.squadlist.flat [data-sort]');
+  const th = ev.target.closest && ev.target.closest('.squadlist [data-sort]');
   if(th){ ev.preventDefault(); th.click(); }
 });
 
