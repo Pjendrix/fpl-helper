@@ -4179,6 +4179,146 @@ check('nulová lavička u všech není shoda, ale prostě žádná cena', () => 
   return 'karta se vynechá';
 });
 
+
+/* ================= zranění ================= */
+
+/* Hlášení nasadíme jen na dobu jednoho testu — ostatní kontroly
+   počítají s tím, že falešná liga je celá zdravá. */
+function sZranenymi(fn){
+  const zmeny = [
+    {i: 0,  status: 'i', chance: 0,   news: 'Ankle injury - Expected back 14 Sep'},
+    {i: 1,  status: 'd', chance: 75,  news: 'Knock - 75% chance of playing'},
+    {i: 40, status: 's', chance: 0,   news: 'Suspended - Expected back 21 Sep'},
+    {i: 41, status: 'a', chance: 100, news: 'Returned from injury'},
+  ];
+  const zpet = zmeny.map(z => {
+    const p = bootstrap.elements[z.i];
+    const old = {s: p.status, c: p.chance_of_playing_next_round, n: p.news};
+    p.status = z.status; p.chance_of_playing_next_round = z.chance; p.news = z.news;
+    return {p, old};
+  });
+  try { return fn(zmeny.map(z => bootstrap.elements[z.i])); }
+  finally { zpet.forEach(x => {
+    x.p.status = x.old.s; x.p.chance_of_playing_next_round = x.old.c; x.p.news = x.old.n; }); }
+}
+
+check('Zranění jsou samostatná záložka mezi Zpravodajem a Top hráči', () => {
+  const tabs = w.eval('TABS').map(t => t[0]);
+  const i = tabs.indexOf('t-inj');
+  if(i < 0) throw new Error('záložka není v TABS');
+  if(tabs[i - 1] !== 't-news' || tabs[i + 1] !== 't-players')
+    throw new Error('špatné pořadí: ' + tabs.slice(i - 1, i + 2));
+  if(!w.document.getElementById('p-inj')) throw new Error('chybí panel');
+  if(!SRC.includes('id="t-inj"')) throw new Error('chybí tlačítko v liště');
+  return tabs.length + ' záložek';
+});
+
+check('do seznamu se dostanou jen hráči, o kterých je co říct', () => sZranenymi(ps => {
+  const ids = w.eval('injAll()').map(r => r.p.id);
+  if(!ids.includes(ps[0].id) || !ids.includes(ps[1].id) || !ids.includes(ps[2].id))
+    throw new Error('někdo hlášený chybí');
+  if(ids.includes(ps[3].id))
+    throw new Error('zdravý hráč se stoprocentní šancí je v seznamu zraněných');
+  return ids.length + ' hlášení';
+}));
+
+check('datum návratu se vytáhne z anglické zprávy', () => sZranenymi(ps => {
+  const r = w.eval('injAll()').find(x => x.p.id === ps[0].id);
+  if(r.back !== '14 Sep') throw new Error('špatně přečtený návrat: ' + r.back);
+  const bez = w.eval('injAll()').find(x => x.p.id === ps[1].id);
+  if(bez.back) throw new Error('u zprávy bez data si appka něco vymyslela');
+  return 'zpět ' + r.back;
+}));
+
+check('výchozí řazení je od nejhoršího a sekundárně podle vlastnictví', () =>
+  sZranenymi(() => {
+    w.eval('INJ = {view:"all", q:"", key:"chance", dir:1}');
+    const rows = w.eval('injFiltered()');
+    for(let i = 1; i < rows.length; i++)
+      if(rows[i].chance < rows[i - 1].chance)
+        throw new Error('šance nejdou vzestupně');
+    const shodne = rows.filter(r => r.chance === rows[0].chance);
+    for(let i = 1; i < shodne.length; i++)
+      if(shodne[i].own > shodne[i - 1].own)
+        throw new Error('při shodě šance není napřed vlastněnější hráč');
+    return rows.length + ' řádků';
+  }));
+
+check('zobrazení Můj kádr ukáže jen vlastní hráče', () => sZranenymi(ps => {
+  w.__mine = [ps[0].id];
+  w.eval('MY_SQUAD = new Set(window.__mine); INJ = {view:"squad", q:"", key:"chance", dir:1}');
+  const rows = w.eval('injFiltered()');
+  if(rows.length !== 1 || rows[0].p.id !== ps[0].id)
+    throw new Error('filtr kádru propouští cizí hráče');
+  if(!rows[0].mine) throw new Error('vlastní hráč není označený');
+  w.eval('INJ.view = "all"');
+  return 'jen můj';
+}));
+
+check('hledá se podle jména i podle týmu', () => sZranenymi(ps => {
+  w.eval('INJ = {view:"all", q:"", key:"chance", dir:1}');
+  w.__q = ps[0].web_name;
+  w.eval('INJ.q = window.__q');
+  // normName zahazuje číslice, takže falešná jména P1/P2 splynou —
+  // testujeme, že hráč projde filtrem, ne že je sám.
+  if(!w.eval('injFiltered()').some(r => r.p.id === ps[0].id))
+    throw new Error('hledání podle jména nenašlo hráče');
+
+  const zkratka = bootstrap.teams.find(t => t.id === ps[0].team).short_name;
+  w.__q = zkratka.toLowerCase();
+  w.eval('INJ.q = window.__q');
+  if(!w.eval('injFiltered()').some(r => r.p.id === ps[0].id))
+    throw new Error('hledání podle týmu nenašlo hráče');
+
+  w.eval('INJ.q = ""');
+  return 'jméno i tým';
+}));
+
+check('prázdný výsledek má hlášku, ne prázdnou tabulku', () => {
+  w.eval('MY_SQUAD = new Set(); INJ = {view:"squad", q:"", key:"chance", dir:1}');
+  const html = w.eval('injTable()');
+  if(html.includes('<table')) throw new Error('kreslí prázdnou tabulku');
+  if(!html.includes('Nikdo z tvého kádru')) throw new Error('mlčí: ' + html);
+  w.eval('INJ.view = "all"');
+  return 'poctivá hláška';
+});
+
+check('tabulka nabízí řazení a hvězdičku ke každému řádku', () => sZranenymi(() => {
+  w.eval('INJ = {view:"all", q:"", key:"chance", dir:1}');
+  const html = w.eval('injTable()');
+  ['name', 'team', 'own', 'chance'].forEach(k => {
+    if(!html.includes('data-sort="' + k + '"')) throw new Error('nejde řadit podle ' + k);
+  });
+  if(!html.includes('data-watch=')) throw new Error('chybí hvězdičky');
+  return 'čtyři sloupce k řazení';
+}));
+
+check('záložka Zranění nestahuje nic navíc', () => {
+  // Všechno je v bootstrapu, který appka stahuje kvůli Sestavě.
+  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const i = src.indexOf('function loadInjuries');
+  const blok = src.slice(i, i + 2200);
+  if(/\bapi\(|cached\(/.test(blok))
+    throw new Error('záložka si volá vlastní dotazy');
+  if(!w.eval('Object.keys(TAB_INIT)').includes('t-inj'))
+    throw new Error('záložka se sama nespustí');
+  return 'čte z BOOT';
+});
+
+check('otevření záložky vykreslí tabulku', () => sZranenymi(ps => {
+  w.__mine = [ps[0].id, ps[1].id];
+  w.eval('MY_SQUAD = new Set(window.__mine); INJ = {view:"squad", q:"", key:"chance", dir:1}');
+  w.eval('loadInjuries()');
+  const out = w.document.getElementById('injout');
+  if(!out.querySelector('#injtbl table')) throw new Error('tabulka se nevykreslila');
+  if(!out.querySelector('#injq')) throw new Error('chybí hledací pole');
+  if(out.querySelectorAll('button[data-inj]').length !== 3)
+    throw new Error('chybí přepínač zobrazení');
+  const sum = w.document.getElementById('injsum').textContent;
+  if(!/nehraje|otazník/.test(sum)) throw new Error('souhrn nic neříká: ' + sum);
+  return 'panel stojí';
+}));
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);

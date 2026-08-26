@@ -124,6 +124,7 @@
       <button id="t-hub" role="tab" aria-selected="false" aria-controls="p-hub">Hub ligy</button>
       <button id="t-h2h" role="tab" aria-selected="false" aria-controls="p-h2h">H2H</button>
       <button id="t-news" role="tab" aria-selected="false" aria-controls="p-news">Zpravodaj</button>
+      <button id="t-inj" role="tab" aria-selected="false" aria-controls="p-inj">Zranění</button>
       <button id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Top hráči</button>
       <button id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
       <button id="t-plan" role="tab" aria-selected="false" aria-controls="p-plan">Program</button>
@@ -182,6 +183,13 @@
       <h2>FPL Zpravodaj</h2>
       <div id="newsmsg" role="status" aria-live="polite"></div>
       <div id="newsout"></div>
+    </div>
+
+    <div class="panel" id="p-inj" role="tabpanel" tabindex="-1" aria-labelledby="t-inj" hidden>
+      <p class="hint">Kdo je zraněný, potrestaný nebo pod otazníkem — nejdřív
+        tvůj kádr, pak celá liga. Čísla jsou přímo z FPL.</p>
+      <div id="injmsg" role="status" aria-live="polite"></div>
+      <div id="injout"></div>
     </div>
 
     <div class="panel" id="p-players" role="tabpanel" tabindex="-1" aria-labelledby="t-players" hidden>
