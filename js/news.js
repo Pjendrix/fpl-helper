@@ -17,9 +17,8 @@ let NEWS_FILTER = 'all';  // 'all' | id zdroje
    localStorage nepatří. Po reloadu je zpátky celý proud. */
 
 const NEWS_SOURCES = [
-  {id: 'scout', name: 'The Scout', cls: 'src-scout'},
-  {id: 'ffs',   name: 'FFScout',   cls: 'src-ffs'},
-  {id: 'ff247', name: 'FF247',     cls: 'src-247'},
+  {id: 'ffs',   name: 'FFScout', cls: 'src-ffs'},
+  {id: 'ff247', name: 'FF247',   cls: 'src-247'},
 ];
 const NEWS_CLS = Object.fromEntries(NEWS_SOURCES.map(s => [s.id, s.cls]));
 
