@@ -91,10 +91,14 @@ function renderNews(){
       ${s.name}<b>${spadle.has(s.id) ? '—' : (pocty[s.id] || 0)}</b></button>`).join('')}
   </div>`;
 
+  /* Spadlý zdroj se přiznává i s důvodem — v odkazu na /api/news?debug=1
+     je přesně to, co server zkoušel a co dostal. Bez toho se „nenačetlo
+     se“ ladí hádáním. */
   const potiz = (NEWS.failed || []).length
     ? `<p class="note wn">Neodpověděl${NEWS.failed.length > 1 ? 'y' : ''}:
        ${NEWS.failed.map(f => esc(f.name)).join(', ')}. Ostatní zdroje
-       se načetly normálně.</p>`
+       se načetly normálně.
+       <a href="/api/news?debug=1" target="_blank" rel="noopener noreferrer">Proč?</a></p>`
     : '';
 
   out.innerHTML = filtr + potiz + (items.length
