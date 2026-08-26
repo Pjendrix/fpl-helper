@@ -16,15 +16,26 @@ const SOURCES = [
   { id: "ffs", name: "FFScout", type: "rss", url: "https://fantasyfootballscout.co.uk/feed/" },
   { id: "ff247", name: "FF247", type: "rss", url: "https://fantasyfootball247.co.uk/feed/" },
   // Oficialni The Scout RSS nema. Web si obsah tahá z obsahoveho API
-  // Pulselive; je to nezdokumentovane rozhrani, ktere se muze zmenit bez
-  // ohlaseni, proto ma vlastni parser a vlastni selhani.
+  // Pulselive; je to nezdokumentovane rozhrani bez verejne dokumentace,
+  // takze presny tvar dotazu je odhad. Proto ne jedna adresa, ale rada
+  // kandidatu: zkousi se poporade a bere se prvni, ktera vrati clanky.
+  //
+  // Neni to elegantni, ale alternativa je hadat jednu adresu a pri
+  // kazde zmene API cekat, az si nekdo vsimne, ze sekce je prazdna.
   {
     id: "scout",
     name: "The Scout",
     type: "pulselive",
-    url:
+    urls: [
+      "https://footballapi.pulselive.com/football/content/PremierLeague/text/EN?" +
+        "pageSize=15&page=0&tagNames=Fantasy&type=editorial",
       "https://footballapi.pulselive.com/football/content/PremierLeague/text?" +
-      "pageSize=12&page=0&tagNames=Fantasy&references=PL_NEWS&type=editorial",
+        "pageSize=15&page=0&tagNames=Fantasy&references=PL_NEWS&type=editorial",
+      "https://footballapi.pulselive.com/content/PremierLeague/text/EN?" +
+        "pageSize=15&page=0&tagNames=Fantasy",
+      "https://footballapi.pulselive.com/football/content/PremierLeague/text/EN?" +
+        "pageSize=15&page=0&references=FANTASY_NEWS",
+    ],
   },
 ];
 
@@ -100,6 +111,17 @@ function tag(block, name) {
   return m ? m[1] : "";
 }
 
+// WordPress feedy lepi na konec vyňatku vetu "The post X appeared first
+// on Y". Je to podpis generatoru, ne obsah clanku — a kdyz se necha,
+// sezere pulku mista v karte.
+function stripBoilerplate(s) {
+  return String(s || "")
+    .replace(/\s*The post\b[\s\S]*$/i, "")
+    .replace(/\s*(Continue reading|Read more)\b[\s\S]*$/i, "")
+    .replace(/\s*Appeared first on\b[\s\S]*$/i, "")
+    .trim();
+}
+
 function clip(s) {
   if (s.length <= EXCERPT) return s;
   // Rezat uprostred slova vypada jako chyba, ne jako zkraceni.
@@ -114,34 +136,70 @@ function parseRss(xml) {
     title: decode(tag(it, "title")),
     link: decode(tag(it, "link")),
     date: new Date(decode(tag(it, "pubDate")) || Date.now()).toISOString(),
-    excerpt: clip(decode(tag(it, "description") || tag(it, "content:encoded"))),
+    excerpt: clip(
+      stripBoilerplate(decode(tag(it, "description") || tag(it, "content:encoded")))
+    ),
   }));
+}
+
+// Ruzne verze Pulselive vraci pole pod ruznymi klici. Bereme prvni,
+// ktery je pole objektu s titulkem — misto abychom trvali na jednom
+// tvaru, ktery se muze zmenit.
+function pulseList(json) {
+  if (!json || typeof json !== "object") return [];
+  for (const key of ["content", "data", "items", "results"]) {
+    const v = json[key];
+    if (Array.isArray(v) && v.length && typeof v[0] === "object") return v;
+  }
+  return Array.isArray(json) ? json : [];
 }
 
 function parsePulselive(json) {
-  const list = Array.isArray(json && json.content) ? json.content : [];
-  return list.slice(0, PER_SOURCE).map((c) => ({
-    title: decode(c.title),
-    // Pulselive vraci jen slug; adresa clanku se sklada na strane webu.
-    link: c.id
-      ? `https://www.premierleague.com/en/news/${c.id}`
-      : "https://www.premierleague.com/en/fantasy-news",
-    date: new Date(c.publishFrom || c.date || Date.now()).toISOString(),
-    excerpt: clip(decode(c.summary || c.subtitle || c.description)),
-  }));
+  return pulseList(json)
+    .slice(0, PER_SOURCE)
+    .map((c) => {
+      const slug = c.titleUrlSegment || c.slug || c.id;
+      return {
+        title: decode(c.title || c.headline),
+        link: slug
+          ? `https://www.premierleague.com/en/news/${slug}`
+          : "https://www.premierleague.com/en/fantasy-news",
+        date: new Date(
+          c.publishFrom || c.publishedDate || c.date || Date.now()
+        ).toISOString(),
+        excerpt: clip(decode(c.summary || c.subtitle || c.description)),
+      };
+    });
 }
 
 async function loadSource(src) {
-  const upstream = await fetchWithTimeout(
-    src.url,
-    src.type === "pulselive" ? PULSE_HEADERS : BROWSER_HEADERS
-  );
-  if (!upstream.ok) throw new Error(`${upstream.status}`);
+  const urls = src.urls || [src.url];
+  const headers = src.type === "pulselive" ? PULSE_HEADERS : BROWSER_HEADERS;
+  const pokusy = [];
+  let items = null;
 
-  const items =
-    src.type === "pulselive"
-      ? parsePulselive(await upstream.json())
-      : parseRss(await upstream.text());
+  for (const url of urls) {
+    try {
+      const upstream = await fetchWithTimeout(url, headers);
+      if (!upstream.ok) {
+        pokusy.push(`${upstream.status} ${url.slice(0, 90)}`);
+        continue;
+      }
+      const parsed =
+        src.type === "pulselive"
+          ? parsePulselive(await upstream.json())
+          : parseRss(await upstream.text());
+
+      // Status 200 s prazdnym polem znamena, ze adresa sice zije, ale
+      // vraci neco jineho, nez cekame. Zkousime dal.
+      if (parsed.length) { items = parsed; break; }
+      pokusy.push(`200 ale 0 polozek ${url.slice(0, 90)}`);
+    } catch (e) {
+      pokusy.push(`${e.name === "AbortError" ? "timeout" : e.message} ${url.slice(0, 90)}`);
+    }
+  }
+
+  if (!items) throw new Error(pokusy.join(" | "));
 
   // Polozka bez odkazu nebo titulku je k nicemu — nedava se kam kliknout.
   return items
@@ -152,11 +210,21 @@ async function loadSource(src) {
 export default async function handler(req, res) {
   const results = await Promise.allSettled(SOURCES.map(loadSource));
 
+  // /api/news?debug=1 vrati i duvody selhani v plne delce. Bez tohohle
+  // se "nenacetlo se" ladi hadanim.
+  const debug = "debug" in (req.query || {});
+
   const items = [];
   const failed = [];
   results.forEach((r, i) => {
     if (r.status === "fulfilled") items.push(...r.value);
-    else failed.push({ id: SOURCES[i].id, name: SOURCES[i].name, error: String(r.reason).slice(0, 120) });
+    else
+      failed.push({
+        id: SOURCES[i].id,
+        name: SOURCES[i].name,
+        error: debug ? String(r.reason && r.reason.message || r.reason)
+                     : String(r.reason && r.reason.message || r.reason).slice(0, 160),
+      });
   });
 
   // Vsechny zdroje dole = neni co ukazat; at to strana pozna podle statusu.
@@ -164,14 +232,17 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: "Žádný ze zdrojů neodpověděl.", failed });
   }
 
+  if (debug) res.setHeader("Cache-Control", "no-store");
+
   items.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   // Zadny cron: cerstvost resi edge cache. stale-while-revalidate znamena,
   // ze pri vypadku zdroje se ukaze posledni znama verze misto chyby.
-  res.setHeader(
-    "Cache-Control",
-    "public, s-maxage=900, stale-while-revalidate=3600"
-  );
+  if (!debug)
+    res.setHeader(
+      "Cache-Control",
+      "public, s-maxage=900, stale-while-revalidate=3600"
+    );
   return res.status(200).json({
     items,
     failed,
@@ -182,4 +253,4 @@ export default async function handler(req, res) {
 
 // Vnitrnosti pro test.mjs. Parsovani je jediny netrivialni kus tehle
 // funkce a jediny, ktery se da testovat bez site.
-export const __test = { parseRss, parsePulselive, decode, clip };
+export const __test = { parseRss, parsePulselive, decode, clip, stripBoilerplate, pulseList };
