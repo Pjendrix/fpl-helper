@@ -120,20 +120,45 @@ function h2hSeed(lid, gw){
    zpětně i dohrané zápasy. Řadí se proto podle entry ID, které je
    neměnné.
    ------------------------------------------------------------ */
+/* Poslední kolo, které je opravdu v historii.
+
+   Tohle nejde odvodit z HUB.cur.id. FPL přepne is_current na nové kolo
+   hned po dopočtu předchozího, tedy dávno před jeho deadlinem — takže
+   „aktuální kolo“ klidně existuje, aniž by v něm kdokoli hrál. Když se
+   podle něj hledali účastníci, nesplnil podmínku nikdo: prázdný los,
+   prázdná tabulka a hláška, že tvůj tým v lize není.
+
+   Bere se proto nejvyšší kolo, které má v historii aspoň jeden člen. */
+function h2hLastPlayed(){
+  let max = 0;
+  (HUB.hists || []).forEach(h => {
+    (h && h.current || []).forEach(e => { if(e.round > max) max = e.round; });
+  });
+  return max;
+}
+
 function h2hParticipants(gw){
   const {members, hists} = HUB;
 
-  // Kolo, které ještě nezačalo, nemá v historii nikoho. Hraje ho
-  // ten, kdo je v lize teď — tedy účastníci posledního známého kola.
-  const ref = gw > HUB.cur.id ? HUB.cur.id : gw;
+  // Kolo, které ještě nezačalo, nemá v historii nikoho. Hraje ho ten,
+  // kdo je v lize teď — tedy účastníci posledního odehraného kola.
+  const posledni = h2hLastPlayed();
+  const ref = gw > posledni ? posledni : gw;
 
-  return members
+  const podleHistorie = members
     .map((m, i) => ({m, i}))
     .filter(x => {
       const h = hists[x.i];
       return h && h.current && h.current.some(e => e.round === ref);
-    })
-    .sort((a, b) => a.m.entry - b.m.entry);
+    });
+
+  /* Před prvním odehraným kolem sezóny žádná historie není. Hrají tedy
+     všichni, kdo jsou v lize — jinak by první kolo zůstalo bez losu. */
+  const ucastnici = podleHistorie.length >= 2
+    ? podleHistorie
+    : members.map((m, i) => ({m, i}));
+
+  return ucastnici.sort((a, b) => a.m.entry - b.m.entry);
 }
 
 /* Body do zápasu. Odečítám pokutu za přestupy — H2H bez toho odmění
@@ -231,17 +256,32 @@ function h2hPairRound(gw, historie){
   return {gw, matches: [], ghost, okno: 0, ucastnici};
 }
 
-/* Kola, která mají H2H smysl: všechna zahájená plus to nejbližší,
-   aby bylo před deadlinem vidět, proti komu se hraje. */
+/* Kola, která mají H2H smysl: všechna odehraná plus dvě dopředu.
+
+   Dvě, ne jedno: los dalšího kola se hodí vědět při plánování přestupů,
+   ne až po deadlinu. Víc než dvě nemá cenu — seznam členů se může
+   změnit a los by se stejně přepočítal. */
+const H2H_AHEAD = 2;
+
 function h2hGws(){
   const out = [];
-  for(let g = h2hStart(); g <= HUB.cur.id; g++){
+  const posledni = h2hLastPlayed();
+
+  for(let g = h2hStart(); g <= posledni; g++){
     const ev = BOOT.events.find(e => e.id === g);
-    if(ev && (ev.finished || ev.is_current || ev.data_checked)) out.push(g);
+    if(ev) out.push(g);
   }
-  const nxt = BOOT.events.find(e => e.is_next);
-  if(nxt && nxt.id >= h2hStart() && !out.includes(nxt.id)) out.push(nxt.id);
-  return out;
+
+  /* Nadcházející kola se počítají od prvního neodehraného, ne od
+     is_next. FPL označí jako is_next až kolo po tom aktuálním — takže
+     hned po dopočtu prvního kola je is_current GW2 a is_next GW3, a
+     kolo, které se za dva dny hraje, by ze seznamu vypadlo. */
+  const prvni = Math.max(h2hStart(), posledni + 1);
+  for(let k = 0; k < H2H_AHEAD; k++){
+    const g = prvni + k;
+    if(g <= 38 && !out.includes(g)) out.push(g);
+  }
+  return out.sort((a, b) => a - b);
 }
 
 /* Celá sezóna najednou. Musí se počítat dopředu od prvního kola,
@@ -332,7 +372,7 @@ function h2hTable(){
   };
 
   // Všichni současní členové jsou v tabulce, i kdyby ještě nehráli.
-  h2hParticipants(HUB.cur.id).forEach(radek);
+  h2hParticipants(h2hLastPlayed() || HUB.cur.id).forEach(radek);
 
   h2hSeason().filter(r => gwPhase(r.gw) === 'final').forEach(round => {
     h2hFixtures(round).forEach(f => {
@@ -399,7 +439,7 @@ function h2hTym(x){
 
 function h2hCard(f, gw, velka){
   const v = h2hVysledek(f);
-  const zacalo = gw <= HUB.cur.id;
+  const zacalo = gw <= h2hLastPlayed();
   return `<div class="h2hm${velka ? ' big' : ''} ${v.cls}">
     <div class="side">
       <b>${h2hJmeno(f.a)}</b><em>${h2hTym(f.a)}</em>
@@ -418,7 +458,7 @@ function h2hCard(f, gw, velka){
    nastavení jedné věci — schovávat ji do obecných nastavení by
    znamenalo hledat ji tam, kde nikdo hledat nebude. */
 function h2hStartPicker(){
-  const max = Math.min(38, (BOOT.events.find(e => e.is_next) || HUB.cur).id);
+  const max = Math.min(38, Math.max(h2hLastPlayed() + 1, HUB.cur.id));
   const opt = [];
   for(let g = 1; g <= max; g++)
     opt.push(`<option value="${g}" ${g === h2hStart() ? 'selected' : ''}>GW${g}</option>`);
@@ -434,11 +474,14 @@ function h2hPanel(){
       dvojice.</p>`;
   }
 
-  const nxt = BOOT.events.find(e => e.is_next);
-  const sel = H2H_GW || (nxt && gws.includes(nxt.id) ? nxt.id : HUB.cur.id);
+  /* Výchozí kolo je to nejbližší nedohrané — na to se člověk dívá před
+     deadlinem. Když je celá sezóna odehraná, poslední z ní. */
+  const prvni = gws.find(g => g > h2hLastPlayed());
+  const sel = H2H_GW && gws.includes(H2H_GW)
+    ? H2H_GW : (prvni != null ? prvni : gws[gws.length - 1]);
   const round = h2hSeason().find(r => r.gw === sel);
   const zapasy = round ? h2hFixtures(round) : [];
-  const zacalo = sel <= HUB.cur.id;
+  const zacalo = sel <= h2hLastPlayed();
   const [cls, stav] = zacalo ? H2H_STAV[gwPhase(sel)] : ['', 'ještě nezačalo'];
 
   const prepinac = `<div class="gwnav" role="tablist" aria-label="Kolo H2H">
@@ -592,14 +635,14 @@ function homeH2H(){
   if(typeof HUB === 'undefined' || !HUB) return box('<div class="skel"><i></i></div>');
 
   const gws = h2hGws();
-  const nxt = BOOT.events.find(e => e.is_next);
-  const gw = nxt && gws.includes(nxt.id) ? nxt.id : HUB.cur.id;
+  const gw = gws.find(g => g > h2hLastPlayed()) ?? gws[gws.length - 1];
+  if(gw == null) return box('<p class="note">Zatím není co losovat.</p>');
   H2H_HOME_GW = gw;
 
   const f = h2hOrient(h2hMyFixture(gw, ENTRY_ID), ENTRY_ID);
   if(!f) return box('<p class="note">V tomhle kole tvůj tým v lize není.</p>');
 
-  const zacalo = gw <= HUB.cur.id;
+  const zacalo = gw <= h2hLastPlayed();
   const v = h2hVysledek(f);
   return box(`<div class="hrow h2hrow ${v.cls}">
       <b>${h2hJmeno(f.b)}${f.ghost ? '<span class="badge">duch</span>' : ''}</b>
