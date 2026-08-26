@@ -1636,12 +1636,64 @@ check('diferenciály vrátí nejvýš pět hráčů seřazených podle skóre', 
   return rows.length + ' hráčů';
 });
 
+
+check('v hlavičce je název týmu a iniciály, ne ID', () => {
+  w.__e = {name: 'Prague Patriots', player_first_name: 'Karel',
+           player_last_name: 'Bláha'};
+  w.eval('setWhoName(window.__e)');
+  const el = w.document.getElementById('whoName');
+  if(!/Prague Patriots/.test(el.textContent))
+    throw new Error('chybí název týmu: ' + el.textContent);
+  if(!/KB/.test(el.textContent))
+    throw new Error('chybí iniciály: ' + el.textContent);
+  if(/#/.test(el.textContent)) throw new Error('zůstalo tam ID');
+  return el.textContent;
+});
+
+check('iniciály zvládnou i chybějící příjmení', () => {
+  // Někdo má v profilu FPL jen křestní jméno; prázdný odznak je horší
+  // než žádný.
+  if(w.eval('initials({player_first_name: "Jan", player_last_name: ""})') !== 'J')
+    throw new Error('jedno jméno se nezvládlo');
+  w.__e = {name: 'Solo FC', player_first_name: '', player_last_name: ''};
+  w.eval('setWhoName(window.__e)');
+  const html = w.document.getElementById('whoName').innerHTML;
+  if(/class="ini"/.test(html)) throw new Error('prázdný odznak iniciál');
+  return 'bez odznaku';
+});
+
+check('název týmu se ořízne, iniciály zůstanou', () => {
+  const css = SRC;
+  if(!/\.bar \.who b \.ini\{flex:none/.test(css))
+    throw new Error('iniciály by se v úzké hlavičce smrskly');
+  if(!/\.bar \.who b \.tn\{overflow:hidden;text-overflow:ellipsis/.test(css))
+    throw new Error('dlouhý název by hlavičku roztáhl');
+  return 'ořezává se název';
+});
+
 check('bez načtené miniligy to diferenciály přiznají', () => {
   w.eval('LEAGUE_OWN = null;');
   const html = w.eval('buildDifferentials()');
   if(!html.includes('celé FPL')) throw new Error('chybí globální část');
-  if(!html.includes('Miniliga</b>')) throw new Error('neřekl, že chybí liga');
+  if(!html.includes('Načíst data znovu</b>'))
+    throw new Error('neřekl, proč ligová část chybí');
   return 'poctivá hláška';
+});
+
+check('Poradce si vlastnictví ligy dotáhne sám, nečeká na Miniligu', () => {
+  /* Dřív tam stála věta „otevři Miniligu“ — pokyn místo funkce. */
+  const src = fs.readFileSync('js/advisor.js', 'utf8');
+  if(!/advEnsureLeague/.test(src))
+    throw new Error('Poradce ligu sám nenačítá');
+  if(!/await advEnsureLeague\(\)/.test(src))
+    throw new Error('načtení se nevolá při otevření záložky');
+  const fn = src.slice(src.indexOf('async function advEnsureLeague'),
+                       src.indexOf('async function advEnsureLeague') + 700);
+  if(!/if\(typeof LEAGUE_OWN !== 'undefined' && LEAGUE_OWN\) return/.test(fn))
+    throw new Error('načítalo by se znovu i s hotovými daty');
+  if(!/TAB_DONE/.test(fn))
+    throw new Error('Miniliga by si to po otevření načetla podruhé');
+  return 'načte se samo';
 });
 
 check('s načtenou miniligou se počítá i ligové vlastnictví', () => {
