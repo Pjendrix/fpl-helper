@@ -2914,8 +2914,8 @@ function buildDifferentials(){
   out += '<h3>Top 5 diferenciálů · tvoje miniliga</h3>';
 
   if(!LEAGUE_OWN){
-    out += `<p class="note">Otevři záložku <b>Miniliga</b> — bez ní nevím,
-      koho tvoji soupeři vlastní. Načte se sama.</p>`;
+    out += `<p class="note">Sestavy soupeřů se zatím nenačetly, takže nevím,
+      koho v lize kdo vlastní. Zkus <b>Načíst data znovu</b> v hlavičce.</p>`;
   }else{
     const {owners, n} = LEAGUE_OWN;
     const ownPct = p => ((owners[p.id] || []).length / n) * 100;

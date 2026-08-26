@@ -599,6 +599,28 @@ let ADV_SQUAD = null;
    zmizely spolu s editorem. */
 let ADV_BANK = null;
 
+/* Diferenciály v lize potřebují LEAGUE_OWN, které plnila jen záložka
+   Miniliga. Dokud ji člověk neotevřel, stála v Poradci věta „otevři
+   Miniligu, načte se sama“ — což byl pokyn, ne funkce.
+
+   Načteme si ji tedy sami. Dotazy jdou přes cached(), takže když pak
+   někdo Minilígu opravdu otevře, je zadarmo; TAB_DONE si o tom řekneme,
+   aby se to nedělalo dvakrát. */
+async function advEnsureLeague(){
+  if(typeof LEAGUE_OWN !== 'undefined' && LEAGUE_OWN) return;
+  const lid = CONFIG.leagueId
+    || (typeof LEAGUE_KEY === 'string' ? localStorage.getItem(LEAGUE_KEY) : null);
+  if(!lid || typeof loadLeague !== 'function') return;
+
+  try{
+    await loadLeague(lid);
+    if(typeof TAB_DONE !== 'undefined' && TAB_DONE) TAB_DONE.add('t-league');
+  }catch(e){
+    /* Ligu se nepodařilo načíst — diferenciály pak řeknou proč a
+       zbytek Poradce funguje dál. */
+  }
+}
+
 function advBank(){
   if(Number.isFinite(ADV_BANK)) return ADV_BANK;
   return typeof bankValue === 'function' ? bankValue() : 0;
@@ -651,6 +673,7 @@ async function loadAdvisor(){
     }
 
     await advLoadMinutes();
+    await advEnsureLeague();
     renderAdvisor();
   }catch(e){
     $('advmsg').textContent = e.message;

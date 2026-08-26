@@ -184,6 +184,7 @@ async function load(id){
     const pickGw = cur ? cur.id : 1;
 
     const entry = await api('entry/' + id + '/');
+    setWhoName(entry);
 
     let picks = null;
     if(cur){
@@ -653,6 +654,31 @@ function render(entry, picks, startGw, liveCtx){
    nestahuje ani jeden dotaz navíc. Když sestava ještě není veřejná,
    ukáže se aspoň watchlist a odpočet.
    ============================================================ */
+/* Jméno v hlavičce.
+
+   Do načtení sestavy tam stojí ID týmu (#60480) — jediné, co v tu chvíli
+   víme. Jakmile dorazí entry/{id}/, přepíšeme ho na název týmu a iniciály
+   manažera: „Prague Patriots (KB)“. Číslo nikomu nic neříká, název ano.
+
+   Na úzké hlavičce se text ořízne přes text-overflow; iniciály jsou proto
+   ve vlastním prvku, který se nezmenšuje — když se nevejde všechno,
+   zmizí nejdřív konec názvu, ne to, čí je tým. */
+function initials(entry){
+  return [entry.player_first_name, entry.player_last_name]
+    .map(x => (x || '').trim()[0] || '')
+    .join('')
+    .toUpperCase();
+}
+
+function setWhoName(entry){
+  const el = $('whoName');
+  if(!el || !entry) return;
+  const ini = initials(entry);
+  el.innerHTML = `<span class="tn">${esc(entry.name || ('#' + ENTRY_ID))}</span>${
+    ini ? `<span class="ini">${esc(ini)}</span>` : ''}`;
+  el.title = (entry.name || '') + (ini ? ' · ' + ini : '');
+}
+
 let HOME = null;
 
 /* Formát zbývajícího času do deadlinu. Vteřiny nikoho nezajímají,

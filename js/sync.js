@@ -309,6 +309,8 @@ function enterApp(entryId, leagueId){
 
   $('landing').hidden = true;
   $('app').hidden = false;
+  // Než dorazí entry/{id}/, je ID jediné, co o týmu víme. load() ho
+  // vzápětí přepíše na název týmu a iniciály přes setWhoName().
   $('whoName').textContent = '#' + entryId;
   // V režimu jedné ligy má smysl mít v hlavičce její název, ne obecný nadpis.
   if(CONFIG.leagueName){
