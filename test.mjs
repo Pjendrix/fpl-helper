@@ -2292,6 +2292,67 @@ check('žebříček označí sestavu i s medailí na řádku', () => {
   return 'první místo označené';
 });
 
+
+check('psaní do hledání watchlist samo nemění', () => {
+  /* Dřív se po třetím znaku přidal nejlepší shodný hráč rovnou do
+     watchlistu — kdo hledal Fernandese, dostal po „fer“ Wieffera. */
+  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const fn = src.slice(src.indexOf('function wireWatch'),
+                       src.indexOf('function wireWatch') + 3000);
+  const naInput = fn.slice(fn.indexOf("q.addEventListener('input'"), 
+                           fn.indexOf("q.addEventListener('keydown'"));
+  if(/toggleWatch/.test(naInput))
+    throw new Error('psaní pořád přidává hráče');
+  if(!/kresli\(\)/.test(naInput))
+    throw new Error('nabídka se při psaní nekreslí');
+  return 'jen nabídne';
+});
+
+check('našeptávač dá přednost shodě na začátku jména', () => {
+  const els = bootstrap.elements;
+  const a = els[0], b = els[1];
+  const save = [a.web_name, a.second_name, b.web_name, b.second_name, a.total_points, b.total_points];
+  a.web_name = 'Wieffer'; a.second_name = 'Wieffer'; a.total_points = 200;
+  b.web_name = 'Fernandes'; b.second_name = 'Fernandes'; b.total_points = 10;
+
+  const hits = w.eval('watchMatches("fer")').map(h => h.p.web_name);
+  a.web_name = save[0]; a.second_name = save[1];
+  b.web_name = save[2]; b.second_name = save[3];
+  a.total_points = save[4]; b.total_points = save[5];
+
+  if(hits[0] !== 'Fernandes')
+    throw new Error('první je ' + hits[0] + ', čekal jsem Fernandese');
+  if(!hits.includes('Wieffer'))
+    throw new Error('shoda uprostřed se zahodila úplně');
+  return hits.slice(0, 2).join(', ');
+});
+
+check('našeptávač mlčí na jediné písmeno', () => {
+  if(w.eval('watchMatches("f")').length)
+    throw new Error('nabízí po prvním znaku');
+  if(w.eval('watchMatches("")').length)
+    throw new Error('nabízí i na prázdné pole');
+  return 'od dvou znaků';
+});
+
+check('jistota pohybu ceny je slovo, ne řada teček', () => {
+  const html = w.eval('likeChip(5, "dnes v noci")') + w.eval('likeChip(-2)')
+             + w.eval('likeChip(0)');
+  if(/●/.test(html)) throw new Error('tečky zůstaly');
+  if(!/jisté/.test(html)) throw new Error('chybí nejvyšší stupeň');
+  if(!/možné/.test(html)) throw new Error('chybí slabší stupeň');
+  if(!/▲/.test(html) || !/▼/.test(html)) throw new Error('není poznat směr');
+  if(!/l5/.test(html)) throw new Error('sytost nerozlišuje jistotu');
+  return 'jisté / možné / –';
+});
+
+check('tabulka cen ukazuje jistotu slovem', () => {
+  const html = w.eval('buildPrices()');
+  if(/●/.test(html)) throw new Error('v tabulce zůstaly tečky');
+  if(!/Dnes v noci/.test(html)) throw new Error('sloupec se nepřejmenoval');
+  return 'bez teček';
+});
+
 /* ================= watchlist ================= */
 
 check('watchlist se ukládá po hráčích a jde přepnout', () => {
