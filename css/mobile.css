@@ -198,3 +198,15 @@
     border:1px solid var(--line);font-size:9.5px}
   .squadlist.flat .phead [data-sort]:not([aria-sort="none"]){
     background:var(--aubergine);border-color:var(--aubergine);color:#fff}
+
+  /* Zápas na telefonu: jména se nevejdou vedle sebe se skóre uprostřed,
+     tak jde skóre pod ně a karta se zúží na dva sloupce. */
+  .h2hm{grid-template-columns:1fr auto;gap:6px 10px;padding:10px 12px}
+  .h2hm .side b{font-size:12.5px;white-space:nowrap}
+  .h2hm.big .side b{font-size:14px}
+  .h2hm .sc{font-size:17px;grid-row:1/3;align-self:center}
+  .h2hm.big .sc{font-size:22px}
+  .h2hm .side.r{grid-column:1;text-align:left}
+  .h2hm .side.r::before{content:'vs ';font-family:var(--f-mono);
+    font-size:10px;color:var(--mute)}
+  table.h2ht th,table.h2ht td{padding:6px 4px;font-size:11.5px}

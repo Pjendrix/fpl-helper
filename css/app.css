@@ -1281,3 +1281,52 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
 
 /* Přepínač sedí těsně nad tabulkou, ne 20 px od ní jako běžná subnav. */
 .subnav:has(+ .squadlist){margin-bottom:8px}
+
+/* ---------- H2H ----------
+   Karta zápasu je symetrická mřížka: domácí vlevo, skóre uprostřed,
+   soupeř vpravo zarovnaný doprava. Symetrie je tu funkční, ne
+   estetická — oko porovnává dvě čísla vedle sebe, ne dva odstavce.
+
+   Barva rámuje výsledek jen zleva. Celá zelená karta by při pěti
+   zápasech pod sebou vypadala jako semafor. */
+.h2hm{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;
+  align-items:center;padding:12px 14px;border:1px solid var(--line);
+  border-radius:var(--r-card);margin-bottom:8px;background:var(--white)}
+.h2hm.big{padding:16px 18px;margin-bottom:14px;background:var(--haze)}
+.h2hm.w{box-shadow:inset 3px 0 0 var(--ok)}
+.h2hm.l{box-shadow:inset 3px 0 0 var(--alert)}
+.h2hm.d{box-shadow:inset 3px 0 0 var(--mute)}
+.h2hm .side{min-width:0}
+.h2hm .side.r{text-align:right}
+.h2hm .side b{display:block;font-weight:700;font-size:13.5px;line-height:1.25;
+  overflow:hidden;text-overflow:ellipsis}
+.h2hm.big .side b{font-size:16px}
+.h2hm .side em{display:block;font-style:normal;font-size:11px;color:var(--mute);
+  font-family:var(--f-mono);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.h2hm .side .badge{margin-left:5px;vertical-align:middle}
+.h2hm .sc{display:flex;align-items:center;gap:6px;flex:none;
+  font-family:var(--f-disp);font-weight:800;font-size:20px;
+  font-variant-numeric:tabular-nums}
+.h2hm.big .sc{font-size:28px}
+.h2hm .sc i{font-style:normal;color:var(--mute);font-weight:600}
+.h2hm .sc u{text-decoration:none;font-family:var(--f-mono);font-size:12px;
+  font-weight:700;color:var(--mute);letter-spacing:.1em}
+.h2hm.w .sc span:first-child{color:var(--ok)}
+.h2hm.l .sc span:first-child{color:var(--alert)}
+
+.h2hlist{margin-bottom:6px}
+
+table.h2ht td u{display:block;text-decoration:none;font-size:10px;
+  color:var(--mute);font-family:var(--f-mono);white-space:nowrap}
+table.h2ht td.n,table.h2ht th.n{font-family:var(--f-mono);text-align:right;
+  white-space:nowrap}
+table.h2ht tr.me{background:var(--ok-bg)}
+table.h2ht tr.me td b{color:var(--ok)}
+
+.secline .livetag.ok{color:var(--ok);background:var(--ok-bg)}
+.note.wn{color:var(--warn)}
+
+.hrow.h2hrow .pc{font-family:var(--f-mono);font-weight:700}
+.hrow.h2hrow.w .pc{color:var(--ok)}
+.hrow.h2hrow.l .pc{color:var(--alert)}
