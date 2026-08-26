@@ -1476,16 +1476,23 @@ th[aria-sort="ascending"],th[aria-sort="descending"]{color:var(--ink)}
    Slovo místo teček. Sytost pozadí roste s jistotou, takže se dá
    tabulka číst i bez čtení — ale slovo tam je, aby se dala číst
    i doopravdy. */
-.lk{display:inline-block;font-family:var(--f-mono);font-size:10.5px;
-  letter-spacing:.04em;white-space:nowrap;padding:2px 7px;border-radius:999px;
-  border:1px solid transparent}
-.lk.none{color:var(--mute);background:none;border:0;padding-left:0}
+/* Štítky mají pevnou šířku a text na střed. Různě dlouhá slova
+   („jisté“ vs „pravděpodobné“) jinak roztahovala každý řádek jinak
+   a sloupec vypadal jako rozsypaný čaj. */
+.lk{display:inline-flex;align-items:center;justify-content:center;gap:5px;
+  width:132px;box-sizing:border-box;
+  font-family:var(--f-mono);font-size:10px;letter-spacing:.06em;
+  text-transform:uppercase;white-space:nowrap;padding:4px 8px;
+  border-radius:999px;border:1px solid transparent}
+.lk i{font-style:normal;font-size:9px;line-height:1;opacity:.9}
+.lk.none{width:132px;color:var(--mute);background:none;border:0}
 .lk.up{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-bg)}
 .lk.down{color:var(--alert);background:var(--alert-bg);border-color:var(--alert-bg)}
 .lk.l5,.lk.l4{font-weight:700}
 .lk.up.l5{background:var(--ok);color:#fff;border-color:var(--ok)}
 .lk.down.l5{background:var(--alert);color:#fff;border-color:var(--alert)}
 .lk.l1,.lk.l2{opacity:.72}
+@media(max-width:760px){.lk,.lk.none{width:auto;min-width:104px}}
 
 /* ---------- našeptávač watchlistu ---------- */
 .watchadd label{position:relative}
