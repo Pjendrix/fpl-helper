@@ -985,11 +985,11 @@ function homeAwardsLoad(){
 function homeAwards(){
   // Ceny stojí na kódu z js/tabs.js. Ten se načítá až po core.js,
   // takže se na jeho funkce smí sahat jen za běhu, ne při definici.
-  const box = inner => `<div class="hgrid one"><div class="hbox hawards">
+  const box = inner => `<div class="hbox hawards">
     <h3><i class="hi">🏆</i>Ceny posledního kola${
       typeof HUB !== 'undefined' && HUB ? ` · GW${HUB.cur.id}` : ''
       }<button type="button" class="lnkbtn" data-goto="t-hub">Hub ligy</button></h3>
-    ${inner}</div></div>`;
+    ${inner}</div>`;
 
   const lid = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY);
   if(!lid){
@@ -1052,7 +1052,8 @@ function drawHome(){
     ${homeAttention()}
     ${homePrices()}
     ${homeOutlook()}
-    ${homeAwards()}`;
+    ${typeof homeH2H === 'function'
+      ? `<div class="hgrid">${homeH2H()}${homeAwards()}</div>` : homeAwards()}`;
 }
 
 /* Odkazy „Spravovat“ a spol. přepínají záložky. Delegovaně, protože
@@ -1064,7 +1065,7 @@ document.addEventListener('click', ev => {
 
 /* ============ ZALOZKY ============ */
 const TABS = [['t-home','p-home'], ['t-squad','p-squad'],
-              ['t-league','p-league'], ['t-hub','p-hub'],
+              ['t-league','p-league'], ['t-hub','p-hub'], ['t-h2h','p-h2h'],
               ['t-players','p-players'], ['t-tr','p-tr'], ['t-plan','p-plan'],
               ['t-prices','p-prices'], ['t-planner','p-planner']];
 
@@ -1084,6 +1085,7 @@ const TABS = [['t-home','p-home'], ['t-squad','p-squad'],
 const TAB_INIT = {
   't-league':  () => autoLoadLeague(),
   't-hub':     () => loadHub(),
+  't-h2h':     () => loadH2H(),
   't-plan':    () => loadPlan(),
   't-prices':  () => loadPrices(),
   't-planner': () => loadPlanner(),
