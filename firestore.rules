@@ -1,22 +1,36 @@
 rules_version = '2';
 
-/* Pravidla pro zálohu nastavení Squad Checku.
+/* Pravidla pro Squad Check.
 
-   Model je jednoduchý: každý přihlášený člověk má právě jeden dokument
-   pojmenovaný svým UID a nikdo jiný do něj nevidí. Žádné sdílení,
-   žádné veřejné čtení — v dokumentu je watchlist a nastavení, což je
-   osobní věc, ne obsah ligy.
+   Dvě kolekce, dva různé modely.
+
+   users/{uid} je soukromá záloha nastavení — watchlist, ceny, plánovač.
+   Osobní věc, vidí do ní jen její majitel.
+
+   leagues/{lid}/h2h/{gw} je sdílené losování H2H. Sem musí vidět celá
+   liga, protože dvojice, které vidí jen jeden člověk, nejsou dvojice.
+
+   Klíčové omezení je `allow create` bez `update` a bez `delete`:
+   zamrazené kolo se dá zapsat právě jednou. Kdyby šlo přepsat, ztratil
+   by zámek smysl — kdokoli by mohl přepsat historii, ať už schválně,
+   nebo tím, že mu appka spočítá jiné dvojice po odchodu člena z ligy.
 
    Výchozí pravidlo Firestore je "deny all", takže cokoli, co tu není
-   výslovně povolené, je zakázané. To je záměr: až budeš přidávat další
-   kolekce, musíš je sem dopsat, a nemůže se stát, že se něco omylem
-   otevře celému internetu. */
+   výslovně povolené, je zakázané. */
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{uid} {
       // request.auth je null pro nepřihlášené — ti neprojdou ani k sobě.
       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /leagues/{lid}/h2h/{gw} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['matches', 'gw', 'okno'])
+        && request.resource.data.gw is int;
+      // Žádné update ani delete: zamrazené je zamrazené.
     }
   }
 }

@@ -2613,6 +2613,98 @@ check('los nevychází z pořadí ligy, ale z entry ID', () => {
   return 'stabilní';
 });
 
+check('H2H se dá hrát od jiného kola než prvního', () => {
+  // Liga nemusí začít s prvním kolem sezóny. Losovat kola, která se
+  // nehrála, by plnilo tabulku výsledky, o kterých nikdo nevěděl.
+  h2hSetup(8);
+  w.localStorage.setItem('fpl_h2h_start', '2');
+  w.eval('H2H_CACHE = null');
+  const od2 = w.eval('h2hGws()');
+  if(od2.includes(1)) throw new Error('GW1 se pořád losuje');
+  w.localStorage.setItem('fpl_h2h_start', '1');
+  w.eval('H2H_CACHE = null');
+  const od1 = w.eval('h2hGws()');
+  if(!od1.includes(1)) throw new Error('GW1 zmizelo i při startu od 1');
+  return 'od GW2: ' + od2.join(',');
+});
+
+check('tabulka vypíše všechny členy i bez odehraného kola', () => {
+  // Prázdná tabulka vypadá jako chyba. Nuly u jmen vypadají jako začátek.
+  h2hSetup(6);
+  const t = sFazi('unchecked', () => w.eval('h2hTable()'));
+  if(t.length !== 6) throw new Error('řádků je ' + t.length);
+  if(t.some(r => r.body !== 0)) throw new Error('někdo má body z nedopočítaného kola');
+  return '6 řádků na nule';
+});
+
+check('zamrazené kolo se čte, ne počítá', () => {
+  /* Tohle je celý smysl zámku: los se odvozuje ze seznamu členů, takže
+     po odchodu jednoho člověka by se dohraná kola přepočítala jinak.
+     Zamrazené dvojice musí přebít výpočet. */
+  h2hSetup(8);
+  const vlastni = [[1000, 1007], [1001, 1006], [1002, 1005], [1003, 1004]];
+  w.eval('H2H_FROZEN = ' + JSON.stringify({
+    '2': {gw: 2, matches: vlastni, ghost: null, okno: 3}}));
+  w.eval('H2H_CACHE = null');
+  const r = w.eval('h2hSeason()').find(x => x.gw === 2);
+  if(!r.frozen) throw new Error('kolo se netváří jako zamrazené');
+  if(JSON.stringify(r.matches) !== JSON.stringify(vlastni))
+    throw new Error('přepočítalo se místo načtení');
+  w.eval('H2H_FROZEN = {}; H2H_CACHE = null');
+  return 'čte se z Firestore';
+});
+
+check('zamrazené kolo platí i pro zákaz opakování', () => {
+  // Zákaz se musí odvozovat z toho, co se opravdu hrálo — ne z toho,
+  // co by dnešní seznam členů vylosoval.
+  h2hSetup(8, 4);
+  w.eval('H2H_FROZEN = ' + JSON.stringify({
+    '3': {gw: 3, matches: [[1000, 1001], [1002, 1003], [1004, 1005], [1006, 1007]],
+          ghost: null, okno: 3}}));
+  w.eval('H2H_CACHE = null');
+  const r4 = w.eval('h2hSeason()').find(x => x.gw === 4);
+  if(r4.okno < 3){ w.eval('H2H_FROZEN = {}; H2H_CACHE = null'); return 'okno zkráceno'; }
+  const opakuje = r4.matches.some(([a, b]) =>
+    (a === 1000 && b === 1001) || (a === 1001 && b === 1000));
+  w.eval('H2H_FROZEN = {}; H2H_CACHE = null');
+  if(opakuje) throw new Error('zopakovalo dvojici ze zamrazeného kola');
+  return 'zákaz drží';
+});
+
+check('zamrazuje se jen dopočítané kolo', () => {
+  const src = SRC;
+  const fn = src.slice(src.indexOf('async function h2hFreezeDone'),
+                       src.indexOf('async function h2hFreezeDone') + 900);
+  if(!/gwPhase\(round\.gw\) !== 'final'/.test(fn))
+    throw new Error('zamrazilo by i kolo čekající na bonusy');
+  if(!/round\.frozen \|\|/.test(fn))
+    throw new Error('zapisovalo by znovu už zamrazené kolo');
+  return 'jen final';
+});
+
+check('pravidla Firestore nedovolí přepsat zamrazené kolo', () => {
+  // Kdyby šlo update, ztratil by zámek smysl — kdokoli by mohl
+  // přepsat historii ligy.
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  const blok = rules.slice(rules.indexOf('match /leagues/'));
+  if(!/allow create:/.test(blok)) throw new Error('chybí create');
+  if(/allow (update|write|delete)/.test(blok))
+    throw new Error('zamrazené kolo jde přepsat');
+  if(!/request\.auth != null/.test(blok))
+    throw new Error('může zapisovat i nepřihlášený');
+  return 'jen create';
+});
+
+check('bez přihlášení H2H funguje dál', () => {
+  // Zámek je pojistka, ne podmínka. Kdo se nepřihlásí, má pořád dvojice.
+  h2hSetup(8);
+  w.eval('H2H_FROZEN = {}; H2H_CACHE = null');
+  const rounds = w.eval('h2hSeason()');
+  if(!rounds.length || !rounds[0].matches.length)
+    throw new Error('bez zámku nic nevylosuje');
+  return rounds.length + ' kol';
+});
+
 check('H2H má vlastní záložku i box na Přehledu', () => {
   const html = SRC;
   if(!/id="t-h2h"/.test(html)) throw new Error('chybí tlačítko záložky');

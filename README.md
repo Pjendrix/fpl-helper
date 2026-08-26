@@ -61,7 +61,7 @@ manifest.webmanifest    PWA manifest
 icon.svg, favicon.svg   ikona aplikace a favicon
 brand/                  logo, zdroje značky, mockup redesignu
 vercel.json             bezpečnostní hlavičky včetně CSP
-test.mjs                303 smoke testů nad falešnými daty FPL
+test.mjs                312 smoke testů nad falešnými daty FPL
 ```
 
 Skripty v `js/` jsou **klasické `<script>`, ne ES moduly**: sdílejí jeden
