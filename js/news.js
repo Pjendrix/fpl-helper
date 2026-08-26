@@ -30,8 +30,23 @@ async function fetchNews(force){
     .then(async r => {
       const data = await r.json().catch(() => null);
       if(!r.ok) throw new Error((data && data.error) || 'Zpravodaj je nedostupný.');
-      NEWS = data;
-      return data;
+
+      /* Položka ze zdroje, který frontend nezná, se dřív tiše počítala
+         do „Vše“, ale nešla vyfiltrovat — neměla tlačítko. Stane se to
+         pokaždé, když server běží na jiné verzi než stránka: buď kvůli
+         nedokončenému deploy, nebo protože edge cache drží starou
+         odpověď až hodinu. Zahodit ji je poctivější než ji ukázat
+         v proudu, ve kterém nejde vypnout. */
+      const znam = new Set(NEWS_SOURCES.map(x => x.id));
+      const vsechny = (data && data.items) || [];
+      const items = vsechny.filter(i => znam.has(i.source));
+      if(items.length !== vsechny.length){
+        console.warn('Zpravodaj: zahozeno', vsechny.length - items.length,
+          'položek z neznámých zdrojů (server build:', data && data.build, ')');
+      }
+
+      NEWS = {...data, items};
+      return NEWS;
     })
     .finally(() => { NEWS_LOADING = null; });
 
