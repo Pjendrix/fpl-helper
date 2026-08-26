@@ -8,6 +8,10 @@
 // timeout. Kdyz jeden web lezi, vrati se ostatni a u nespravneho se rekne,
 // ze se nepovedl. Jeden pomaly server nesmi znamenat prazdnou stranku.
 
+// Znacka verze. Bez ni se neda poznat rozdil mezi "nova verze nefunguje"
+// a "bezi porad ta stara" — a to jsou dve uplne jine chyby.
+const BUILD = "news-2026-08-26b";
+
 const TIMEOUT_MS = 6000;
 const PER_SOURCE = 12; // kolik clanku brat z jednoho zdroje
 const EXCERPT = 200; // znaku uryvku; cely clanek nechceme reprodukovat
@@ -229,7 +233,9 @@ export default async function handler(req, res) {
 
   // Vsechny zdroje dole = neni co ukazat; at to strana pozna podle statusu.
   if (!items.length) {
-    return res.status(502).json({ error: "Žádný ze zdrojů neodpověděl.", failed });
+    return res
+      .status(502)
+      .json({ build: BUILD, error: "Žádný ze zdrojů neodpověděl.", failed });
   }
 
   if (debug) res.setHeader("Cache-Control", "no-store");
@@ -244,6 +250,7 @@ export default async function handler(req, res) {
       "public, s-maxage=900, stale-while-revalidate=3600"
     );
   return res.status(200).json({
+    build: BUILD,
     items,
     failed,
     sources: SOURCES.map((s) => ({ id: s.id, name: s.name })),
