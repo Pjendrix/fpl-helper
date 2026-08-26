@@ -1471,3 +1471,31 @@ th[aria-sort="ascending"],th[aria-sort="descending"]{color:var(--ink)}
   letter-spacing:.06em;color:var(--mute)}
 .advthink .tag.al{color:var(--alert)}
 .advthink p{margin:5px 0 0;font-size:13px;line-height:1.5;color:var(--mute)}
+
+/* ---------- jistota pohybu ceny ----------
+   Slovo místo teček. Sytost pozadí roste s jistotou, takže se dá
+   tabulka číst i bez čtení — ale slovo tam je, aby se dala číst
+   i doopravdy. */
+.lk{display:inline-block;font-family:var(--f-mono);font-size:10.5px;
+  letter-spacing:.04em;white-space:nowrap;padding:2px 7px;border-radius:999px;
+  border:1px solid transparent}
+.lk.none{color:var(--mute);background:none;border:0;padding-left:0}
+.lk.up{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-bg)}
+.lk.down{color:var(--alert);background:var(--alert-bg);border-color:var(--alert-bg)}
+.lk.l5,.lk.l4{font-weight:700}
+.lk.up.l5{background:var(--ok);color:#fff;border-color:var(--ok)}
+.lk.down.l5{background:var(--alert);color:#fff;border-color:var(--alert)}
+.lk.l1,.lk.l2{opacity:.72}
+
+/* ---------- našeptávač watchlistu ---------- */
+.watchadd label{position:relative}
+.wsug{position:absolute;z-index:20;left:0;right:0;top:100%;margin-top:3px;
+  background:var(--white);border:1px solid var(--line);border-radius:var(--r-card);
+  box-shadow:0 8px 24px rgba(0,0,0,.16);overflow:hidden;max-height:280px;
+  overflow-y:auto}
+.wsug button{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;
+  background:none;border:0;border-bottom:1px solid var(--line);padding:8px 11px;
+  cursor:pointer;font-size:13.5px;color:var(--ink)}
+.wsug button:last-child{border-bottom:0}
+.wsug button:hover,.wsug button[aria-selected="true"]{background:var(--line)}
+.wsug button span{font-family:var(--f-mono);font-size:10.5px;color:var(--mute)}
