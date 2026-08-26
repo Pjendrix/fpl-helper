@@ -110,7 +110,7 @@ const CSS_TAGS = [
 ];
 const SRC = [fs.readFileSync('index.html', 'utf8')]
   .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
-  .concat(['js/core.js','js/tabs.js','js/h2h.js','js/news.js','js/ui.js','js/planner.js','js/sync.js',
+  .concat(['js/core.js','js/tabs.js','js/h2h.js','js/news.js','js/advisor.js','js/ui.js','js/planner.js','js/sync.js',
            'js/mobile.js','js/boot.js','js/firebase.js']
     .map(f => fs.readFileSync(f, 'utf8')))
   .join('\n');
@@ -2414,6 +2414,183 @@ check('volba zobrazení se pamatuje', () => {
   if(w.localStorage.getItem('fpl_view') !== 'mobile')
     throw new Error('nepřepnulo zpátky: ' + w.localStorage.getItem('fpl_view'));
   return 'mobile ⇄ desktop';
+});
+
+/* ================= Přestupový poradce ================= */
+
+/* Poradce potřebuje vlastní BOOT — jenže BOOT je globální a testy pod
+   ním na něm dál stojí. Původní se proto schová a na konci sekce vrátí.
+   Bez toho spadnou testy o pár set řádků níž a hledá se to dlouho. */
+const ADV_BOOT_ZALOHA = w.eval('BOOT');
+const ADV_FIX_ZALOHA = w.eval('FIX');
+
+function advSetup(){
+  const teams = [{id: 1, short_name: 'ARS'}, {id: 2, short_name: 'MUN'}];
+  const elements = []; let id = 1;
+  for(const t of [1, 2, 3, 4]) for(let k = 0; k < 12; k++){
+    const xgi = 0.1 + ((k * 7) % 12) * 0.05;   // kvalita nekoreluje s cenou
+    elements.push({id: id++, web_name: 'P' + id, element_type: t, team: (id % 2) + 1,
+      now_cost: 45 + (k % 6) * 5, minutes: 200 + k * 10, status: 'a',
+      goals_scored: k % 4, assists: k % 3,
+      expected_goal_involvements: String(xgi * (200 + k * 10) / 90),
+      expected_goal_involvements_per_90: String(xgi),
+      expected_goals_per_90: String(xgi * 0.6),
+      expected_goals_conceded_per_90: String(1.7 - ((k * 5) % 10) * 0.08),
+      creativity: String(80 + ((k * 11) % 20) * 15),
+      threat: String(60 + ((k * 13) % 20) * 20),
+      saves_per_90: '2.0', defensive_contribution_per_90: String(4 + (k % 5))});
+  }
+  w.eval('BOOT = ' + JSON.stringify({
+    events: [{id: 1, is_current: true}, {id: 2, is_next: true}], teams, elements}));
+  w.eval('FIX = []');
+  const squad = [1, 2, 13, 14, 15, 16, 17, 25, 26, 27, 28, 37, 38, 39, 40]
+    .map(i => elements[i - 1]);
+  w.eval('ADV_SQUAD = ' + JSON.stringify(squad));
+  w.eval('ADV_POS = null');
+  return {elements, squad};
+}
+
+check('poradce nepočítá hráče pod prahem minut', () => {
+  /* xG po dvou zápasech je šum. Bez prahu vyhraje každý žebříček někdo,
+     kdo odehrál dvacet minut a jednou vystřelil z penalty. */
+  advSetup();
+  w.eval('BOOT.elements[0].minutes = 40');
+  const pool = w.eval('advPool(1)').map(p => p.id);
+  if(pool.includes(1)) throw new Error('hráč se 40 minutami je v poolu');
+  const prah = w.eval('ADV_MIN_MINUTES');
+  if(prah < 90) throw new Error('práh je jen ' + prah + ' minut');
+  return prah + ' minut';
+});
+
+check('brankáři a obránci se neposuzují podle xG', () => {
+  // Řadit stopery podle očekávaných gólů je způsob, jak doporučit
+  // krajního obránce z týmu, který dostává tři góly za zápas.
+  const gk = w.eval('ADV_METRICS[1]').map(m => m.key);
+  const df = w.eval('ADV_METRICS[2]').map(m => m.key);
+  if(gk[0] !== 'expected_goals_conceded_per_90')
+    throw new Error('brankáři se řadí podle ' + gk[0]);
+  if(df[0] !== 'expected_goals_conceded_per_90')
+    throw new Error('obránci se řadí podle ' + df[0]);
+  return 'xGC první';
+});
+
+check('u xGC platí, že méně je lépe', () => {
+  /* Bez otočeného znaménka by appka chválila obranu, která inkasuje
+     nejvíc v lize — a doporučovala by ji posílit tou ještě horší. */
+  advSetup();
+  const diag = w.eval('advDiagnose(ADV_SQUAD)');
+  const obranci = diag.find(d => d.pos === 2);
+  const xgc = obranci.radky.find(r => r.m.key === 'expected_goals_conceded_per_90');
+  if(!xgc.m.lower) throw new Error('xGC není označené jako "méně je lépe"');
+  const ocekavano = xgc.muj < xgc.prumer;
+  if(xgc.lepsi !== ocekavano)
+    throw new Error('hodnocení je obrácené: ' + xgc.muj + ' vs ' + xgc.prumer);
+  return xgc.muj.toFixed(2) + ' vs liga ' + xgc.prumer.toFixed(2);
+});
+
+check('creativity a threat se přepočítávají na 90 minut', () => {
+  // Jsou to sezónní součty. Bez přepočtu vyhraje ten, kdo hrál nejvíc,
+  // což není informace o kvalitě.
+  advSetup();
+  const p = w.eval('BOOT.elements.find(x => x.element_type === 3)');
+  const m = w.eval('ADV_METRICS[3].find(x => x.key === "creativity")');
+  if(!m.per90) throw new Error('creativity se nepřepočítává');
+  const v = w.eval(`advValue(BOOT.elements.find(x => x.element_type === 3),
+    ADV_METRICS[3].find(y => y.key === "creativity"))`);
+  const cekano = Number(p.creativity) / (p.minutes / 90);
+  if(Math.abs(v - cekano) > 0.01) throw new Error(v + ' ≠ ' + cekano);
+  return v.toFixed(1) + ' / 90';
+});
+
+check('tip nedoporučí hráče, na kterého nejsou peníze', () => {
+  advSetup();
+  const tipy = w.eval('advCandidates(ADV_SQUAD, 3, 0)');
+  for(const t of tipy){
+    const rozpocet = w.eval(`advSell(BOOT.elements.find(p => p.id === ${t.ven.id}))`);
+    if(t.dovnitr.now_cost / 10 > rozpocet + 0.001)
+      throw new Error(`${t.dovnitr.web_name} za ${t.dovnitr.now_cost / 10}m,
+        rozpočet ${rozpocet}m`);
+  }
+  return tipy.length + ' tipů v rozpočtu';
+});
+
+check('tip nenavrhne zhoršení', () => {
+  // Návrh, který nic nezlepší, není návrh.
+  advSetup();
+  const tipy = w.eval('advCandidates(ADV_SQUAD, 3, 5)');
+  for(const t of tipy){
+    const a = Number(t.ven.expected_goal_involvements_per_90);
+    const b = Number(t.dovnitr.expected_goal_involvements_per_90);
+    if(b <= a) throw new Error(`${t.dovnitr.web_name} má xGI ${b} ≤ ${a}`);
+  }
+  if(!tipy.length) throw new Error('s bankou 5m se nenašlo nic');
+  return tipy.length + ' zlepšení';
+});
+
+check('poradce nedoporučí hráče, kterého už mám', () => {
+  advSetup();
+  const mam = new Set(w.eval('ADV_SQUAD.map(p => p.id)'));
+  for(const t of w.eval('advCandidates(ADV_SQUAD, 3, 20)'))
+    if(mam.has(t.dovnitr.id)) throw new Error('navrhlo vlastního hráče');
+  return 'filtruje';
+});
+
+check('nadvýkon je rozdíl proti podkladu, ne bodový zisk', () => {
+  /* Kladné číslo znamená štěstí, které se srovná dolů. Záporné hráče,
+     kterého se vyplatí podržet — a to je proti instinktu. */
+  advSetup();
+  const p = w.eval('BOOT.elements[5]');
+  const d = w.eval('advDelta(BOOT.elements[5])');
+  const cekano = (p.goals_scored + p.assists) - Number(p.expected_goal_involvements);
+  if(Math.abs(d - cekano) > 0.001) throw new Error(d + ' ≠ ' + cekano);
+  return d.toFixed(2);
+});
+
+check('odůvodnění odkazuje na čísla z tabulky', () => {
+  // Věta, která zní chytře, ale neodkazuje na žádnou hodnotu nad ní,
+  // je horší než žádná.
+  advSetup();
+  const t = w.eval('advCandidates(ADV_SQUAD, 3, 5)')[0];
+  if(!t) throw new Error('žádný tip');
+  const text = w.eval(`(function(){
+    const t = advCandidates(ADV_SQUAD, 3, 5)[0];
+    return advReason(t.ven, t.dovnitr, 3, advDelta(t.ven), advDelta(t.dovnitr));
+  })()`);
+  if(!/\d/.test(text)) throw new Error('bez čísel: ' + text);
+  if(!text.includes(t.dovnitr.web_name)) throw new Error('nejmenuje hráče');
+  return text.slice(0, 60);
+});
+
+check('poradce nesahá na cizí zdroje dat', () => {
+  /* Opta data jsou v FPL API, které appka stahuje tak jako tak.
+     Scraping theanalyst.com nebo FBref by přidal zdroj, který nemá
+     veřejné rozhraní, zakazuje to v podmínkách a neposílá CORS. */
+  const src = fs.readFileSync('js/advisor.js', 'utf8');
+  if(/theanalyst|fbref|understat/i.test(src))
+    throw new Error('poradce sahá jinam než na FPL API');
+  if(!/expected_goal_involvements/.test(src))
+    throw new Error('nepoužívá podkladové metriky');
+  return 'jen FPL API';
+});
+
+check('plánovač je vypnutý, ne smazaný', () => {
+  // Vyřazení z TABS ho vypne pro navigaci i pro mobilní plachtu.
+  // Kód zůstává, aby se dal vrátit jedním řádkem.
+  if(w.eval('TABS.some(t => t[0] === "t-planner")'))
+    throw new Error('plánovač je pořád v TABS');
+  if(!w.eval('TABS.some(t => t[0] === "t-adv")'))
+    throw new Error('poradce v TABS chybí');
+  if(!fs.existsSync('js/planner.js')) throw new Error('planner.js byl smazán');
+  if(!/id="p-planner"/.test(fs.readFileSync('index.html', 'utf8')))
+    throw new Error('panel plánovače byl smazán');
+  return 'vypnutý';
+});
+
+check('poradce vrátil globální data, jak je našel', () => {
+  w.__b = ADV_BOOT_ZALOHA; w.__f = ADV_FIX_ZALOHA;
+  w.eval('BOOT = window.__b; FIX = window.__f');
+  if(!w.eval('BOOT.events.length')) throw new Error('bootstrap se nevrátil');
+  return 'uklizeno';
 });
 
 /* ================= FPL Zpravodaj ================= */

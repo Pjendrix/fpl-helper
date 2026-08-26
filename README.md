@@ -48,8 +48,9 @@ js/core.js              konfigurace, cache, načtení kádru, záložky
 js/tabs.js              vykreslování obsahu jednotlivých sekcí
 js/h2h.js               H2H miniliga: losování, tabulka, box na Přehledu
 js/news.js              FPL Zpravodaj: filtr, karty, box na Přehledu
+js/advisor.js           Přestupový poradce: diagnostika kádru, tipy z Opta metrik
 js/ui.js                téma, přepínač zobrazení, tooltip, kolejnice
-js/planner.js           plánovač přestupů
+js/planner.js           plánovač přestupů (záložka vypnutá, kód ponechán)
 js/sync.js              přihlášení a zrcadlení nastavení do Firestore
 js/mobile.js            spodní navigace, plachta „Více“, gesta
 js/boot.js              start aplikace a registrace service workeru
@@ -63,7 +64,7 @@ manifest.webmanifest    PWA manifest
 icon.svg, favicon.svg   ikona aplikace a favicon
 brand/                  logo, zdroje značky, mockup redesignu
 vercel.json             bezpečnostní hlavičky včetně CSP
-test.mjs                320 smoke testů nad falešnými daty FPL
+test.mjs                338 smoke testů nad falešnými daty FPL
 ```
 
 Skripty v `js/` jsou **klasické `<script>`, ne ES moduly**: sdílejí jeden

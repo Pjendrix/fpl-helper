@@ -128,7 +128,13 @@
       <button id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
       <button id="t-plan" role="tab" aria-selected="false" aria-controls="p-plan">Program</button>
       <button id="t-prices" role="tab" aria-selected="false" aria-controls="p-prices">Ceny</button>
+      <button id="t-adv" role="tab" aria-selected="false" aria-controls="p-adv">Poradce</button>
+      <!-- Plánovač je vypnutý, ne smazaný. Kód pro něj zůstává v
+           js/planner.js a panel níž v tomhle souboru — kdyby se měl
+           vrátit, stačí odkomentovat tenhle řádek a přidat dvojici
+           zpátky do TABS v js/core.js.
       <button id="t-planner" role="tab" aria-selected="false" aria-controls="p-planner">Plánovač</button>
+      -->
       </div>
     </div>
   </div>
@@ -201,6 +207,11 @@
       <div id="prout"></div>
     </div>
 
+    <div class="panel" id="p-adv" role="tabpanel" tabindex="-1" aria-labelledby="t-adv" hidden>
+      <div id="advmsg" role="status" aria-live="polite"></div>
+      <div id="advout"></div>
+    </div>
+
     <div class="panel" id="p-planner" role="tabpanel" tabindex="-1" aria-labelledby="t-planner" hidden>
       <p class="hint"><b>K čemu to je:</b> záložka Transfery řeší „koho vyměnit teď“.
         Tady si naopak vyzkoušíš, jestli se vyplatí počkat. Naklikáš tahy do
@@ -243,6 +254,7 @@
 <script src="/js/core.js"></script>
 <script src="/js/tabs.js"></script>
 <script src="/js/h2h.js"></script>
+<script src="/js/advisor.js"></script>
 <script src="/js/news.js"></script>
 <script src="/js/ui.js"></script>
 <script src="/js/planner.js"></script>
