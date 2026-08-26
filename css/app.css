@@ -1450,3 +1450,17 @@ table.advcmp tr.out td:first-child{color:var(--ok);font-weight:700}
 th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
 th.sortable:hover{color:var(--ink)}
 th[aria-sort="ascending"],th[aria-sort="descending"]{color:var(--ink)}
+
+/* ---------- Poradce: hráči k zamyšlení ----------
+   Karta je záměrně plochá: jméno, zařazení a věta proč. Náhrady se
+   tu nehledají — od toho jsou tipy nad tím. */
+.advthink{border:1px solid var(--line);border-left-width:3px;
+  border-radius:var(--r-card);padding:10px 13px;margin:0 0 8px}
+.advthink.p1{border-left-color:var(--alert)}
+.advthink.p2{border-left-color:var(--warn)}
+.advthink .hd{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.advthink .hd b{font-size:14.5px}
+.advthink .tag{font-family:var(--f-mono);font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--mute)}
+.advthink .tag.al{color:var(--alert)}
+.advthink p{margin:5px 0 0;font-size:13px;line-height:1.5;color:var(--mute)}
