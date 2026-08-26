@@ -210,3 +210,12 @@
   .h2hm .side.r::before{content:'vs ';font-family:var(--f-mono);
     font-size:10px;color:var(--mute)}
   table.h2ht th,table.h2ht td{padding:6px 4px;font-size:11.5px}
+
+  /* Zpravodaj na telefonu: filtr je vodorovný scroller (už ho má jako
+     .subnav), karty užší a úryvek kratší — tři řádky stačí na to,
+     aby bylo poznat, o čem článek je. */
+  .ncard{padding:11px 12px}
+  .ncard h4{font-size:14px}
+  .ncard p{font-size:12px;display:-webkit-box;-webkit-line-clamp:3;
+    -webkit-box-orient:vertical;overflow:hidden}
+  .nmeta{font-size:10.5px;gap:7px}
