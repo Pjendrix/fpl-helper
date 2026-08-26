@@ -1333,11 +1333,8 @@ table.h2ht tr.me td b{color:var(--ok)}
 
 /* Volba počátečního kola H2H. Vypadá jako věta, ne jako formulář —
    je to jedno nastavení, ne sekce. */
-.h2hstart{display:inline-flex;align-items:center;gap:7px;margin:0 0 10px;
-  font-size:12px;color:var(--mute)}
-.h2hstart select{font-family:var(--f-mono);font-size:12px;font-weight:700;
-  color:var(--charcoal);background:var(--haze);border:1px solid var(--line);
-  border-radius:7px;padding:4px 7px}
+.h2hstart{margin:0 0 10px;font-size:12px;color:var(--mute)}
+.h2hstart b{font-family:var(--f-mono);font-weight:700;color:var(--charcoal)}
 
 /* ---------- FPL Zpravodaj ----------
    Karta je celá odkaz, ne titulek s odkazem: cíl kliknutí je pak velký
