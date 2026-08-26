@@ -110,7 +110,7 @@ const CSS_TAGS = [
 ];
 const SRC = [fs.readFileSync('index.html', 'utf8')]
   .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
-  .concat(['js/core.js','js/tabs.js','js/h2h.js','js/ui.js','js/planner.js','js/sync.js',
+  .concat(['js/core.js','js/tabs.js','js/h2h.js','js/news.js','js/ui.js','js/planner.js','js/sync.js',
            'js/mobile.js','js/boot.js','js/firebase.js']
     .map(f => fs.readFileSync(f, 'utf8')))
   .join('\n');
@@ -2414,6 +2414,107 @@ check('volba zobrazení se pamatuje', () => {
   if(w.localStorage.getItem('fpl_view') !== 'mobile')
     throw new Error('nepřepnulo zpátky: ' + w.localStorage.getItem('fpl_view'));
   return 'mobile ⇄ desktop';
+});
+
+/* ================= FPL Zpravodaj ================= */
+
+/* check() je schválně synchronní — výjimka z asynchronní funkce by se
+   ztratila v odmítnutém slibu a test by prošel, i kdyby spadl. Modul
+   parseru se proto načte tady, ne uvnitř testů. */
+const NEWSAPI = (await import('./api/news.js')).__test;
+
+check('RSS parser vytáhne titulek, odkaz, čas i úryvek', () => {
+  const xml = `<rss><channel>
+    <item>
+      <title><![CDATA[Scout picks: gameweek 2]]></title>
+      <link>https://example.com/a</link>
+      <pubDate>Mon, 25 Aug 2026 09:14:00 +0000</pubDate>
+      <description><![CDATA[<p>Doporu&#269;en&aacute; jeden&aacute;ctka &amp; kapit&aacute;n.</p>]]></description>
+    </item>
+  </channel></rss>`;
+  const it = NEWSAPI.parseRss(xml)[0];
+  if(it.title !== 'Scout picks: gameweek 2') throw new Error('titulek: ' + it.title);
+  if(it.link !== 'https://example.com/a') throw new Error('odkaz: ' + it.link);
+  if(!/^2026-08-25/.test(it.date)) throw new Error('datum: ' + it.date);
+  // HTML tagy pryč, entity dekódované — jinak by se v kartě objevil kód.
+  if(/[<>]/.test(it.excerpt)) throw new Error('zůstal tag: ' + it.excerpt);
+  if(!/kapitán/.test(it.excerpt)) throw new Error('entity nedekódované: ' + it.excerpt);
+  return it.excerpt;
+});
+
+check('entity se dekódují jednou, ne dvakrát', () => {
+  /* Řetězené .replace() dekódovalo dvakrát: z &amp;lt; udělalo &lt; a pak
+     <, takže se text, který má zobrazit značku, proměnil ve značku. */
+  if(NEWSAPI.decode('&amp;lt;b&amp;gt;') !== '&lt;b&gt;')
+    throw new Error('dvojité dekódování: ' + NEWSAPI.decode('&amp;lt;b&amp;gt;'));
+  if(NEWSAPI.decode('Kova&ccaron;i&cacute;') === 'Kova&ccaron;i&cacute;')
+    throw new Error('pojmenované entity se nedekódují');
+  // Neznámá entita se nechává být — smysluplnější než ji zahodit.
+  if(NEWSAPI.decode('&nesmysl;') !== '&nesmysl;') throw new Error('spolkla neznámou entitu');
+  return 'jednou';
+});
+
+check('úryvek se řeže na hranici slova, ne uprostřed', () => {
+  const dlouhy = ('slovo ').repeat(80);
+  const out = NEWSAPI.clip(dlouhy.trim());
+  if(out.length > 210) throw new Error('nezkrátilo se: ' + out.length);
+  if(!out.endsWith('…')) throw new Error('chybí výpustka');
+  if(/\w…$/.test(out) && !/ …$/.test(out) && /slov…$/.test(out))
+    throw new Error('řez uprostřed slova');
+  return out.length + ' znaků';
+});
+
+check('rozbitý zdroj neshodí ostatní', () => {
+  /* Tohle je celý smysl Promise.allSettled: jeden pomalý nebo mrtvý web
+     nesmí znamenat prázdnou stránku. */
+  const src = fs.readFileSync('api/news.js', 'utf8');
+  if(!/Promise\.allSettled/.test(src))
+    throw new Error('Promise.all by shodilo všechno na první chybě');
+  if(!/AbortController/.test(src))
+    throw new Error('bez timeoutu čeká funkce na mrtvý web až do limitu');
+  if(!/failed\.push/.test(src))
+    throw new Error('selhání se neohlásí ven');
+  return 'izolované';
+});
+
+check('zpravodaj se nenačítá bez cache hlaviček', () => {
+  const src = fs.readFileSync('api/news.js', 'utf8');
+  if(!/s-maxage=\d+/.test(src)) throw new Error('bez edge cache by se feedy tahaly při každém načtení');
+  if(!/stale-while-revalidate/.test(src))
+    throw new Error('při výpadku zdroje by se ukázala chyba místo poslední verze');
+  return 'cache místo cronu';
+});
+
+check('položka bez odkazu se zahodí', () => {
+  // Karta je celá odkaz. Bez URL není kam kliknout.
+  const xml = `<rss><channel>
+    <item><title>Bez odkazu</title><pubDate>Mon, 25 Aug 2026 09:00:00 +0000</pubDate></item>
+    </channel></rss>`;
+  const it = NEWSAPI.parseRss(xml)[0];
+  if(it.link) throw new Error('odkaz se odněkud vzal');
+  return 'filtruje se v loadSource';
+});
+
+check('Zpravodaj má záložku i box na Přehledu', () => {
+  const html = SRC;
+  if(!/id="t-news"/.test(html)) throw new Error('chybí tlačítko záložky');
+  if(!/id="p-news"/.test(html)) throw new Error('chybí panel');
+  if(!/homeNews\(\)/.test(html)) throw new Error('chybí box na Přehledu');
+  if(!/rel="noopener noreferrer"/.test(html))
+    throw new Error('odkazy ven bez noopener');
+  return 'záložka + box';
+});
+
+check('filtr zdrojů přepíná bez dalšího dotazu', () => {
+  // Data jsou stažená jednou; filtr jen překreslí. Kdyby sahal na síť,
+  // bylo by přepínání pomalé a zbytečně by zatěžovalo cizí weby.
+  const src = SRC;
+  const i = src.indexOf("const f = ev.target.closest('button[data-news]')");
+  const fn = src.slice(i, src.indexOf('return;', i));
+  if(/fetchNews|loadNews/.test(fn))
+    throw new Error('filtr znovu stahuje');
+  if(!/renderNews\(\)/.test(fn)) throw new Error('filtr nepřekresluje');
+  return 'jen překreslí';
 });
 
 /* ================= H2H miniliga ================= */

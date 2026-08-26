@@ -47,12 +47,14 @@ css/mobile.css          mobilní skořápka (<link id="mqM">)
 js/core.js              konfigurace, cache, načtení kádru, záložky
 js/tabs.js              vykreslování obsahu jednotlivých sekcí
 js/h2h.js               H2H miniliga: losování, tabulka, box na Přehledu
+js/news.js              FPL Zpravodaj: filtr, karty, box na Přehledu
 js/ui.js                téma, přepínač zobrazení, tooltip, kolejnice
 js/planner.js           plánovač přestupů
 js/sync.js              přihlášení a zrcadlení nastavení do Firestore
 js/mobile.js            spodní navigace, plachta „Více“, gesta
 js/boot.js              start aplikace a registrace service workeru
 js/firebase.js          jediný ES modul — inicializace Firebase
+api/news.js             agregace RSS zdrojů (FFScout, FF247, The Scout)
 api/fpl.js              proxy na oficiální FPL API (řeší CORS)
 api/badge.js            odznaky klubů z CDN Premier League, převedené na WebP
 sw.js                   service worker — skořápka a odznaky, data nikdy
@@ -61,7 +63,7 @@ manifest.webmanifest    PWA manifest
 icon.svg, favicon.svg   ikona aplikace a favicon
 brand/                  logo, zdroje značky, mockup redesignu
 vercel.json             bezpečnostní hlavičky včetně CSP
-test.mjs                312 smoke testů nad falešnými daty FPL
+test.mjs                320 smoke testů nad falešnými daty FPL
 ```
 
 Skripty v `js/` jsou **klasické `<script>`, ne ES moduly**: sdílejí jeden
