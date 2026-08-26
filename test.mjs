@@ -2543,6 +2543,19 @@ check('Zpravodaj má záložku i box na Přehledu', () => {
   return 'záložka + box';
 });
 
+check('položka z neznámého zdroje se do proudu nedostane', () => {
+  /* Když server běží na jiné verzi než stránka (nedokončený deploy nebo
+     edge cache), přijdou položky ze zdroje, pro který filtr nemá tlačítko.
+     Dřív se tiše počítaly do „Vše“ a nešly vypnout. */
+  const src = fs.readFileSync('js/news.js', 'utf8');
+  const fn = src.slice(src.indexOf('function fetchNews'), src.indexOf('function newsTime'));
+  if(!/NEWS_SOURCES\.map\(x => x\.id\)/.test(fn))
+    throw new Error('neznámé zdroje se nefiltrují');
+  if(!/znam\.has\(i\.source\)/.test(fn))
+    throw new Error('filtruje se něco jiného než zdroj');
+  return 'zahodí se';
+});
+
 check('filtr zdrojů přepíná bez dalšího dotazu', () => {
   // Data jsou stažená jednou; filtr jen překreslí. Kdyby sahal na síť,
   // bylo by přepínání pomalé a zbytečně by zatěžovalo cizí weby.
