@@ -23,8 +23,44 @@
    Bez něj vyhraje každý žebříček někdo, kdo odehrál dvacet minut a
    jednou vystřelil z penalty. xG po dvou zápasech je šum — dvě kola
    po 90 minutách je minimum, u kterého má smysl vůbec něco tvrdit.
-   Do té doby poradce neschovává obrazovku, ale řekne, že je brzy. */
+
+   Jenže pevných 180 minut znamená, že poradce v prvních dvou kolech
+   nemá co říct — a to je přesně doba, kdy se v kádru hrabe nejvíc.
+   Práh proto roste s odehranými koly: 60 po prvním, 120 po druhém a
+   od třetího už těch 180, kde zůstane po zbytek sezóny.
+
+   Že hráč prahem projde, ale neznamená, že jeho čísla něco znamenají —
+   od toho je shrinkage níž. Práh rozhoduje, kdo se do tabulky dostane,
+   shrinkage rozhoduje, jak vysoko. */
 const ADV_MIN_MINUTES = 180;
+
+function advMinMinutes(){
+  const done = ((BOOT && BOOT.events) || []).filter(e => e.finished).length;
+  return Math.min(ADV_MIN_MINUTES, Math.max(60, done * 60));
+}
+
+/* Stažení k průměru pozice (shrinkage).
+
+   Per-90 metrika z jednoho zápasu má obrovský rozptyl: kdo jednou
+   vystřelil z dobré pozice, vyskočí nad všechny opory. Místo surové
+   hodnoty se proto řadí podle váženého průměru hráčova čísla a průměru
+   jeho pozice, kde váha roste s odehranými minutami:
+
+     váha = minuty / (minuty + 180)
+
+   Po dvou celých zápasech je hráč z poloviny sám sebou a z poloviny
+   normálním hráčem svojí pozice. V GW20 je váha přes 90 % a shrinkage
+   se vytratí sám — není co vypínat.
+
+   Používá se JEN na řazení a na výběr tipů. V tabulce zůstává surové
+   číslo, protože to je to, co člověk uvidí na oficiálním webu FPL;
+   zobrazit stažené číslo by vypadalo jako chyba v appce. */
+const ADV_SHRINK_K = 180;
+
+function advShrink(hodnota, minuty, prumer){
+  const w = minuty / (minuty + ADV_SHRINK_K);
+  return w * hodnota + (1 - w) * prumer;
+}
 
 // Kolik tipů. Tři je počet, který se dá přečíst; deset už je seznam.
 const ADV_TIPS = 3;
@@ -76,13 +112,27 @@ function advValue(p, m){
 function advPool(pos){
   return (BOOT.elements || []).filter(p =>
     p.element_type === pos &&
-    p.minutes >= ADV_MIN_MINUTES &&
+    p.minutes >= advMinMinutes() &&
     p.status !== 'u');           // 'u' = hráč už v Premier League není
 }
 
 function advAvg(list, m){
   if(!list.length) return 0;
   return list.reduce((s, p) => s + advValue(p, m), 0) / list.length;
+}
+
+/* Základ pro shrinkage. Vážený minutami schválně: prostý průměr by
+   stáhli dolů náhradníci, kteří prahem prošli o vlásek, a k takovému
+   základu by se pak stahovali i ti, kdo hrají všechno. */
+function advBase(list, m){
+  const minuty = list.reduce((s, p) => s + p.minutes, 0);
+  if(!minuty) return advAvg(list, m);
+  return list.reduce((s, p) => s + advValue(p, m) * p.minutes, 0) / minuty;
+}
+
+/* Hodnota, podle které se řadí. Surovou vrací advValue(). */
+function advRank(p, m, base){
+  return advShrink(advValue(p, m), p.minutes, base);
 }
 
 /* ------------------------------------------------------------
@@ -96,7 +146,7 @@ function advDiagnose(squad){
   return [1, 2, 3, 4].map(pos => {
     const moji = squad.filter(p => p.element_type === pos);
     const liga = advPool(pos);
-    const merene = moji.filter(p => p.minutes >= ADV_MIN_MINUTES);
+    const merene = moji.filter(p => p.minutes >= advMinMinutes());
 
     return {
       pos,
@@ -171,29 +221,31 @@ function advFdr(p, gws = 3){
 function advCandidates(squad, pos, bank){
   const hlavni = ADV_METRICS[pos][0];
   const mam = new Set(squad.map(p => p.id));
+  const liga = advPool(pos);
+  const base = advBase(liga, hlavni);
+  const hod = p => advRank(p, hlavni, base);
 
   const moji = squad
-    .filter(p => p.element_type === pos && p.minutes >= ADV_MIN_MINUTES)
+    .filter(p => p.element_type === pos && p.minutes >= advMinMinutes())
     .sort((a, b) => hlavni.lower
-      ? advValue(b, hlavni) - advValue(a, hlavni)   // nejvyšší xGC první
-      : advValue(a, hlavni) - advValue(b, hlavni)); // nejnižší xGI první
+      ? hod(b) - hod(a)    // nejvyšší xGC první
+      : hod(a) - hod(b));  // nejnižší xGI první
 
   const tipy = [];
   for(const ven of moji){
     const rozpocet = advSell(ven) + bank;
 
-    const dovnitr = advPool(pos)
+    const dovnitr = liga
       .filter(p => !mam.has(p.id) && advPrice(p) <= rozpocet && p.status === 'a')
-      .sort((a, b) => hlavni.lower
-        ? advValue(a, hlavni) - advValue(b, hlavni)
-        : advValue(b, hlavni) - advValue(a, hlavni))[0];
+      .sort((a, b) => hlavni.lower ? hod(a) - hod(b) : hod(b) - hod(a))[0];
 
     if(!dovnitr) continue;
 
-    // Návrh, který nic nezlepší, není návrh.
+    // Návrh, který nic nezlepší, není návrh. Porovnává se stažená
+    // hodnota — jinak by tip vyhrál jeden šťastný výstřel.
     const zlepseni = hlavni.lower
-      ? advValue(ven, hlavni) - advValue(dovnitr, hlavni)
-      : advValue(dovnitr, hlavni) - advValue(ven, hlavni);
+      ? hod(ven) - hod(dovnitr)
+      : hod(dovnitr) - hod(ven);
     if(zlepseni <= 0) continue;
 
     tipy.push({ven, dovnitr, pos, rozpocet});
@@ -237,7 +289,7 @@ function advDiagCard(d){
   if(!d.merene){
     return `<div class="advbox">
       <h4>${ADV_NAMES[d.pos]}</h4>
-      <p class="note">Nikdo z nich zatím neodehrál ${ADV_MIN_MINUTES} minut.</p>
+      <p class="note">Nikdo z nich zatím neodehrál ${advMinMinutes()} minut.</p>
     </div>`;
   }
   return `<div class="advbox">
@@ -334,9 +386,12 @@ function advPanel(){
 
   /* Málo dat neznamená prázdnou obrazovku. Znamená větu, která řekne
      proč — jinak to vypadá jako rozbitá appka. */
-  const malo = merene < squad.length / 2
+  const prah = advMinMinutes();
+  const malo = merene < squad.length / 2 || prah < ADV_MIN_MINUTES
     ? `<p class="note wn">Zatím je odehráno málo minut, takže čísla nesou
-       hodně náhody. Podkladové metriky začínají něco znamenat kolem
+       hodně náhody. Do žebříčků teď pouštím hráče od ${prah} minut a
+       jejich čísla stahuju k průměru pozice, aby tabulce nevládl jeden
+       šťastný výstřel. Spolehlivé to začne být kolem
        ${ADV_MIN_MINUTES} minut na hráče — do té doby ber tipy jako
        orientační.</p>`
     : '';
@@ -380,9 +435,15 @@ function renderAdvisor(){
     je rozdíl mezi tím, co hráč nasbíral, a tím, co říkají jeho očekávané
     hodnoty — kladné číslo znamená štěstí, které se obvykle srovná dolů,
     záporné hráče, kterého se vyplatí podržet.<br><br>
-    Počítá se jen z hráčů s alespoň ${ADV_MIN_MINUTES} odehranými minutami.
+    Počítá se jen z hráčů s alespoň ${advMinMinutes()} odehranými minutami.
     Bez toho by žebříčkům vládl každý, kdo odehrál dvacet minut a jednou
-    vystřelil.<br><br>
+    vystřelil. V prvních kolech je práh nižší (60 po prvním kole, 120 po
+    druhém), jinak by poradce neměl co říct zrovna ve chvíli, kdy se
+    kádr staví.<br><br>
+    U hráčů s málo odehranými minutami se čísla při řazení stahují
+    k průměru pozice — po dvou celých zápasech se počítají zpola za
+    vlastní, zpola za průměrné. V tabulkách se pořád ukazuje surová
+    hodnota z FPL, stažená se používá jen na pořadí tipů.<br><br>
     Přínos se neslučuje do jednoho čísla. Vedle sebe jsou metriky, los i
     odehrané minuty — závěr si udělej sám, protože jakékoli jediné číslo
     by předstíralo přesnost, kterou ta data nemají.`)}</h2>
