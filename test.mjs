@@ -2649,6 +2649,57 @@ check('kádr se dá přepnout na jeden seznam', () => {
   return 'pos ⇄ all';
 });
 
+check('hráči zůstávají pod svou skupinou, ne pod poslední hlavičkou', () => {
+  /* Přesně tahle chyba tady byla: řazení připojovalo řádky na konec
+     seznamu, takže se po návratu k Po pozicích sesypaly všechny pod
+     Lavičku a skupiny nad nimi zůstaly prázdné. Kontrolujeme, že po
+     každém řádku najdeme správnou hlavičku nad ním. */
+  const list = w.document.getElementById('squadlist');
+  w.document.querySelector('button[data-squadview="all"]').click();
+  list.querySelector('[data-sort="body"]').click();
+  w.document.querySelector('button[data-squadview="pos"]').click();
+
+  const POS = {'Brankáři': 1, 'Obránci': 2, 'Záložníci': 3, 'Útočníci': 4};
+  let skupina = null, prazdna = 0, videno = 0;
+
+  for(const el of list.children){
+    if(el.classList.contains('pgroup')){
+      if(skupina !== null && videno === 0) prazdna++;
+      skupina = el.textContent.trim().split(/\s+/)[0];
+      videno = 0;
+      continue;
+    }
+    if(!el.classList.contains('prow')) continue;
+    videno++;
+    const cekano = POS[skupina];
+    // Lavička míchá pozice, ta se nekontroluje.
+    if(cekano && Number(el.dataset.pos) !== cekano)
+      throw new Error(skupina + ' obsahuje hráče pozice ' + el.dataset.pos);
+  }
+  if(prazdna) throw new Error(prazdna + ' skupin zůstalo prázdných');
+  return 'skupiny drží';
+});
+
+check('řazení funguje i uvnitř skupin', () => {
+  const list = w.document.getElementById('squadlist');
+  w.document.querySelector('button[data-squadview="pos"]').click();
+  list.querySelector('[data-sort="cena"]').click();
+
+  let skupina = null, predchozi = null, zmen = 0;
+  for(const el of list.children){
+    if(el.classList.contains('pgroup')){ skupina = el; predchozi = null; continue; }
+    if(!el.classList.contains('prow')) continue;
+    const v = Number(el.dataset.cena);
+    if(predchozi !== null){
+      if(v > predchozi) throw new Error('uvnitř skupiny neseřazeno sestupně');
+      if(v < predchozi) zmen++;
+    }
+    predchozi = v;
+  }
+  if(!zmen) throw new Error('řazení se neprojevilo');
+  return zmen + ' sestupných kroků';
+});
+
 check('řazení kádru sáhne na data, ne na text v buňce', () => {
   // V buňkách je „5.5▲“, „8.7 %“ a „–“. Kdyby se čísla tahala z textu,
   // rozhodila by řazení hned první nečíselná hodnota.
@@ -2698,8 +2749,8 @@ check('hráči bez hodnoty padají na konec, ne na začátek', () => {
   // při sestupném řazení tvářil jako nejhorší, ale při vzestupném
   // jako nejlepší — a vyplaval by nad skutečná čísla.
   const src = SRC;
-  const fn = src.slice(src.indexOf('function applySquadSort()'),
-                       src.indexOf('function applySquadSort()') + 1800);
+  const fn = src.slice(src.indexOf('function squadSorter()'),
+                       src.indexOf('function squadSorter()') + 900);
   if(!/va < 0 !== vb < 0/.test(fn))
     throw new Error('chybí zvláštní zacházení s chybějící hodnotou');
   return 'na konec při obou směrech';
