@@ -80,7 +80,41 @@ const bootstrap={teams,events,elements,phases,
   game_config:{settings:{price_change_deadlines:[
     new Date(Date.now()+8*3600e3).toISOString()]}}};
 
-const html=fs.readFileSync('index.html','utf8');
+/* Skripty a styly už nejsou v index.html, ale jsdom je bez
+   resources:'usable' nenačte — externí <script src> by se prostě
+   nespustil a spadlo by úplně všechno. Vlepíme je zpátky před
+   předáním do JSDOM. Zůstává tak jeden proces bez sítě a testuje se
+   přesně to pořadí souborů, které je v index.html. */
+function inlineScripts(html){
+  return html.replace(
+    /<script([^>]*?)\ssrc="(\/[^"]+)"([^>]*)><\/script>/g,
+    (all, a, src, b) => {
+      const code = fs.readFileSync('.' + src, 'utf8');
+      // </script> uvnitř řetězce v kódu by tag ukončil předčasně.
+      return '<script' + a + b + '>' +
+             code.replace(/<\/script>/g, '<\\/script>') + '</script>';
+    });
+}
+
+const html=inlineScripts(fs.readFileSync('index.html','utf8'));
+
+/* Zdroj appky. Testy, které kontrolují CSS pravidla nebo tvar kódu, si
+   dřív načítaly index.html — ten měl ale všechno v sobě. Po rozdělení
+   do css/ a js/ je „zdroj“ součet všech těch souborů; jinak by testy
+   hlásily chybějící pravidla jen proto, že se přestěhovala. */
+const CSS_TAGS = [
+  ['css/app.css',    '<style>'],
+  ['css/narrow.css', '<style id="mqL" media="(max-width:720px)">'],
+  ['css/small.css',  '<style id="mqS" media="(max-width:640px)">'],
+  ['css/mobile.css', '<style id="mqM" media="(max-width:720px)">'],
+];
+const SRC = [fs.readFileSync('index.html', 'utf8')]
+  .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
+  .concat(['js/core.js','js/tabs.js','js/ui.js','js/planner.js','js/sync.js',
+           'js/mobile.js','js/boot.js','js/firebase.js']
+    .map(f => fs.readFileSync(f, 'utf8')))
+  .join('\n');
+
 const dom=new JSDOM(html,{runScripts:'dangerously',url:'https://x.test/',
   pretendToBeVisual:true});
 const w=dom.window;
@@ -431,7 +465,7 @@ check('render s živými daty ukáže body místo FDR', () => {
 check('karta hráče má pevnou mřížku, ne volné inline prvky', () => {
   // Volné spany si zalomily obsah podle délky jména: body skončily
   // jednou vedle jména a jednou pod ním.
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const blok = style.slice(style.indexOf('.shirt{'), style.indexOf('}', style.indexOf('.shirt{')));
   if(!/display:grid/.test(blok)) throw new Error('karta není mřížka');
@@ -1094,7 +1128,7 @@ check('snapshotů se drží nejvýš osm kol', () => {
 /* ================= design tokeny ================= */
 
 check('stupnice obtížnosti je jedna sada proměnných', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   for(const lit of ['#8fe0b0', '#cdeed9', '#f7cac5', '#eb9a92', '#d99400'])
     if(style.toLowerCase().includes(lit)) throw new Error('zůstal literál ' + lit);
@@ -1104,7 +1138,7 @@ check('stupnice obtížnosti je jedna sada proměnných', () => {
 });
 
 check('responzivita má jeden blok na podmínku', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const conds = [...style.matchAll(/@media\s*\(([^)]*)\)/g)]
     .map(m => m[1].replace(/\s/g, ''));
@@ -1114,7 +1148,7 @@ check('responzivita má jeden blok na podmínku', () => {
 });
 
 check('Dancing Script je pryč', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   if(html.includes('Dancing')) throw new Error('pořád se načítá');
   if(html.includes('--f-cur')) throw new Error('zůstala proměnná --f-cur');
   return 'ok';
@@ -1123,7 +1157,7 @@ check('Dancing Script je pryč', () => {
 /* Tma je vědomě přepínač, ne automatika: uživatel s tmavým systémem
    by jinak dostal variantu, o kterou si neřekl. */
 check('výchozí je světlo, tma jen na přání', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   // Hledáme media query, ne zmínku — komentář o tom, proč to tak není,
   // je v pořádku a testu nemá vadit.
   if(/@media[^{]*prefers-color-scheme/.test(html))
@@ -1150,14 +1184,14 @@ check('přepínač tématu si volbu pamatuje', () => {
 /* Klasická past: [hidden] má display:none, ale .railkey{display:flex}
    ho přebije. Legenda kolejnice se pak zobrazovala pořád. */
 check('atribut hidden přebije i display:flex', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   if(!/\[hidden\]\{display:none!important\}/.test(css))
     throw new Error('chybí globální pravidlo pro [hidden]');
   return 'ok';
 });
 
 check('legenda kolejnice neukazuje syrovou šablonu', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const i = html.indexOf('id="railKey"');
   if(html.slice(i, i + 400).includes('{n}'))
     throw new Error('zůstal nevyplněný zástupný text {n}');
@@ -1165,7 +1199,7 @@ check('legenda kolejnice neukazuje syrovou šablonu', () => {
 });
 
 check('.who má flex, aby odznak nelezl na jméno', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   if(!/(^|\n)\.who\{[^}]*flex/.test(style))
     throw new Error('základní .who není flex — odznak se překryje s textem');
@@ -1206,7 +1240,7 @@ check('sezónní pohyb ukáže cenu na startu i teď', () => {
 });
 
 check('Ceny mají vlastní záložku a čipy jsou pryč', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   if(!html.includes('id="t-prices"')) throw new Error('chybí tlačítko Ceny');
   if(html.includes('buildChips')) throw new Error('čipy zůstaly v kódu');
   const tabs = w.eval('TABS').map(t => t[0]);
@@ -1217,7 +1251,7 @@ check('Ceny mají vlastní záložku a čipy jsou pryč', () => {
 /* ================= plánovač: seznam hráčů a rozvržení ================= */
 
 check('nabídka příchozích není osekaná na 40 jmen', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const i = html.indexOf('const fillIn =');
   const j = html.indexOf('q.querySelectorAll(`select[data-out', i);
   const blok = html.slice(i, i > 0 ? i + 2600 : 0);
@@ -1244,7 +1278,7 @@ check('plánovač počítá s kádrem po předchozích tazích', () => {
 });
 
 check('kola jsou pod sebou, ne ve čtyřech sloupcích', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   if(style.includes('.plan-grid'))
     throw new Error('zůstalo mřížkové rozvržení');
@@ -1254,7 +1288,7 @@ check('kola jsou pod sebou, ne ve čtyřech sloupcích', () => {
 });
 
 check('formuláře v plánovači jsou zabalené', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   if(!html.includes('id="padd-${r.gw}" hidden'))
     throw new Error('formulář se rozbaluje rovnou');
   if(!html.includes('data-open='))
@@ -1263,7 +1297,7 @@ check('formuláře v plánovači jsou zabalené', () => {
 });
 
 check('plánovač vysvětlí, k čemu je', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const i = html.indexOf('id="p-planner"');
   const uvod = html.slice(i, i + 900);
   if(!uvod.includes('K čemu to je'))
@@ -1299,7 +1333,7 @@ check('fixtures/ zůstává na whitelistu', () => {
 /* ================= Hráči: hlasitá chyba místo prázdna ================= */
 
 check('Hráči bez rozpisu neselžou potichu', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const i = html.indexOf('async function loadPlayers()');
   const fn = html.slice(i, html.indexOf('function drawPlayers()', i));
   if(!fn.includes('catch')) throw new Error('chybí zachycení chyby');
@@ -1309,7 +1343,7 @@ check('Hráči bez rozpisu neselžou potichu', () => {
 });
 
 check('plátno je ve světlém režimu opravdu světlé', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const root = style.slice(style.indexOf(':root{'), style.indexOf('}', style.indexOf(':root{')));
   const sky = (root.match(/--sky:\s*(#[0-9a-fA-F]{6})/) || [])[1];
@@ -1340,7 +1374,7 @@ check('normName přežil odstranění staré záložky', () => {
 /* ================= vstupní obrazovka ================= */
 
 check('vstupní obrazovka má tmavé pozadí pod světlý text', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const blok = style.slice(style.indexOf('#landing{'),
                            style.indexOf('}', style.indexOf('#landing{')));
@@ -1353,7 +1387,7 @@ check('vstupní obrazovka má tmavé pozadí pod světlý text', () => {
 });
 
 check('formulář je vedle nadpisu, ne pod ním', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   if(!/#landing \.wrap\{[^}]*grid-template-columns/.test(style))
     throw new Error('není dvousloupcový');
@@ -1508,7 +1542,7 @@ check('vítěz řádku se zvýrazní jen na jedné straně', () => {
 });
 
 check('záložka se jmenuje Top hráči a stará tabulka je pryč', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   if(!html.includes('>Top hráči</button>')) throw new Error('starý název');
   if(html.includes('function drawPlayers')) throw new Error('stará tabulka zůstala');
   if(html.includes('id="fsort"')) throw new Error('staré filtry zůstaly');
@@ -1773,7 +1807,7 @@ check('plánovač ukáže zisk u každého tahu zvlášť', () => {
 });
 
 check('plánovač vysvětlí, odkud se zisk bere', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   if(!html.includes('Co je „zisk z projekce“'))
     throw new Error('chybí vysvětlení');
   if(!html.includes('můj odhad, ne oficiální číslo FPL'))
@@ -1784,7 +1818,7 @@ check('plánovač vysvětlí, odkud se zisk bere', () => {
 /* ================= režim jedné miniligy ================= */
 
 check('vstup nabídne seznam členů místo pole na ID', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   if(!html.includes('id="whoami"')) throw new Error('chybí rozbalovací seznam');
   if(!html.includes('id="manualToggle"')) throw new Error('chybí únikový odkaz na ruční zadání');
   if(!/leagueId:\s*'\d+'/.test(html)) throw new Error('CONFIG.leagueId není předvyplněné');
@@ -1806,7 +1840,7 @@ check('odpočet je dvouřádkový a ne drobný monospace', () => {
   const el = w.document.getElementById('countdown');
   if(!el.querySelector('.lbl') || !el.querySelector('.val'))
     throw new Error('chybí popisek nebo hodnota');
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   if(!/\.cd \.val\{[^}]*font-size:16px/.test(css))
     throw new Error('hodnota není dost velká');
   return el.querySelector('.val').textContent.trim();
@@ -1823,7 +1857,7 @@ check('odpočet zkracuje jednotky podle zbývajícího času', () => {
 });
 
 check('logo v hlavičce je obrázek, ne inline SVG', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const i = html.indexOf('class="brand"');
   const blok = html.slice(i, i + 320);
   if(!/\/assets\/(mark|logo-transp)\.webp/.test(blok)) throw new Error('logo se nepoužívá');
@@ -1832,7 +1866,7 @@ check('logo v hlavičce je obrázek, ne inline SVG', () => {
 });
 
 check('vstupní obrazovka používá plakát', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   if(!html.includes('/assets/headline.webp')) throw new Error('plakát chybí');
   if(!/class="poster"/.test(html)) throw new Error('plakát nemá vlastní styl');
   return 'headline.webp';
@@ -1891,7 +1925,7 @@ check('pozdější příchod sebere medaili, ne řádek', () => {
 /* ================= čitelnost vstupní obrazovky ================= */
 
 check('položky rozbalené nabídky nejsou bílé na bílém', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   // <option> kreslí OS na bílém a dědí color z .gate select
   if(!/\.gate select option\{[^}]*color:#1F0A24/.test(style))
@@ -1900,7 +1934,7 @@ check('položky rozbalené nabídky nejsou bílé na bílém', () => {
 });
 
 check('hlavička používá oříznutý pohár, ne celé logo', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const i = html.indexOf('class="brand"');
   const blok = html.slice(i, i + 300);
   if(!blok.includes('/assets/mark.webp'))
@@ -1918,7 +1952,7 @@ check('ligové záložky se načtou samy při otevření', () => {
 });
 
 check('načítá se při otevření záložky, ne při startu appky', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   // TAB_INIT se volá ze selectTab, tedy až když na záložku někdo přepne.
   if(!/TAB_INIT\[tid\]\s*&&\s*!TAB_DONE\.has\(tid\)/.test(html))
     throw new Error('chybí spouštění přes selectTab');
@@ -1926,7 +1960,7 @@ check('načítá se při otevření záložky, ne při startu appky', () => {
 });
 
 check('každá záložka se spustí jen jednou', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   if(!html.includes('TAB_DONE.add(tid)')) throw new Error('chybí pojistka proti opakování');
   if(!html.includes('TAB_DONE.clear()'))
     throw new Error('po přepnutí týmu by zůstalo, že už je načteno');
@@ -1958,7 +1992,7 @@ check('dropCached zahodí jen odpovídající klíče', () => {
 });
 
 check('tlačítko Aktualizovat cache opravdu zneplatní', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const i = html.indexOf("$('lgo').addEventListener");
   const blok = html.slice(i, i + 500);
   // Bez zneplatnění by se jen překreslila tatáž data z paměti.
@@ -1973,7 +2007,7 @@ check('tlačítko Aktualizovat cache opravdu zneplatní', () => {
 /* ================= infotooltipy ================= */
 
 check('upozornění na deadline je pryč', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   for(const t of ['renderNotifBar', 'scheduleDeadlineNotice', 'notifhost', 'NOTIF_KEY'])
     if(html.includes(t)) throw new Error('zůstalo: ' + t);
   const sw = fs.readFileSync('sw.js', 'utf8');
@@ -1982,7 +2016,7 @@ check('upozornění na deadline je pryč', () => {
 });
 
 check('vysvětlivky se schovaly do tooltipů', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const tips = (html.match(/\$\{info\(/g) || []).length;
   if(tips < 12) throw new Error('tooltipů jen ' + tips);
   return tips + ' tooltipů';
@@ -2075,7 +2109,7 @@ check('souhrn kola sedí uvnitř hřiště', () => {
 });
 
 check('souhrn se nekryje s první řadou dresů', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const blok = style.slice(style.indexOf('.livebar{'),
                            style.indexOf('}', style.indexOf('.livebar{')));
@@ -2086,7 +2120,7 @@ check('souhrn se nekryje s první řadou dresů', () => {
 });
 
 check('čísla souhrnu drží kontrast na tmavém hřišti', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const blok = style.slice(style.indexOf('.livebar .big{'),
                            style.indexOf('}', style.indexOf('.livebar .big{')));
@@ -2102,7 +2136,7 @@ check('nehrající hráč se nepočítá i pod otazník', () => {
   // Sloupce dřív sdílely jednu množinu: „Pod otazníkem“ byla nadmnožina
   // „Nehraje“, takže zraněný hráč zvýšil obě čísla naráz. Kontrolujeme
   // přímo zdroj — buildHealth potřebuje načtený HUB, který v testu není.
-  const src = fs.readFileSync('index.html', 'utf8');
+  const src = SRC;
   const fn = src.slice(src.indexOf('function buildHealth()'),
                        src.indexOf('function buildHealth()') + 2200);
 
@@ -2157,7 +2191,7 @@ check('žebříček pozice obsahuje jen tu pozici', () => {
 });
 
 check('mřížka žebříčků má čtyři sloupce', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const blok = style.slice(style.indexOf('.tgrid{'), style.indexOf('}', style.indexOf('.tgrid{')));
   if(!/repeat\(4,\s*minmax\(0,\s*1fr\)\)/.test(blok))
@@ -2179,7 +2213,7 @@ check('top 3 dostanou medaili místo pořadového čísla', () => {
   if(!html.includes(MEDAL[1])) throw new Error('chybí zlato');
 
   // Medaile nesmí číslo doplňovat, jen nahradit.
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   if(!css.includes('.tlist li:has(.tmdl)::before{display:none}'))
     throw new Error('číslo se u medailových řádků neskrývá');
   return '3 medaile, číslo skryté';
@@ -2187,7 +2221,7 @@ check('top 3 dostanou medaili místo pořadového čísla', () => {
 
 check('medaile jsou stejné jako v historických sezónách', () => {
   // Dvě různé sady by znamenaly dva různé způsoby, jak říct „třetí místo“.
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const defs = html.match(/const MEDAL = /g) || [];
   if(defs.length !== 1) throw new Error('definic MEDAL: ' + defs.length);
   return 'jedna sada';
@@ -2258,7 +2292,7 @@ check('hvězdička nese stav a ID hráče', () => {
 });
 
 check('watchlist přežije reset stavu jen jako paměť, ne jako proměnná', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const reset = html.slice(html.indexOf('function resetState()'),
                            html.indexOf('function resetState()') + 1400);
   if(!/WATCH = null/.test(reset))
@@ -2329,7 +2363,7 @@ check('čistý kádr to řekne, místo aby ukázal prázdný box', () => {
 /* ================= přepínač zobrazení ================= */
 
 check('responzivní pravidla jsou v přepínatelných tazích', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   for(const id of ['mqL', 'mqS'])
     if(!html.includes(`<style id="${id}" media=`))
       throw new Error('chybí tag ' + id);
@@ -2438,7 +2472,7 @@ check('slučování bere novější změnu', () => {
 check('zápisy jdou přes lsSet, ne přímo do localStorage', () => {
   // Přímý zápis by se do cloudu nikdy nedostal — a projevilo by se to
   // až tím, že jedna položka tiše nesynchronizuje.
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const app = html.slice(html.indexOf('/* ============ ZALOZKY ============ */'));
   const primo = [...app.matchAll(/localStorage\.(setItem|removeItem)\(/g)];
   // Povolené jsou jen ty uvnitř samotné synchronizační vrstvy.
@@ -2451,7 +2485,7 @@ check('zápisy jdou přes lsSet, ne přímo do localStorage', () => {
 });
 
 check('odhlášení nemaže data v prohlížeči', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const blok = html.slice(html.indexOf("$('gauth').addEventListener"),
                           html.indexOf("$('gauth').addEventListener") + 700);
   if(/localStorage\.clear|removeItem/.test(blok))
@@ -2477,7 +2511,7 @@ check('CSP pouští to, co Firebase potřebuje', () => {
     .find(h => h.key === 'Content-Security-Policy');
   if(!csp) throw new Error('chybí CSP úplně');
 
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const zapnuto = /projectId:\s*"[^"]+"/.test(html);
   if(!zapnuto) return 'Firebase vypnutá, CSP neřešíme';
 
@@ -2547,7 +2581,7 @@ check('přihlášenému poznámka řekne, kam se zálohuje', () => {
 check('poznámka má jedno znění pro celou appku', () => {
   // Tři různě formulované věty o tomtéž by podkopaly důvěru v každou
   // z nich. Proto jedna funkce a žádné ruční kopie.
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const app = html.slice(html.indexOf('/* ============ ZALOZKY ============ */'));
   const volani = (app.match(/storageNote\(/g) || []).length;
   if(volani < 4) throw new Error('poznámka je jen na ' + volani + ' místech');
@@ -2558,7 +2592,7 @@ check('poznámka má jedno znění pro celou appku', () => {
 });
 
 check('poznámky se překreslí po přihlášení', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const fn = html.slice(html.indexOf('function renderAuth()'),
                         html.indexOf('function initAuth()'));
   if(!/drawHome\(\)/.test(fn))
@@ -2579,7 +2613,7 @@ check('tlačítko Aktualizovat je v hlavičce', () => {
 check('obnovení vyhodí i bootstrap a rozpis', () => {
   // Půlka zaseknutí je právě v nich; ponechat je v paměti by znamenalo
   // tlačítko, které vypadá že něco dělá, ale vrátí tatáž data.
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const fn = html.slice(html.indexOf('async function hardReload()'),
                         html.indexOf("if($('reload'))"));
   for(const v of ['API_CACHE = new Map()', 'BOOT = null', 'FIX = null',
@@ -2589,7 +2623,7 @@ check('obnovení vyhodí i bootstrap a rozpis', () => {
 });
 
 check('obnovení zůstane na otevřené záložce', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const fn = html.slice(html.indexOf('async function hardReload()'),
                         html.indexOf("if($('reload'))"));
   if(!/aria-selected'\) === 'true'/.test(fn))
@@ -2612,7 +2646,7 @@ check('dvojklik na Aktualizovat nespustí dvě načtení', () => {
 check('vodoznak nechytá kliknutí', () => {
   // Vrstva přes půl obrazovky bez pointer-events:none by tiše polykala
   // kliknutí na všechno, co je pod ní.
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const blok = style.slice(style.indexOf('body::before{'),
                            style.indexOf('}', style.indexOf('body::before{')));
@@ -2623,7 +2657,7 @@ check('vodoznak nechytá kliknutí', () => {
 });
 
 check('vodoznak je vidět i v tmavém režimu', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const style = css.slice(css.indexOf('<style>'), css.indexOf('</style>'));
   const svetlo = parseFloat((style.slice(style.indexOf('body::before{'))
     .match(/opacity:\s*([\d.]+)/) || [])[1]);
@@ -2637,7 +2671,7 @@ check('vodoznak je vidět i v tmavém režimu', () => {
 
 check('vodoznak zmizí na úzké obrazovce', () => {
   // Na mobilu nejsou postranní pruhy, takže by ležel pod textem.
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const mq = html.slice(html.indexOf('<style id="mqS"'), html.indexOf('</style>',
     html.indexOf('<style id="mqS"')));
   if(!/body::before\{display:none\}/.test(mq))
@@ -2646,7 +2680,7 @@ check('vodoznak zmizí na úzké obrazovce', () => {
 });
 
 check('obrázek vodoznaku v projektu existuje', () => {
-  const css = fs.readFileSync('index.html', 'utf8');
+  const css = SRC;
   const m = css.match(/body::before\{[\s\S]*?url\('([^']+)'\)/);
   if(!m) throw new Error('chybí odkaz na obrázek');
   const cesta = m[1].replace(/^\//, '');
@@ -2884,7 +2918,7 @@ check('přepínač označí právě jedno kolo', () => {
 });
 
 check('výběr kola se nepřenese na jiný tým', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const reset = html.slice(html.indexOf('function resetState()'),
                            html.indexOf('function resetState()') + 1600);
   if(!/NEWS_GW = null/.test(reset) || !/NEWS_PICKS\.clear\(\)/.test(reset))
@@ -3060,7 +3094,7 @@ check('panel ukáže ceny, novinky i síň slávy', () => {
 });
 
 check('výběr kola nechá i body hráčů cizímu týmu', () => {
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = SRC;
   const reset = html.slice(html.indexOf('function resetState()'),
                            html.indexOf('function resetState()') + 1800);
   if(!/NEWS_LIVE\.clear\(\)/.test(reset) || !/HALL_ALL = false/.test(reset))

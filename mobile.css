@@ -1,0 +1,126 @@
+/* Minileague Squad Check
+
+   Mobilní skořápka do 720 px: kompaktní horní lišta,
+   plovoucí spodní navigace, plachta „Více“, scrollery kolem tabulek.
+   <link id="mqM">, viz applyView() v js/ui.js.
+   ============================================================ */
+
+:root{--mnav-h:62px}
+  html{-webkit-text-size-adjust:100%}
+
+  /* Pod obsahem musí zůstat místo na plovoucí lištu, jinak by poslední
+     řádek tabulky skončil pod ní a nešel přečíst. */
+  body{padding-bottom:calc(var(--mnav-h) + env(safe-area-inset-bottom) + 18px)}
+  .wrap{padding:0 12px}
+
+  /* ---------- horní lišta ----------
+     Do 400 px se nevejde logo, podtitul, odpočet, jméno a čtyři tlačítka.
+     Zůstává jen to, co člověk potřebuje vidět bez klikání: značka a
+     odpočet. Účet a přepínače se stěhují do plachty „Více“. */
+  .bar{padding-top:env(safe-area-inset-top)}
+  .bar .wrap{height:54px;gap:8px;padding:0 12px}
+  .brand{flex:0 1 auto;min-width:0;overflow:hidden}
+  .brand img{width:26px;height:26px}
+  .brand .tx{font-size:12.5px;letter-spacing:0;overflow:hidden;
+    text-overflow:ellipsis}
+  .brand .tx small{display:none}
+  .bar .cd{margin-left:auto;padding:3px 9px;border-radius:9px}
+  .bar .cd .lbl{font-size:7px;letter-spacing:.12em}
+  .bar .cd .val{font-size:12.5px}
+  .bar .who{margin-left:0;gap:5px;flex:none}
+  .bar .who b,#logout,#gauth,#viewmode{display:none!important}
+  .bar .who button.small.icon{padding:4px 7px;min-width:28px;font-size:13px}
+
+  /* Vodorovná navigace se nahrazuje spodní lištou. */
+  .navbar{display:none}
+
+  .rail .wrap{height:22px;padding-top:6px;padding-bottom:5px}
+  .railkey{font-size:9.5px;gap:10px;padding-bottom:6px}
+
+  /* ---------- obsah ----------
+     28px odsazení panelu je na 360px displeji osmina šířky. */
+  .panel{padding:18px 14px;margin:10px 0 14px;border-radius:18px}
+  h2{font-size:14px;margin:24px 0 8px}
+  .panel table{font-size:12px}
+  .tipbox{font-size:12px;padding:11px 13px}
+
+  /* Široké tabulky se nezalamují, jen ujedou do strany — a scroller
+     jde přes okraj panelu, aby bylo poznat, že tam něco pokračuje. */
+  .tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;
+    margin:0 -14px;padding:0 14px}
+  .tscroll>table{min-width:max-content}
+
+  .subnav,.gwnav,.phasenav{overflow-x:auto;flex-wrap:nowrap;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .subnav::-webkit-scrollbar,.gwnav::-webkit-scrollbar,
+  .phasenav::-webkit-scrollbar{display:none}
+
+  /* Bez tohohle prohlížeč čeká 300 ms, jestli náhodou nepřijde dvojklik,
+     a celá appka působí líně. */
+  button,.nav button,#mnav button{touch-action:manipulation}
+  button.small{padding:8px 14px}
+
+  /* ---------- plovoucí spodní lišta ---------- */
+  #mnav{
+    display:flex;position:fixed;z-index:60;
+    left:10px;right:10px;bottom:calc(8px + env(safe-area-inset-bottom));
+    height:var(--mnav-h);align-items:stretch;gap:2px;padding:6px;
+    border-radius:20px;
+    background:rgba(43,0,48,.93);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,.10);
+    box-shadow:0 10px 30px rgba(20,0,24,.42);
+  }
+  #mnav button{
+    flex:1 1 0;min-width:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:4px;
+    background:none;border:0;border-radius:14px;padding:4px 2px;
+    color:#C0A0C8;font-family:var(--f);font-size:9.5px;font-weight:600;
+    line-height:1;cursor:pointer;transition:background .15s,color .15s;
+  }
+  #mnav button svg{width:21px;height:21px;stroke:currentColor;fill:none;
+    stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+  #mnav button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap}
+  #mnav button[aria-selected="true"]{color:#fff;background:rgba(255,255,255,.13)}
+  #mnav button[aria-selected="true"] svg{stroke:var(--mint-fill)}
+  #mnav button:active{transform:scale(.93)}
+
+  /* ---------- plachta „Více“ ----------
+     Zbylých pět sekcí a celý účet. Vyjíždí zezdola, protože palec je
+     dole — rozbalovací menu od horní lišty by se ovládalo hůř. */
+  #msheet{position:fixed;inset:0;z-index:70;display:none}
+  #msheet.on{display:block}
+  #msheet .scrim{position:absolute;inset:0;background:rgba(15,0,18,.5);
+    animation:mfade .18s ease}
+  #msheet .card{position:absolute;left:0;right:0;bottom:0;
+    background:var(--white);color:var(--charcoal);
+    border-radius:22px 22px 0 0;
+    padding:10px 14px calc(20px + env(safe-area-inset-bottom));
+    max-height:84vh;overflow-y:auto;
+    box-shadow:0 -14px 40px rgba(20,0,24,.34);
+    animation:msheetUp .22s cubic-bezier(.2,.8,.3,1)}
+  @keyframes msheetUp{from{transform:translateY(100%)}to{transform:none}}
+  @keyframes mfade{from{opacity:0}to{opacity:1}}
+  #msheet .grip{width:38px;height:4px;border-radius:2px;background:var(--line);
+    margin:2px auto 10px}
+  #msheet h3{font-family:var(--f-disp);font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--mute);margin:14px 0 8px}
+  #msheet h3:first-of-type{margin-top:2px}
+  #msheet .mgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  #msheet .mgrid button{display:flex;align-items:center;gap:9px;
+    background:var(--haze);border:0;border-radius:14px;padding:13px 12px;
+    font-family:var(--f);font-size:13px;font-weight:600;color:var(--charcoal);
+    text-align:left;cursor:pointer;min-width:0}
+  #msheet .mgrid button span{overflow:hidden;text-overflow:ellipsis;
+    white-space:nowrap}
+  #msheet .mgrid button svg{width:18px;height:18px;stroke:currentColor;
+    fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;
+    flex:none;color:var(--mute)}
+  #msheet .mgrid button[aria-selected="true"]{background:var(--aubergine);
+    color:#fff}
+  #msheet .mgrid button[aria-selected="true"] svg{color:var(--mint-fill)}
+  #msheet .mwho{display:flex;align-items:center;gap:8px;font-size:12.5px;
+    color:var(--mute);margin:0 0 8px}
+  #msheet .mwho b{color:var(--charcoal);font-weight:700;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
