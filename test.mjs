@@ -2767,6 +2767,52 @@ check('H2H se dá hrát od jiného kola než prvního', () => {
   return 'od GW2: ' + od2.join(',');
 });
 
+check('aktuální kolo bez odehraných zápasů se pořád losuje', () => {
+  /* Tohle byla ostrá chyba. FPL přepne is_current na nové kolo hned po
+     dopočtu předchozího — tedy dávno před jeho deadlinem. Účastníci se
+     hledali podle is_current, jenže v tom kole ještě nikdo nehrál, takže
+     podmínku nesplnil nikdo: prázdný los, prázdná tabulka a hláška, že
+     tvůj tým v lize není. */
+  h2hSetup(8, 1);                       // historie jen do GW1
+  w.eval('HUB.cur = {id: 2}');          // ale FPL už tvrdí, že běží GW2
+  w.eval('H2H_CACHE = null');
+
+  if(w.eval('h2hLastPlayed()') !== 1)
+    throw new Error('poslední odehrané kolo se počítá z is_current');
+  const ucastnici = w.eval('h2hParticipants(2)');
+  if(ucastnici.length !== 8) throw new Error('účastníků je ' + ucastnici.length);
+
+  const r = w.eval('h2hSeason()').find(x => x.gw === 2);
+  if(!r || !r.matches.length) throw new Error('GW2 se nevylosovalo');
+  return r.matches.length + ' zápasů v GW2';
+});
+
+check('losuje se dvě kola dopředu', () => {
+  // Los dalšího kola se hodí vědět při plánování přestupů, ne až po
+  // deadlinu předchozího.
+  h2hSetup(8, 3);
+  w.eval('HUB.cur = {id: 4}; H2H_CACHE = null');
+  const gws = w.eval('h2hGws()');
+  const dopredu = gws.filter(g => g > 3);
+  if(dopredu.length !== 2) throw new Error('dopředu: ' + dopredu.join(','));
+  const rounds = w.eval('h2hSeason()');
+  for(const g of dopredu)
+    if(!rounds.find(r => r.gw === g && r.matches.length))
+      throw new Error('GW' + g + ' bez losu');
+  return 'GW' + dopredu.join(' a GW');
+});
+
+check('před prvním kolem sezóny hrají všichni členové', () => {
+  // Bez historie by podmínku nesplnil nikdo a první kolo by zůstalo
+  // bez losu.
+  h2hSetup(6, 0);
+  w.eval('HUB.cur = {id: 1}; H2H_CACHE = null');
+  if(w.eval('h2hLastPlayed()') !== 0) throw new Error('našlo odehrané kolo');
+  if(w.eval('h2hParticipants(1)').length !== 6)
+    throw new Error('účastníků: ' + w.eval('h2hParticipants(1)').length);
+  return '6 hráčů';
+});
+
 check('tabulka vypíše všechny členy i bez odehraného kola', () => {
   // Prázdná tabulka vypadá jako chyba. Nuly u jmen vypadají jako začátek.
   h2hSetup(6);
