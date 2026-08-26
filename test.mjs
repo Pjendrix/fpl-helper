@@ -4213,6 +4213,15 @@ check('Zranění jsou samostatná záložka mezi Zpravodajem a Top hráči', () 
   return tabs.length + ' záložek';
 });
 
+check('výchozí zobrazení je Celá liga', () => {
+  const poradi = w.eval('INJ_VIEWS.map(v => v[0])');
+  if(poradi[0] !== 'all') throw new Error('první přepínač je ' + poradi[0]);
+  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  if(!/let INJ = \{view: 'all'/.test(src))
+    throw new Error('výchozí stav INJ není celá liga');
+  return poradi.join(' → ');
+});
+
 check('do seznamu se dostanou jen hráči, o kterých je co říct', () => sZranenymi(ps => {
   const ids = w.eval('injAll()').map(r => r.p.id);
   if(!ids.includes(ps[0].id) || !ids.includes(ps[1].id) || !ids.includes(ps[2].id))
