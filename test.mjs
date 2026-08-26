@@ -2343,6 +2343,12 @@ check('jistota pohybu ceny je slovo, ne řada teček', () => {
   if(!/možné/.test(html)) throw new Error('chybí slabší stupeň');
   if(!/▲/.test(html) || !/▼/.test(html)) throw new Error('není poznat směr');
   if(!/l5/.test(html)) throw new Error('sytost nerozlišuje jistotu');
+  // Štítky musí být stejně široké, jinak se sloupec rozsype.
+  const css = SRC;
+  if(!/\.lk\{[^}]*width:132px/.test(css) || !/\.lk\.none\{width:132px/.test(css))
+    throw new Error('štítky nemají pevnou šířku');
+  if(!/\.lk\{[^}]*justify-content:center/.test(css))
+    throw new Error('text štítku není na střed');
   return 'jisté / možné / –';
 });
 
