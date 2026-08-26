@@ -9,10 +9,18 @@
 // (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
 // nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v6';
+const SHELL = 'squadcheck-shell-v7';
 const BADGES = 'squadcheck-badges-v1';
 const FILES = ['/', '/index.html', '/manifest.webmanifest',
                '/icon.svg', '/favicon.svg', '/club-marks.svg',
+               // Styly a skripty jsou od rozdělení index.html samostatné
+               // soubory. Bez nich by se offline načetla prázdná skořápka:
+               // HTML by bylo z cache, ale appka by neměla čím naběhnout.
+               '/css/app.css', '/css/narrow.css', '/css/small.css',
+               '/css/mobile.css',
+               '/js/core.js', '/js/tabs.js', '/js/ui.js', '/js/planner.js',
+               '/js/sync.js', '/js/mobile.js', '/js/boot.js',
+               '/js/firebase.js',
                // plakát a loga: velké, neměnné, a bez nich vypadá vstup rozbitě
                '/assets/headline.webp', '/assets/logo-transp.webp',
                '/assets/logo.webp', '/assets/mark.webp'];

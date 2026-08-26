@@ -33,13 +33,25 @@ Appka umí připomenout deadline dvě hodiny předem přes notifikaci prohlíže
 2. Otevři stránku a zadej ID svého týmu (najdeš ho v URL na `fantasy.premierleague.com`,
    `/entry/60480/…`). ID miniligy je volitelné.
 
-Nechceš-li zadávat ID pokaždé, vyplň `CONFIG` na začátku `<script>` v `index.html`
+Nechceš-li zadávat ID pokaždé, vyplň `CONFIG` na začátku `js/core.js`
 a vstupní obrazovka se přeskočí.
 
 ## Soubory
 
 ```
-index.html              celá aplikace: rozvržení, styly, logika
+index.html              rozvržení a pořadí načítání
+css/app.css             hlavní stylopis
+css/narrow.css          do 720 px  (<link id="mqL">)
+css/small.css           do 640 px  (<link id="mqS">)
+css/mobile.css          mobilní skořápka (<link id="mqM">)
+js/core.js              konfigurace, cache, načtení kádru, záložky
+js/tabs.js              vykreslování obsahu jednotlivých sekcí
+js/ui.js                téma, přepínač zobrazení, tooltip, kolejnice
+js/planner.js           plánovač přestupů
+js/sync.js              přihlášení a zrcadlení nastavení do Firestore
+js/mobile.js            spodní navigace, plachta „Více“, gesta
+js/boot.js              start aplikace a registrace service workeru
+js/firebase.js          jediný ES modul — inicializace Firebase
 api/fpl.js              proxy na oficiální FPL API (řeší CORS)
 api/badge.js            odznaky klubů z CDN Premier League, převedené na WebP
 sw.js                   service worker — skořápka a odznaky, data nikdy
@@ -48,8 +60,17 @@ manifest.webmanifest    PWA manifest
 icon.svg, favicon.svg   ikona aplikace a favicon
 brand/                  logo, zdroje značky, mockup redesignu
 vercel.json             bezpečnostní hlavičky včetně CSP
-test.mjs                87 smoke testů nad falešnými daty FPL
+test.mjs                277 smoke testů nad falešnými daty FPL
 ```
+
+Skripty v `js/` jsou **klasické `<script>`, ne ES moduly**: sdílejí jeden
+globální scope, takže se nic neexportuje ani neimportuje. Cenou za to je,
+že hoisting nepřekračuje hranici souboru — **pořadí `<script>` tagů
+v `index.html` je součást kontraktu**. `core.js` musí být první, `boot.js`
+poslední a `mobile.js` před ním (přepisuje `selectTab`).
+
+Přibude-li soubor do `css/` nebo `js/`, patří i do `FILES` v `sw.js` —
+jinak se offline načte skořápka, která nemá čím naběhnout.
 
 ### Odznaky klubů
 
