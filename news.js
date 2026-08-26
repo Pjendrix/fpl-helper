@@ -8,6 +8,10 @@
 // timeout. Kdyz jeden web lezi, vrati se ostatni a u nespravneho se rekne,
 // ze se nepovedl. Jeden pomaly server nesmi znamenat prazdnou stranku.
 
+// Znacka verze. Bez ni se neda poznat rozdil mezi "nova verze nefunguje"
+// a "bezi porad ta stara" — a to jsou dve uplne jine chyby.
+const BUILD = "news-2026-08-26c";
+
 const TIMEOUT_MS = 6000;
 const PER_SOURCE = 12; // kolik clanku brat z jednoho zdroje
 const EXCERPT = 200; // znaku uryvku; cely clanek nechceme reprodukovat
@@ -15,44 +19,23 @@ const EXCERPT = 200; // znaku uryvku; cely clanek nechceme reprodukovat
 const SOURCES = [
   { id: "ffs", name: "FFScout", type: "rss", url: "https://fantasyfootballscout.co.uk/feed/" },
   { id: "ff247", name: "FF247", type: "rss", url: "https://fantasyfootball247.co.uk/feed/" },
-  // Oficialni The Scout RSS nema. Web si obsah tahá z obsahoveho API
-  // Pulselive; je to nezdokumentovane rozhrani bez verejne dokumentace,
-  // takze presny tvar dotazu je odhad. Proto ne jedna adresa, ale rada
-  // kandidatu: zkousi se poporade a bere se prvni, ktera vrati clanky.
-  //
-  // Neni to elegantni, ale alternativa je hadat jednu adresu a pri
-  // kazde zmene API cekat, az si nekdo vsimne, ze sekce je prazdna.
-  {
-    id: "scout",
-    name: "The Scout",
-    type: "pulselive",
-    urls: [
-      "https://footballapi.pulselive.com/football/content/PremierLeague/text/EN?" +
-        "pageSize=15&page=0&tagNames=Fantasy&type=editorial",
-      "https://footballapi.pulselive.com/football/content/PremierLeague/text?" +
-        "pageSize=15&page=0&tagNames=Fantasy&references=PL_NEWS&type=editorial",
-      "https://footballapi.pulselive.com/content/PremierLeague/text/EN?" +
-        "pageSize=15&page=0&tagNames=Fantasy",
-      "https://footballapi.pulselive.com/football/content/PremierLeague/text/EN?" +
-        "pageSize=15&page=0&references=FANTASY_NEWS",
-    ],
-  },
 ];
+
+// Oficialni "The Scout" tady byl a je pryc. Premier League pro nej nema
+// RSS, takze se cetl pres nezdokumentovane obsahove API Pulselive —
+// rada adres, kterou bylo potreba hadat, s vlastnim parserem a s tim,
+// ze se muze kdykoli zmenit bez ohlaseni. Kdyz se rozjel, ukazalo se,
+// ze obsah stejne za tu udrzbu nestoji: FFScout a FF247 pisou o tomtez
+// driv a podrobneji.
+//
+// Zustava po nem tenhle komentar misto stovky radku, ktere by nikdo
+// nepouzival, ale kazdy by se je bal smazat.
 
 const BROWSER_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   "Accept-Language": "en-GB,en;q=0.9",
-};
-
-// Pulselive kontroluje Origin. Bez nej vraci 403 stejne jako Cloudflare u FPL.
-const PULSE_HEADERS = {
-  ...BROWSER_HEADERS,
-  Accept: "application/json",
-  Origin: "https://www.premierleague.com",
-  Referer: "https://www.premierleague.com/",
-  Account: "premierleague",
 };
 
 async function fetchWithTimeout(url, headers) {
@@ -142,53 +125,22 @@ function parseRss(xml) {
   }));
 }
 
-// Ruzne verze Pulselive vraci pole pod ruznymi klici. Bereme prvni,
-// ktery je pole objektu s titulkem — misto abychom trvali na jednom
-// tvaru, ktery se muze zmenit.
-function pulseList(json) {
-  if (!json || typeof json !== "object") return [];
-  for (const key of ["content", "data", "items", "results"]) {
-    const v = json[key];
-    if (Array.isArray(v) && v.length && typeof v[0] === "object") return v;
-  }
-  return Array.isArray(json) ? json : [];
-}
-
-function parsePulselive(json) {
-  return pulseList(json)
-    .slice(0, PER_SOURCE)
-    .map((c) => {
-      const slug = c.titleUrlSegment || c.slug || c.id;
-      return {
-        title: decode(c.title || c.headline),
-        link: slug
-          ? `https://www.premierleague.com/en/news/${slug}`
-          : "https://www.premierleague.com/en/fantasy-news",
-        date: new Date(
-          c.publishFrom || c.publishedDate || c.date || Date.now()
-        ).toISOString(),
-        excerpt: clip(decode(c.summary || c.subtitle || c.description)),
-      };
-    });
-}
-
 async function loadSource(src) {
+  // Rada adres misto jedne: kdyz zdroj presune feed, zkusi se dalsi
+  // kandidat driv, nez sekce zmizi. RSS adresy se stehuji zridka, ale
+  // stehuji.
   const urls = src.urls || [src.url];
-  const headers = src.type === "pulselive" ? PULSE_HEADERS : BROWSER_HEADERS;
   const pokusy = [];
   let items = null;
 
   for (const url of urls) {
     try {
-      const upstream = await fetchWithTimeout(url, headers);
+      const upstream = await fetchWithTimeout(url, BROWSER_HEADERS);
       if (!upstream.ok) {
         pokusy.push(`${upstream.status} ${url.slice(0, 90)}`);
         continue;
       }
-      const parsed =
-        src.type === "pulselive"
-          ? parsePulselive(await upstream.json())
-          : parseRss(await upstream.text());
+      const parsed = parseRss(await upstream.text());
 
       // Status 200 s prazdnym polem znamena, ze adresa sice zije, ale
       // vraci neco jineho, nez cekame. Zkousime dal.
@@ -229,7 +181,9 @@ export default async function handler(req, res) {
 
   // Vsechny zdroje dole = neni co ukazat; at to strana pozna podle statusu.
   if (!items.length) {
-    return res.status(502).json({ error: "Žádný ze zdrojů neodpověděl.", failed });
+    return res
+      .status(502)
+      .json({ build: BUILD, error: "Žádný ze zdrojů neodpověděl.", failed });
   }
 
   if (debug) res.setHeader("Cache-Control", "no-store");
@@ -244,6 +198,7 @@ export default async function handler(req, res) {
       "public, s-maxage=900, stale-while-revalidate=3600"
     );
   return res.status(200).json({
+    build: BUILD,
     items,
     failed,
     sources: SOURCES.map((s) => ({ id: s.id, name: s.name })),
@@ -253,4 +208,4 @@ export default async function handler(req, res) {
 
 // Vnitrnosti pro test.mjs. Parsovani je jediny netrivialni kus tehle
 // funkce a jediny, ktery se da testovat bez site.
-export const __test = { parseRss, parsePulselive, decode, clip, stripBoilerplate, pulseList };
+export const __test = { parseRss, decode, clip, stripBoilerplate };
