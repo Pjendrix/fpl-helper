@@ -1085,7 +1085,8 @@ function drawHome(){
     ${homePrices()}
     ${homeOutlook()}
     ${typeof homeH2H === 'function'
-      ? `<div class="hgrid">${homeH2H()}${homeAwards()}</div>` : homeAwards()}`;
+      ? `<div class="hgrid">${homeH2H()}${homeAwards()}</div>` : homeAwards()}
+    ${typeof homeNews === 'function' ? `<div class="hgrid one">${homeNews()}</div>` : ''}`;
 }
 
 /* Odkazy „Spravovat“ a spol. přepínají záložky. Delegovaně, protože
@@ -1097,7 +1098,7 @@ document.addEventListener('click', ev => {
 
 /* ============ ZALOZKY ============ */
 const TABS = [['t-home','p-home'], ['t-squad','p-squad'],
-              ['t-league','p-league'], ['t-hub','p-hub'], ['t-h2h','p-h2h'],
+              ['t-league','p-league'], ['t-hub','p-hub'], ['t-h2h','p-h2h'], ['t-news','p-news'],
               ['t-players','p-players'], ['t-tr','p-tr'], ['t-plan','p-plan'],
               ['t-prices','p-prices'], ['t-planner','p-planner']];
 
@@ -1118,6 +1119,7 @@ const TAB_INIT = {
   't-league':  () => autoLoadLeague(),
   't-hub':     () => loadHub(),
   't-h2h':     () => loadH2H(),
+  't-news':    () => loadNews(),
   't-plan':    () => loadPlan(),
   't-prices':  () => loadPrices(),
   't-planner': () => loadPlanner(),
