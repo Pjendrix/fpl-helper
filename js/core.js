@@ -1100,7 +1100,11 @@ document.addEventListener('click', ev => {
 const TABS = [['t-home','p-home'], ['t-squad','p-squad'],
               ['t-league','p-league'], ['t-hub','p-hub'], ['t-h2h','p-h2h'], ['t-news','p-news'],
               ['t-players','p-players'], ['t-tr','p-tr'], ['t-plan','p-plan'],
-              ['t-prices','p-prices'], ['t-planner','p-planner']];
+              ['t-prices','p-prices'], ['t-adv','p-adv']];
+/* Plánovač byl ['t-planner','p-planner']. Vyřazením z TABS přestal
+   existovat pro navigaci, přepínání i mobilní plachtu — a to je celé
+   vypnutí. Panel i js/planner.js zůstávají na místě, takže návrat je
+   jeden řádek tady a jeden v index.html. */
 
 // Co se má spustit při prvním otevření záložky (lazy načítání).
 /* Co se má stát při prvním otevření záložky.
@@ -1122,7 +1126,7 @@ const TAB_INIT = {
   't-news':    () => loadNews(),
   't-plan':    () => loadPlan(),
   't-prices':  () => loadPrices(),
-  't-planner': () => loadPlanner(),
+  't-adv':     () => loadAdvisor(),
 };
 
 /* Miniliga potřebuje ID, které TAB_INIT nezná. Když chybí, nemá smysl
