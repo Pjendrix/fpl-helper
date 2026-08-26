@@ -2768,93 +2768,46 @@ check('los nevychází z pořadí ligy, ale z entry ID', () => {
   return 'stabilní';
 });
 
-check('H2H se dá hrát od jiného kola než prvního', () => {
-  // Liga nemusí začít s prvním kolem sezóny. Losovat kola, která se
-  // nehrála, by plnilo tabulku výsledky, o kterých nikdo nevěděl.
-  h2hSetup(8);
-  w.localStorage.setItem('fpl_h2h_start', '2');
-  w.eval('H2H_CACHE = null');
-  const od2 = w.eval('h2hGws()');
-  if(od2.includes(1)) throw new Error('GW1 se pořád losuje');
-  w.localStorage.setItem('fpl_h2h_start', '1');
-  w.eval('H2H_CACHE = null');
-  const od1 = w.eval('h2hGws()');
-  if(!od1.includes(1)) throw new Error('GW1 zmizelo i při startu od 1');
-  return 'od GW2: ' + od2.join(',');
+check('uložené ID přežije refresh', () => {
+  /* enterApp() si ID ukládal od začátku, ale start appky se na to nikdy
+     nepodíval — koukal jen do CONFIG. Kdo měl CONFIG prázdný, dostal
+     vstupní obrazovku po každém načtení stránky. */
+  const boot = fs.readFileSync('js/boot.js', 'utf8');
+  if(!/localStorage\.getItem\(ENTRY_KEY\)/.test(boot))
+    throw new Error('start se neptá na uložené ID');
+  if(/if\(CONFIG\.entryId\) enterApp/.test(boot))
+    throw new Error('rozhoduje se pořád jen podle CONFIG');
+  if(!/if\(savedEntry\) enterApp/.test(boot))
+    throw new Error('uložené ID appku nespustí');
+  return 'pamatuje si';
 });
 
-check('historie se čte klíčem event, ne round', () => {
-  /* FPL v entry/{id}/history/ pojmenovává kolo `event`. Ptát se na
-     `round` znamenalo prázdnou historii: nula účastníků, poslední
-     odehrané kolo na nule a dohraná kola s nápisem „ještě nezačalo“. */
-  h2hSetup(6, 2);
-  if(w.eval('h2hLastPlayed()') !== 2)
-    throw new Error('poslední kolo: ' + w.eval('h2hLastPlayed()'));
-  if(w.eval('h2hScore(0, 1)') === null) throw new Error('skóre se nenašlo');
-
-  // Starší tvar s `round` musí projít taky — kdyby ho FPL někde vracelo.
-  w.eval('HUB.hists[0] = {current: [{event: undefined, round: 1, points: 42}]}');
-  if(w.eval('h2hScore(0, 1)') !== 42) throw new Error('klíč round se ignoruje');
-  return 'event i round';
+check('„Změnit ID“ uložené hodnoty smaže', () => {
+  // Bez toho by pamatování bylo past — nešlo by se dostat zpátky.
+  const src = SRC;
+  const i = src.indexOf("$('logout')");
+  if(i < 0) throw new Error('tlačítko chybí');
+  const fn = src.slice(i, i + 500);
+  if(!/lsDel\(ENTRY_KEY\)|removeItem/.test(fn))
+    throw new Error('ID se při odhlášení nemaže');
+  return 'maže';
 });
 
-check('dohrané kolo netvrdí, že ještě nezačalo', () => {
-  // Přesně to, co bylo na obrazovce: tabulka měla body, ale karta
-  // zápasu ukazovala „vs“ a štítek „ještě nezačalo“.
-  h2hSetup(8, 1);
-  w.eval('HUB.cur = {id: 1}; H2H_GW = 1; H2H_CACHE = null');
-  w.localStorage.setItem('fpl_h2h_start', '1');
-  const f = w.eval('h2hMyFixture(1, HUB.members[2].entry)');
-  if(!f) throw new Error('zápas se nenašel');
-  if(f.sa === null || f.sb === null)
-    throw new Error('dohrané kolo je bez skóre: ' + f.sa + ':' + f.sb);
-  return f.sa + ':' + f.sb;
-});
+check('začátek ligy je pravidlo, ne volba uživatele', () => {
+  /* Dřív to byl select v panelu. Každý člen si mohl zvolit jiné číslo
+     a viděl jinou tabulku než ostatní — a o tom, kdy liga začíná, se
+     nerozhoduje v prohlížeči. */
+  const src = fs.readFileSync('js/h2h.js', 'utf8');
+  if(/id="h2hstart"|<select/.test(src)) throw new Error('výběr zůstal v panelu');
+  if(/localStorage.*h2h_start/.test(src))
+    throw new Error('začátek se pořád čte z localStorage');
 
-check('aktuální kolo bez odehraných zápasů se pořád losuje', () => {
-  /* Tohle byla ostrá chyba. FPL přepne is_current na nové kolo hned po
-     dopočtu předchozího — tedy dávno před jeho deadlinem. Účastníci se
-     hledali podle is_current, jenže v tom kole ještě nikdo nehrál, takže
-     podmínku nesplnil nikdo: prázdný los, prázdná tabulka a hláška, že
-     tvůj tým v lize není. */
-  h2hSetup(8, 1);                       // historie jen do GW1
-  w.eval('HUB.cur = {id: 2}');          // ale FPL už tvrdí, že běží GW2
-  w.eval('H2H_CACHE = null');
-
-  if(w.eval('h2hLastPlayed()') !== 1)
-    throw new Error('poslední odehrané kolo se počítá z is_current');
-  const ucastnici = w.eval('h2hParticipants(2)');
-  if(ucastnici.length !== 8) throw new Error('účastníků je ' + ucastnici.length);
-
-  const r = w.eval('h2hSeason()').find(x => x.gw === 2);
-  if(!r || !r.matches.length) throw new Error('GW2 se nevylosovalo');
-  return r.matches.length + ' zápasů v GW2';
-});
-
-check('losuje se dvě kola dopředu', () => {
-  // Los dalšího kola se hodí vědět při plánování přestupů, ne až po
-  // deadlinu předchozího.
   h2hSetup(8, 3);
   w.eval('HUB.cur = {id: 4}; H2H_CACHE = null');
   const gws = w.eval('h2hGws()');
-  const dopredu = gws.filter(g => g > 3);
-  if(dopredu.length !== 2) throw new Error('dopředu: ' + dopredu.join(','));
-  const rounds = w.eval('h2hSeason()');
-  for(const g of dopredu)
-    if(!rounds.find(r => r.gw === g && r.matches.length))
-      throw new Error('GW' + g + ' bez losu');
-  return 'GW' + dopredu.join(' a GW');
-});
-
-check('před prvním kolem sezóny hrají všichni členové', () => {
-  // Bez historie by podmínku nesplnil nikdo a první kolo by zůstalo
-  // bez losu.
-  h2hSetup(6, 0);
-  w.eval('HUB.cur = {id: 1}; H2H_CACHE = null');
-  if(w.eval('h2hLastPlayed()') !== 0) throw new Error('našlo odehrané kolo');
-  if(w.eval('h2hParticipants(1)').length !== 6)
-    throw new Error('účastníků: ' + w.eval('h2hParticipants(1)').length);
-  return '6 hráčů';
+  const start = w.eval('H2H_START');
+  if(gws.some(g => g < start)) throw new Error('losuje se před startem: ' + gws.join(','));
+  return 'od GW' + start;
 });
 
 check('tabulka vypíše všechny členy i bez odehraného kola', () => {
