@@ -1099,7 +1099,7 @@ document.addEventListener('click', ev => {
 /* ============ ZALOZKY ============ */
 const TABS = [['t-home','p-home'], ['t-squad','p-squad'],
               ['t-league','p-league'], ['t-hub','p-hub'], ['t-h2h','p-h2h'], ['t-news','p-news'],
-              ['t-players','p-players'], ['t-tr','p-tr'], ['t-plan','p-plan'],
+              ['t-inj','p-inj'], ['t-players','p-players'], ['t-tr','p-tr'], ['t-plan','p-plan'],
               ['t-prices','p-prices'], ['t-adv','p-adv']];
 /* Plánovač byl ['t-planner','p-planner']. Vyřazením z TABS přestal
    existovat pro navigaci, přepínání i mobilní plachtu — a to je celé
@@ -1124,6 +1124,7 @@ const TAB_INIT = {
   't-hub':     () => loadHub(),
   't-h2h':     () => loadH2H(),
   't-news':    () => loadNews(),
+  't-inj':     () => loadInjuries(),
   't-plan':    () => loadPlan(),
   't-prices':  () => loadPrices(),
   't-adv':     () => loadAdvisor(),

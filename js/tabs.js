@@ -3136,6 +3136,11 @@ document.addEventListener('click', ev => {
 
   const sec = $('pr-3');
   if(sec && !sec.hidden) sec.innerHTML = buildWatch(), wireWatch();
+
+  /* Ve Zraněních může hvězdička řádek rovnou vyhodit ze seznamu
+     (zobrazení Sledovaní), takže tabulku překreslíme celou. */
+  if($('p-inj') && !$('p-inj').hidden && $('injtbl')) drawInj();
+
   drawHome();
 });
 
@@ -3337,4 +3342,187 @@ function mountPhases(leagueId, cur, myId){
       draw(done.find(x => x.id === Number(b.dataset.ph)))));
 
   draw(done[done.length - 1]);   // výchozí je poslední rozehraný měsíc
+}
+
+/* ============================================================
+   ZRANĚNÍ
+
+   Vlastní záložka pro jedinou otázku, kterou si člověk klade
+   nejčastěji před deadlinem: kdo z mých hráčů je pod otazníkem
+   a koho z ostatních to sundalo.
+
+   Data jsou celá v bootstrapu (status, chance_of_playing_next_round,
+   news) — žádný dotaz navíc, takže záložka není v TAB_INIT a kreslí
+   se z toho, co už appka má.
+
+   Stav (které zobrazení, hledaný text, řazení) drží INJ. Vstupní
+   pole se překresluje jen jednou při otevření záložky; při psaní se
+   mění pouze tabulka, jinak by po každém písmenu utekl kurzor.
+   ============================================================ */
+const INJ_VIEWS = [['squad', 'Můj kádr'], ['all', 'Celá liga'],
+                   ['watch', 'Sledovaní']];
+
+let INJ = {view: 'squad', q: '', key: 'chance', dir: 1};
+
+/* Řádky pro tabulku. Bereme jen hráče, u kterých je co říct:
+   nehrající status nebo šance pod 100 %. Hráč se stoprocentní
+   šancí a poznámkou „returned from injury“ do seznamu zraněných
+   nepatří — ten je zdravý. */
+function injAll(){
+  if(!BOOT) return [];
+  const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+
+  return BOOT.elements
+    .filter(p => p.status !== 'a'
+      || (p.chance_of_playing_next_round !== null
+          && p.chance_of_playing_next_round < 100))
+    .map(p => {
+      const chance = p.chance_of_playing_next_round === null
+        ? (p.status === 'a' ? 100 : 0) : p.chance_of_playing_next_round;
+      // „Ankle injury - Expected back 14 Sep“ → 14 Sep
+      const m = /expected back\s*[:\-]?\s*([^.(]+)/i.exec(p.news || '');
+      return {p, team: teams[p.team] || {short_name: '?', name: '?'},
+              chance,
+              own: parseFloat(p.selected_by_percent) || 0,
+              back: m ? m[1].trim() : '',
+              mine: !!(MY_SQUAD && MY_SQUAD.has(p.id))};
+    });
+}
+
+function injFiltered(){
+  const rows = injAll().filter(r =>
+    INJ.view === 'all' ? true
+    : INJ.view === 'watch' ? isWatched(r.p.id)
+    : r.mine);
+
+  const needle = normName(INJ.q || '');
+  const hit = needle
+    ? rows.filter(r => normName(r.p.web_name + ' ' + r.p.second_name
+        + ' ' + r.team.short_name + ' ' + r.team.name).includes(needle))
+    : rows;
+
+  const dir = INJ.dir;
+  const cmp = {
+    name:   (a, b) => a.p.web_name.localeCompare(b.p.web_name, 'cs'),
+    team:   (a, b) => a.team.short_name.localeCompare(b.team.short_name),
+    own:    (a, b) => a.own - b.own,
+    chance: (a, b) => a.chance - b.chance,
+  }[INJ.key] || ((a, b) => a.chance - b.chance);
+
+  // Sekundární klíč je vždycky vlastnictví: při shodě šance je
+  // zajímavější ten, koho má půlka ligy.
+  return hit.sort((a, b) => (cmp(a, b) * dir) || (b.own - a.own));
+}
+
+function injTable(){
+  const rows = injFiltered();
+
+  if(!rows.length){
+    const proc = INJ.q ? 'Hledání nic nenašlo.'
+      : INJ.view === 'squad' ? 'Nikdo z tvého kádru není hlášený. Zatím.'
+      : INJ.view === 'watch' ? 'Ze sledovaných hráčů nikoho nic netrápí.'
+      : 'V celé lize není nikdo hlášený — to se stává jen v létě.';
+    return `<p class="note">${esc(proc)}</p>`;
+  }
+
+  const th = (key, text, cls) =>
+    `<th class="${cls || ''} sortable" data-sort="${key}"
+      aria-sort="${INJ.key === key ? (INJ.dir === 1 ? 'ascending' : 'descending') : 'none'}"
+      >${esc(text)}${INJ.key === key ? (INJ.dir === 1 ? ' ▲' : ' ▼') : ''}</th>`;
+
+  return `<table>
+    <thead><tr>
+      <th></th>
+      ${th('name', 'Hráč')}
+      ${th('team', 'Tým', 'hide-s')}
+      <th>Poz</th>
+      ${th('own', 'Vlastní %', 'n hide-s')}
+      ${th('chance', 'Šance', 'n')}
+      <th>Stav</th>
+      <th class="hide-s">Zpráva</th>
+    </tr></thead>
+    <tbody>${rows.map(r => `<tr${r.mine ? ' class="me"' : ''}>
+      <td>${watchStar(r.p.id)}</td>
+      <td><b>${esc(r.p.web_name)}</b>${r.back
+        ? `<span class="injback">zpět ${esc(r.back)}</span>` : ''}</td>
+      <td class="hide-s">${esc(r.team.short_name)}</td>
+      <td>${POS[r.p.element_type]}</td>
+      <td class="n hide-s">${r.own.toFixed(1)}</td>
+      <td class="n ${r.chance === 0 ? 'al' : r.chance < 100 ? 'wn' : 'ok'}">${r.chance} %</td>
+      <td class="st ${(S[r.p.status] || S.u)[1]}">${(S[r.p.status] || S.u)[0]}</td>
+      <td class="hide-s" style="color:var(--mute);font-size:12.5px">${esc(r.p.news || '—')}</td>
+    </tr>`).join('')}</tbody></table>
+    <p class="note">Zvýrazněné řádky jsou hráči z tvého kádru. Hvězdičkou
+      si kohokoli přidáš mezi sledované — objeví se pak i na Přehledu
+      a v Cenách.</p>`;
+}
+
+/* Souhrn nad tabulkou: kolik z kádru je mimo a kolik pod otazníkem.
+   Tohle je ta věta, kvůli které sem člověk chodí. */
+function injSummary(){
+  const mine = injAll().filter(r => r.mine);
+  const out = mine.filter(r => r.chance === 0).length;
+  const dbt = mine.filter(r => r.chance > 0 && r.chance < 100).length;
+
+  if(!MY_SQUAD) return '<p class="note">Zadej ID týmu a uvidíš i svůj kádr.</p>';
+  if(!mine.length) return `<p class="note ok">Tvůj kádr je čistý — nikdo hlášený.</p>`;
+
+  return `<p class="note ${out ? 'wn' : ''}">Z tvého kádru ${
+    out ? `<b>${out}</b> ${out === 1 ? 'nehraje' : out < 5 ? 'nehrají' : 'nehraje'}` : 'nikdo nechybí'
+  }${dbt ? ` a <b>${dbt}</b> pod otazníkem` : ''}.</p>`;
+}
+
+function drawInj(){
+  const box = $('injtbl');
+  if(box) box.innerHTML = injTable();
+  const sum = $('injsum');
+  if(sum) sum.innerHTML = injSummary();
+}
+
+function loadInjuries(){
+  const out = $('injout');
+  if(!out) return;
+
+  if(!BOOT){
+    $('injmsg').textContent = 'Data se ještě načítají. Zkus to za chvilku.';
+    return;
+  }
+  $('injmsg').textContent = '';
+
+  out.innerHTML = `
+    <div class="subnav" role="tablist">
+      ${INJ_VIEWS.map(([k, t]) =>
+        `<button class="sub-btn" role="tab" aria-selected="${k === INJ.view}"
+          data-inj="${k}">${esc(t)}</button>`).join('')}
+    </div>
+    <div id="injsum"></div>
+    <input type="search" id="injq" class="injq" placeholder="Hledej hráče nebo tým…"
+      aria-label="Hledat hráče nebo tým" value="${esc(INJ.q)}">
+    <div id="injtbl"></div>`;
+
+  out.querySelectorAll('button[data-inj]').forEach(b =>
+    b.addEventListener('click', () => {
+      INJ.view = b.dataset.inj;
+      out.querySelectorAll('button[data-inj]').forEach(x =>
+        x.setAttribute('aria-selected', String(x === b)));
+      drawInj();
+    }));
+
+  $('injq').addEventListener('input', ev => {
+    INJ.q = ev.target.value;
+    drawInj();
+  });
+
+  /* Řazení je delegované — hlavičky se překreslují s tabulkou. */
+  $('injtbl').addEventListener('click', ev => {
+    const th = ev.target.closest('th[data-sort]');
+    if(!th) return;
+    const key = th.dataset.sort;
+    // Druhé kliknutí na tentýž sloupec otočí směr.
+    if(INJ.key === key) INJ.dir = -INJ.dir;
+    else { INJ.key = key; INJ.dir = key === 'own' ? -1 : 1; }
+    drawInj();
+  });
+
+  drawInj();
 }
