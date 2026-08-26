@@ -2671,6 +2671,120 @@ check('základ pro shrinkage je vážený minutami', () => {
   return vazeny.toFixed(3) + ' vs prostý ' + prosty.toFixed(3);
 });
 
+
+/* --- Hráči k zamyšlení --- */
+
+/* Minuty po kolech si sekce tahá z event/{gw}/live/. V testu je
+   podstrčíme rovnou, ať se nemusí stubovat fetch. */
+function advMinuty(mapa){   // {gw: {playerId: minuty}}
+  w.__m = mapa;
+  w.eval(`ADV_MINS = new Map(Object.entries(window.__m).map(
+    ([gw, m]) => [Number(gw), new Map(Object.entries(m).map(([k, v]) => [Number(k), v]))]));`);
+}
+
+check('kdo dvě kola neodehrál ani minutu, je akutní případ', () => {
+  const {elements} = advSetup();
+  const p = elements[0];
+  advMinuty({1: {[p.id]: 0}, 2: {[p.id]: 0}});
+  w.__sq = [p];
+  const list = w.eval('advThinkList(window.__sq)');
+  if(!list.length) throw new Error('nehrající hráč se neobjevil');
+  if(list[0].prio !== 1) throw new Error('priorita ' + list[0].prio);
+  if(!/ani minutu/.test(list[0].duvody.join(' ')))
+    throw new Error('důvod nesedí: ' + list[0].duvody.join(' '));
+  return list[0].duvody[0];
+});
+
+check('jedno vynechané kolo ještě není problém', () => {
+  // Rotace se stává. Dvě kola po sobě už ne.
+  const {elements} = advSetup();
+  const p = elements[0];
+  advMinuty({1: {[p.id]: 90}, 2: {[p.id]: 0}});
+  w.__sq = [p];
+  const list = w.eval('advThinkList(window.__sq)');
+  if(list.some(x => /ani minutu/.test(x.duvody.join(' '))))
+    throw new Error('jedno vynechání appku vyplašilo');
+  return 'mlčí';
+});
+
+check('těžký los sám o sobě nikoho neoznačí', () => {
+  /* Tohle byla hlavní vada zrušených Transferů: doporučovaly prodat
+     náhradního brankáře, protože „má těžký los“. */
+  const {elements} = advSetup();
+  const p = elements[0];
+  w.__id = p.id;
+  w.eval('(function(){ const q = BOOT.elements.find(x => x.id === window.__id);' +
+         'q.status = "a"; q.chance_of_playing_next_round = null;' +
+         'q.starts = 5; q.minutes = 450; q.form = "6.0";' +
+         'q.expected_goals_conceded_per_90 = "0.2"; })()');
+  const q = w.eval('BOOT.elements.find(x => x.id === window.__id)');
+  advMinuty({1: {[p.id]: 90}, 2: {[p.id]: 90}});
+  w.__sq = [q];
+  const list = w.eval('advThinkList(window.__sq)');
+  if(list.length) throw new Error('hráč byl označený: ' + list[0].duvody.join(' '));
+  return 'žádný důvod';
+});
+
+check('náhradník bez jediného startu se připomene', () => {
+  const {elements} = advSetup();
+  const p = elements[0];
+  w.__id = p.id;
+  w.eval('(function(){ const q = BOOT.elements.find(x => x.id === window.__id);' +
+         'q.starts = 0; q.minutes = 120; q.status = "a";' +
+         'q.chance_of_playing_next_round = null; })()');
+  const q = w.eval('BOOT.elements.find(x => x.id === window.__id)');
+  advMinuty({1: {[p.id]: 60}, 2: {[p.id]: 60}});
+  w.__sq = [q];
+  const list = w.eval('advThinkList(window.__sq)');
+  if(!list.length || !/základní sestavy/.test(list[0].duvody.join(' ')))
+    throw new Error('role náhradníka se neozvala');
+  return list[0].duvody[0];
+});
+
+check('zraněný má přednost před vším ostatním', () => {
+  const {elements} = advSetup();
+  const p = elements[0];
+  w.__id = p.id;
+  w.eval('(function(){ const q = BOOT.elements.find(x => x.id === window.__id);' +
+         'q.status = "i"; q.chance_of_playing_next_round = 0; })()');
+  const q = w.eval('BOOT.elements.find(x => x.id === window.__id)');
+  advMinuty({});
+  w.__sq = [q];
+  const list = w.eval('advThinkList(window.__sq)');
+  if(list[0].prio !== 1) throw new Error('zraněný není akutní');
+  if(!/Zraněný/.test(list[0].duvody.join(' ')))
+    throw new Error('důvod: ' + list[0].duvody.join(' '));
+  return 'priorita 1';
+});
+
+check('sekce nabízí jen jméno a důvod, ne tabulku náhrad', () => {
+  const html = w.eval('advThinkCard({p: BOOT.elements[0], prio: 1, duvody: ["Zraněný."]})');
+  if(/candhead|statpop|Možné náhrady/.test(html))
+    throw new Error('do karty se vrátily náhrady z Transferů');
+  if(!/Zraněný/.test(html)) throw new Error('chybí důvod');
+  return 'jméno a důvod';
+});
+
+check('Transfery jsou vypnuté a jejich práci převzal Poradce', () => {
+  const tabs = w.eval('TABS').map(t => t[0]);
+  if(tabs.includes('t-tr')) throw new Error('Transfery jsou pořád v TABS');
+  if(!tabs.includes('t-adv')) throw new Error('Poradce v TABS chybí');
+  const src = fs.readFileSync('js/advisor.js', 'utf8');
+  if(!/buildDifferentials/.test(src))
+    throw new Error('diferenciálové se do Poradce nepřestěhovali');
+  return tabs.length + ' záložek';
+});
+
+check('prodejní cena se už ručně nepřepisuje', () => {
+  // Editor zmizel se záložkou; nákupní cena z transfers/ je přesnější.
+  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const fn = src.slice(src.indexOf('function sellPrice'),
+                       src.indexOf('function sellPrice') + 220);
+  if(/loadSell/.test(fn))
+    throw new Error('sellPrice pořád čte staré ruční přepisy');
+  return 'jen z nákupní ceny';
+});
+
 check('poradce vrátil globální data, jak je našel', () => {
   w.__b = ADV_BOOT_ZALOHA; w.__f = ADV_FIX_ZALOHA;
   w.eval('BOOT = window.__b; FIX = window.__f');
