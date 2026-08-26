@@ -2577,9 +2577,12 @@ function h2hSetup(pocet, kol = 3){
     entry: 1000 + i, player_name: 'M' + i, entry_name: 'Tym ' + i,
     total: 500 - i * 7, event_total: 40 + i,
   }));
+  /* Klíč se jmenuje `event`, ne `round` — tak to vrací FPL. Fixtura to
+     dřív měla jinak než realita, takže testy prošly nad daty, jaká
+     appka nikdy nedostane. */
   const hists = members.map((m, i) => ({
     current: Array.from({length: kol}, (_, k) => ({
-      round: k + 1, points: 50 + ((i * 7 + k * 3) % 30),
+      event: k + 1, points: 50 + ((i * 7 + k * 3) % 30),
       event_transfers_cost: k === 1 && i === 0 ? 4 : 0,
     })),
   }));
@@ -2694,7 +2697,7 @@ check('do zápasu jdou body po odečtení pokut', () => {
   // toho, kdo si je nevzal. Nativní H2H ve FPL to počítá stejně.
   h2hSetup(6);
   const s = w.eval('h2hScore')(0, 2);   // M0 má v GW2 pokutu 4
-  const hrube = w.eval('HUB.hists[0].current.find(e => e.round === 2).points');
+  const hrube = w.eval('HUB.hists[0].current.find(e => e.event === 2).points');
   if(s !== hrube - 4) throw new Error(s + ' místo ' + (hrube - 4));
   return hrube + ' − 4 = ' + s;
 });
@@ -2778,6 +2781,34 @@ check('H2H se dá hrát od jiného kola než prvního', () => {
   const od1 = w.eval('h2hGws()');
   if(!od1.includes(1)) throw new Error('GW1 zmizelo i při startu od 1');
   return 'od GW2: ' + od2.join(',');
+});
+
+check('historie se čte klíčem event, ne round', () => {
+  /* FPL v entry/{id}/history/ pojmenovává kolo `event`. Ptát se na
+     `round` znamenalo prázdnou historii: nula účastníků, poslední
+     odehrané kolo na nule a dohraná kola s nápisem „ještě nezačalo“. */
+  h2hSetup(6, 2);
+  if(w.eval('h2hLastPlayed()') !== 2)
+    throw new Error('poslední kolo: ' + w.eval('h2hLastPlayed()'));
+  if(w.eval('h2hScore(0, 1)') === null) throw new Error('skóre se nenašlo');
+
+  // Starší tvar s `round` musí projít taky — kdyby ho FPL někde vracelo.
+  w.eval('HUB.hists[0] = {current: [{event: undefined, round: 1, points: 42}]}');
+  if(w.eval('h2hScore(0, 1)') !== 42) throw new Error('klíč round se ignoruje');
+  return 'event i round';
+});
+
+check('dohrané kolo netvrdí, že ještě nezačalo', () => {
+  // Přesně to, co bylo na obrazovce: tabulka měla body, ale karta
+  // zápasu ukazovala „vs“ a štítek „ještě nezačalo“.
+  h2hSetup(8, 1);
+  w.eval('HUB.cur = {id: 1}; H2H_GW = 1; H2H_CACHE = null');
+  w.localStorage.setItem('fpl_h2h_start', '1');
+  const f = w.eval('h2hMyFixture(1, HUB.members[2].entry)');
+  if(!f) throw new Error('zápas se nenašel');
+  if(f.sa === null || f.sb === null)
+    throw new Error('dohrané kolo je bez skóre: ' + f.sa + ':' + f.sb);
+  return f.sa + ':' + f.sb;
 });
 
 check('aktuální kolo bez odehraných zápasů se pořád losuje', () => {
