@@ -2376,26 +2376,157 @@ check('responzivní pravidla jsou v přepínatelných tazích', () => {
 
 check('přepínač mění media, ne pravidla', () => {
   const apply = w.eval('applyView');
-  const mqL = () => w.document.getElementById('mqL').media;
+  const media = id => w.document.getElementById(id).media;
 
   apply('mobile');
-  if(mqL() !== 'all') throw new Error('mobil nevynucen: ' + mqL());
+  for(const id of ['mqL', 'mqS', 'mqM'])
+    if(media(id) !== 'all') throw new Error(id + ' nevynucen: ' + media(id));
   apply('desktop');
-  if(mqL() !== 'not all') throw new Error('desktop nevypnul mobilní pravidla');
+  for(const id of ['mqL', 'mqS', 'mqM'])
+    if(media(id) !== 'not all') throw new Error(id + ' nezůstal vypnutý');
   if(!/width=1100/.test(w.document.querySelector('meta[name="viewport"]').content))
     throw new Error('viewport zůstal na device-width — na telefonu by se nic nezměnilo');
-  apply('auto');
-  if(!/max-width/.test(mqL())) throw new Error('auto nevrátilo podmínku');
-  return 'auto → mobil → desktop';
+  return 'mobil → desktop';
+});
+
+check('zobrazení má jen dva režimy', () => {
+  // Třetí stav „auto“ znamenal, že tlačítko neřeklo, co je vidět teď,
+  // a přepnutí z mobilu na desktop chtělo dvě kliknutí.
+  const modes = w.eval('VIEW_MODES');
+  if(modes.length !== 2 || modes.includes('auto'))
+    throw new Error('režimy: ' + modes.join(', '));
+  // Neznámá hodnota (třeba stará uložená volba 'auto') nesmí appku
+  // nechat v nedefinovaném stavu — spadne na výchozí podle šířky okna.
+  w.eval('applyView("auto")');
+  const kam = w.document.documentElement.getAttribute('data-view');
+  if(!modes.includes(kam)) throw new Error('stará volba zůstala: ' + kam);
+  return modes.join(' / ');
 });
 
 check('volba zobrazení se pamatuje', () => {
   w.localStorage.clear();
+  w.eval('applyView("mobile")');
   w.document.getElementById('viewmode').click();
   const ulozeno = w.localStorage.getItem('fpl_view');
-  if(!ulozeno || ulozeno === 'auto') throw new Error('neuložilo se: ' + ulozeno);
-  w.eval('applyView("auto")');
-  return 'uloženo jako ' + ulozeno;
+  if(ulozeno !== 'desktop') throw new Error('neuložilo se: ' + ulozeno);
+  // Druhé kliknutí musí vrátit zpátky, ne cyklit dál.
+  w.document.getElementById('viewmode').click();
+  if(w.localStorage.getItem('fpl_view') !== 'mobile')
+    throw new Error('nepřepnulo zpátky: ' + w.localStorage.getItem('fpl_view'));
+  return 'mobile ⇄ desktop';
+});
+
+check('kádr se dá přepnout na jeden seznam', () => {
+  const list = w.document.getElementById('squadlist');
+  if(!list) throw new Error('sestava se nevykreslila');
+  const prepinac = [...w.document.querySelectorAll('button[data-squadview]')];
+  if(prepinac.length !== 2) throw new Error('přepínač chybí');
+
+  prepinac.find(b => b.dataset.squadview === 'all').click();
+  if(!list.classList.contains('flat')) throw new Error('nepřepnulo na seznam');
+  prepinac.find(b => b.dataset.squadview === 'pos').click();
+  if(list.classList.contains('flat')) throw new Error('nevrátilo se ke skupinám');
+  return 'pos ⇄ all';
+});
+
+check('řazení kádru sáhne na data, ne na text v buňce', () => {
+  // V buňkách je „5.5▲“, „8.7 %“ a „–“. Kdyby se čísla tahala z textu,
+  // rozhodila by řazení hned první nečíselná hodnota.
+  const prow = w.document.querySelector('#squadlist .prow');
+  for(const k of ['cena', 'body', 'forma', 'fdr', 'own', 'poradi'])
+    if(prow.dataset[k] === undefined) throw new Error('chybí data-' + k);
+  return 'šest atributů';
+});
+
+check('kliknutí na hlavičku seřadí a druhé otočí směr', () => {
+  const list = w.document.getElementById('squadlist');
+  w.document.querySelector('button[data-squadview="all"]').click();
+
+  const hlavicka = list.querySelector('[data-sort="body"]');
+  hlavicka.click();
+  const sestupne = [...list.querySelectorAll('.prow')]
+    .map(r => Number(r.dataset.body));
+  for(let i = 1; i < sestupne.length; i++)
+    if(sestupne[i] > sestupne[i - 1])
+      throw new Error('neseřadilo sestupně: ' + sestupne.join(','));
+
+  hlavicka.click();
+  const vzestupne = [...list.querySelectorAll('.prow')]
+    .map(r => Number(r.dataset.body));
+  if(vzestupne[0] !== sestupne[sestupne.length - 1])
+    throw new Error('druhé kliknutí neotočilo směr');
+
+  w.document.querySelector('button[data-squadview="pos"]').click();
+  return sestupne.length + ' hráčů';
+});
+
+check('FDR se řadí od nejlehčího losu', () => {
+  // Jediný sloupec, kde menší číslo znamená lepší hodnotu. Kdyby se
+  // choval jako ostatní, první kliknutí by ukázalo nejtěžší program.
+  const list = w.document.getElementById('squadlist');
+  w.document.querySelector('button[data-squadview="all"]').click();
+  list.querySelector('[data-sort="fdr"]').click();
+  const v = [...list.querySelectorAll('.prow')]
+    .map(r => Number(r.dataset.fdr)).filter(x => x >= 0);
+  if(v.length > 1 && v[0] > v[1]) throw new Error('začalo od nejtěžšího');
+  w.document.querySelector('button[data-squadview="pos"]').click();
+  return 'vzestupně';
+});
+
+check('hráči bez hodnoty padají na konec, ne na začátek', () => {
+  // Blank nebo „ještě nehrál“ je -1. Bez zvláštního zacházení by se
+  // při sestupném řazení tvářil jako nejhorší, ale při vzestupném
+  // jako nejlepší — a vyplaval by nad skutečná čísla.
+  const src = SRC;
+  const fn = src.slice(src.indexOf('function applySquadSort()'),
+                       src.indexOf('function applySquadSort()') + 1800);
+  if(!/va < 0 !== vb < 0/.test(fn))
+    throw new Error('chybí zvláštní zacházení s chybějící hodnotou');
+  return 'na konec při obou směrech';
+});
+
+check('sloupec posledního kola je jeden, ne řada přes sezónu', () => {
+  // Sloupec se jmenuje podle právě běžícího kola a je právě jeden.
+  // Kdyby se přidával za každé odehrané kolo, tabulka se rozpadne.
+  const hlavicky = [...w.document.querySelectorAll('#squadlist .phead span')]
+    .map(x => x.textContent.trim());
+  const gw = hlavicky.filter(x => /^GW\d+$/.test(x));
+  if(gw.length > 1) throw new Error('sloupců kola je víc: ' + gw.join(','));
+  return gw.length ? gw[0] : 'kolo neběží';
+});
+
+check('ceny posledního kola jsou i na Přehledu', () => {
+  const src = SRC;
+  if(!/\$\{homeAwards\(\)\}/.test(src))
+    throw new Error('drawHome ceny nevykresluje');
+  // Bez ID ligy se nesmí spustit stahování — jen se to řekne.
+  const fn = src.slice(src.indexOf('function homeAwards()'),
+                       src.indexOf('function homeAwards()') + 900);
+  if(!/leagueId/.test(fn)) throw new Error('nekontroluje ID ligy');
+  return 'panel je na místě';
+});
+
+check('Přehled netahá data hubu opakovaně', () => {
+  // drawHome() běží při každé změně watchlistu. Bez pojistky by každé
+  // překreslení pustilo další várku dotazů na všechny členy ligy.
+  const src = SRC;
+  const fn = src.slice(src.indexOf('function homeAwardsLoad()'),
+                       src.indexOf('function homeAwardsLoad()') + 700);
+  if(!/HUB_FOR_HOME/.test(fn)) throw new Error('chybí pojistka');
+  if(!/TAB_DONE\.add\('t-hub'\)/.test(fn))
+    throw new Error('Hub by se po otevření načetl podruhé');
+  return 'jednou a dost';
+});
+
+check('přepínač zobrazení zůstává v mobilní hlavičce', () => {
+  // Jediná cesta z mobilní verze na desktopovou. Když se schová do
+  // plachty „Více“, člověk ji na telefonu nenajde.
+  const mob = fs.readFileSync('css/mobile.css', 'utf8');
+  const skryte = mob.slice(mob.indexOf('.bar .who b'),
+                           mob.indexOf('}', mob.indexOf('.bar .who b')));
+  if(/#viewmode/.test(skryte))
+    throw new Error('přepínač je na mobilu schovaný');
+  return 'viditelný';
 });
 
 /* ================= synchronizace přes Firebase ================= */
