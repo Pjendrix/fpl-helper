@@ -219,3 +219,12 @@
   .ncard p{font-size:12px;display:-webkit-box;-webkit-line-clamp:3;
     -webkit-box-orient:vertical;overflow:hidden}
   .nmeta{font-size:10.5px;gap:7px}
+
+  /* Poradce: diagnostika pod sebe, porovnání zůstává dvousloupcové —
+     je to jediné místo, kde dvě čísla vedle sebe dávají smysl číst. */
+  .advgrid{grid-template-columns:1fr;gap:8px}
+  .advbox{padding:11px 12px}
+  .advswap b{font-size:13.5px}
+  .advswap i{font-size:15px}
+  table.advcmp td,table.advcmp th{padding:5px 2px;font-size:11.5px}
+  table.advcmp th{width:42%;font-size:10.5px}

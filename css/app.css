@@ -1385,3 +1385,54 @@ table.h2ht tr.me td b{color:var(--ok)}
   font-family:var(--f-mono);margin-bottom:2px}
 .nmini b{font-size:13px;font-weight:600;line-height:1.35;color:var(--charcoal)}
 .nmini a:hover b{color:var(--blue)}
+
+/* ---------- Přestupový poradce ----------
+   Diagnostika: čtyři boxy vedle sebe, v každém metriky pozice proti
+   ligovému průměru. Barva je na hodnotě, ne na celém boxu — obarvený
+   box svádí číst „obrana je zelená“, ale zelená je jen jedna metrika
+   z jeho tří. */
+.advgrid{display:grid;gap:10px;margin-bottom:18px;
+  grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.advbox{border:1px solid var(--line);border-radius:var(--r-card);padding:12px 14px}
+.advbox h4{display:flex;align-items:baseline;gap:8px;margin:0 0 9px;
+  font-family:var(--f-disp);font-size:12px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--aubergine)}
+.advbox h4 span{margin-left:auto;font-family:var(--f-mono);font-size:10px;
+  font-weight:400;letter-spacing:0;color:var(--mute);text-transform:none}
+.advrow{display:flex;align-items:baseline;gap:8px;padding:4px 0;font-size:12px}
+.advrow .k{color:var(--mute);flex:1;min-width:0}
+.advrow b{font-family:var(--f-mono);font-size:15px;font-weight:700}
+.advrow .v{font-family:var(--f-mono);font-size:10.5px;color:var(--mute);
+  white-space:nowrap}
+.advrow.ok b{color:var(--ok)}
+.advrow.bad b{color:var(--alert)}
+
+/* Tip: dva hráči proti sobě a pod nimi tytéž metriky v řádcích. Řádek
+   se barví podle toho, kdo je v něm lepší — hodnota bez porovnání
+   nutí člověka počítat rozdíl v hlavě. */
+.advtip{border:1px solid var(--line);border-radius:var(--r-card);
+  padding:14px 16px;margin-bottom:12px;background:var(--white)}
+.advhead{display:flex;align-items:center;gap:9px;margin-bottom:12px;
+  font-size:11.5px;color:var(--mute)}
+.advswap{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  gap:12px;align-items:center;margin-bottom:12px}
+.advswap>div{min-width:0}
+.advswap .r{text-align:right}
+.advswap b{display:block;font-size:15px;font-weight:700;color:var(--charcoal);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.advswap em{display:block;font-style:normal;font-family:var(--f-mono);
+  font-size:11px;color:var(--mute)}
+.advswap i{font-style:normal;font-size:17px;color:var(--mute)}
+
+table.advcmp{width:100%;table-layout:fixed;border-top:1px solid var(--line)}
+table.advcmp td,table.advcmp th{padding:6px 4px;font-size:12.5px;
+  font-family:var(--f-mono)}
+table.advcmp th{width:46%;text-align:center;font-family:var(--f);
+  font-size:11.5px;font-weight:400;color:var(--mute)}
+table.advcmp td:first-child{text-align:left}
+table.advcmp td:last-child{text-align:right}
+table.advcmp tr.in td:last-child{color:var(--ok);font-weight:700}
+table.advcmp tr.out td:first-child{color:var(--ok);font-weight:700}
+
+.advwhy{margin:11px 0 0;font-size:12.5px;line-height:1.6;color:var(--mute)}
+.advfoot{margin:16px 0 0;font-size:11px;line-height:1.6;color:var(--mute)}
