@@ -124,3 +124,54 @@
     color:var(--mute);margin:0 0 8px}
   #msheet .mwho b{color:var(--charcoal);font-weight:700;overflow:hidden;
     text-overflow:ellipsis;white-space:nowrap}
+
+  /* ============================================================
+     SESTAVA NA JEDNU OBRAZOVKU
+
+     Hřiště bylo na telefonu tři obrazovky dlouhé: karta hráče měřila
+     136 px, čtyři řady tedy skoro 600 px — a nad nimi ještě hlavička
+     týmu a souhrn kola. Kdo chtěl vidět útok, musel scrollovat, a tím
+     ztratil obranu z očí. Přitom právě „jak vypadá celá sestava“ je
+     jediný důvod, proč se na tu záložku chodí.
+
+     Karta se proto zmenšuje na pětinu šířky. Pětina, ne třetina:
+     nejširší řada má pět hráčů (pětiobránci), a když se vejde ta,
+     vejdou se všechny — a všechny řady drží stejnou velikost karty.
+     Poměry uvnitř karty zůstávají, jen se všechno škáluje dolů:
+     pevné výšky řádků mřížky se tím neruší, takže karty v řadě jsou
+     pořád stejně vysoké i s hláškou „ještě nehrálo“.
+
+     Nová výška karty je 94 px, čtyři řady i s mezerami 400 px.
+     Se souhrnem kola se celá jedenáctka vejde pod ohyb.
+     ============================================================ */
+  .pitch{padding:12px 7px 14px;gap:8px;margin:12px 0}
+  .row{gap:5px}
+
+  .shirt{
+    width:calc(20% - 4px);max-width:78px;
+    padding:6px 3px 7px;border-radius:9px;
+    grid-template-rows:28px 13px 10px 20px 10px;
+  }
+  .shirt .kit{width:25px;height:27px}
+  .shirt .nm{font-size:10.5px}
+  .shirt .tm{font-size:7.5px;letter-spacing:.1em;text-indent:.1em}
+  .shirt .pts{font-size:18px}
+  .shirt .pts.wait{font-size:12px}
+  .shirt .mn{font-size:8px}
+  .shirt .fd{font-size:9px}
+  .shirt .cap{top:3px;right:3px;font-size:7.5px;padding:1px 3px;border-radius:3px}
+
+  /* Souhrn kola: tři čísla vedle sebe a vysvětlivka pod nimi. Velké
+     číslo si bralo 38 px výšky kvůli efektu, ne kvůli čitelnosti. */
+  .livebar{gap:8px 16px;padding:10px 12px 12px;margin:-2px 0 2px}
+  .livebar .big{font-size:24px}
+  .livebar b{font-size:16px}
+  .livebar span{font-size:9px;margin-top:2px}
+  .livebar .txt{flex-basis:100%;text-align:left;font-size:10.5px;line-height:1.35}
+
+  /* Hlavička týmu nad hřištěm. Šest údajů po 82 px se na 360px displeji
+     zalomilo do tří řad a odsunulo sestavu o dalších 120 px. */
+  .meta,.kpis{gap:10px 18px;margin-bottom:6px}
+  .meta div,.kpis div{min-width:0;flex:1 1 40%}
+  .meta .k,.kpis .k{font-size:9.5px;letter-spacing:.06em}
+  .meta .v,.kpis .v{font-size:17px}
