@@ -1242,3 +1242,42 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
    z něj #mqM udělá vodorovný scroller. Vkládá ho JS, aby se nemusel
    psát do každé šablony zvlášť. */
 .tscroll{max-width:100%}
+
+/* ---------- ceny kola na Přehledu ----------
+   Tytéž karty jako v Hubu, jen bez podtitulku a v užší mřížce: na
+   Přehledu jsou shrnutím, ne hlavním obsahem panelu. Štítek „živě“
+   sedí nad mřížkou, aby nerozbil zarovnání karet. */
+.hgrid.one{grid-template-columns:1fr}
+/* .livetag měl styl jen uvnitř .secline v Hubu. Na Přehledu žádná
+   .secline není, takže by se z něj stal obyčejný text. */
+.hbox.hawards .livetag{display:inline-block;margin:0 0 8px;
+  font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  font-weight:700;color:var(--warn);background:var(--warn-bg);
+  border-radius:20px;padding:2px 9px;white-space:nowrap}
+.awards.mini{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.awards.mini .award{padding:11px 12px 12px}
+.awards.mini .emoji{font-size:19px}
+.awards.mini .title{font-size:9.5px}
+.awards.mini .who{font-size:13px}
+.awards.mini .val{font-size:17px}
+
+/* ---------- kádr: po pozicích / celkem ----------
+   V režimu Celkem zmizí skupinové hlavičky a z hlaviček sloupců se
+   stanou tlačítka. Šipka má vlastní místo i když je neaktivní, aby
+   hlavička při řazení neposkočila o pár pixelů do strany. */
+.squadlist.flat .pgroup{display:none}
+.squadlist.flat .prow.benched{background:none}
+
+.phead [data-sort]{user-select:none;
+  display:inline-flex;align-items:center;justify-content:flex-end;gap:3px}
+.squadlist.flat .phead [data-sort]{cursor:pointer}
+.squadlist.flat .phead [data-sort]:hover{color:var(--blue)}
+.phead [data-sort] .sar{font-style:normal;width:7px;opacity:0;font-size:7px}
+.squadlist.flat .phead [data-sort][aria-sort="ascending"],
+.squadlist.flat .phead [data-sort][aria-sort="descending"]{color:var(--charcoal)}
+.squadlist.flat .phead [data-sort][aria-sort="ascending"] .sar::before{content:"\25B2"}
+.squadlist.flat .phead [data-sort][aria-sort="descending"] .sar::before{content:"\25BC"}
+.squadlist.flat .phead [data-sort]:not([aria-sort="none"]) .sar{opacity:1}
+
+/* Přepínač sedí těsně nad tabulkou, ne 20 px od ní jako běžná subnav. */
+.subnav:has(+ .squadlist){margin-bottom:8px}

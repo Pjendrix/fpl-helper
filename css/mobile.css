@@ -28,7 +28,11 @@
   .bar .cd .lbl{font-size:7px;letter-spacing:.12em}
   .bar .cd .val{font-size:12.5px}
   .bar .who{margin-left:0;gap:5px;flex:none}
-  .bar .who b,#logout,#gauth,#viewmode{display:none!important}
+  /* Jméno týmu a správa účtu jdou do plachty „Více“. Přepínač
+     zobrazení ne — je to jediná cesta, jak se z mobilní verze dostat
+     na desktopovou, a schovávat ji o dvě kliknutí hlouběji znamená,
+     že ji člověk na telefonu nenajde. */
+  .bar .who b,#logout,#gauth{display:none!important}
   .bar .who button.small.icon{padding:4px 7px;min-width:28px;font-size:13px}
 
   /* Vodorovná navigace se nahrazuje spodní lištou. */
@@ -175,3 +179,22 @@
   .meta div,.kpis div{min-width:0;flex:1 1 40%}
   .meta .k,.kpis .k{font-size:9.5px;letter-spacing:.06em}
   .meta .v,.kpis .v{font-size:17px}
+
+  /* Čtyři ceny vedle sebe se na telefonu zmenší na nečitelné sloupečky.
+     Dvě a dvě: jméno výherce se pak vejde celé. */
+  .awards.mini{grid-template-columns:1fr 1fr;gap:6px}
+  .awards.mini .award{padding:9px 10px 10px}
+  .awards.mini .who{font-size:12px}
+  .awards.mini .val{font-size:15px}
+
+  /* Na mobilu je .phead schovaná (řádky nesou popisky v data-l), takže
+     by na řazení nebylo kam kliknout. V režimu Celkem se proto vrací —
+     jako pruh tlačítek bez sloupce Hráč a bez rozpisu. */
+  .squadlist.flat .phead{display:grid;grid-template-columns:repeat(3,1fr);
+    gap:4px;padding:8px 10px}
+  .squadlist.flat .phead>span:not([data-sort]){display:none}
+  .squadlist.flat .phead [data-sort]{justify-content:center;
+    padding:5px 2px;border-radius:7px;background:var(--white);
+    border:1px solid var(--line);font-size:9.5px}
+  .squadlist.flat .phead [data-sort]:not([aria-sort="none"]){
+    background:var(--aubergine);border-color:var(--aubergine);color:#fff}
