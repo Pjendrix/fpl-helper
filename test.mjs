@@ -2475,25 +2475,31 @@ check('podpis WordPressu se z úryvku odstřihne', () => {
   return out;
 });
 
-check('Pulselive se čte i z jiného tvaru odpovědi', () => {
-  // Nezdokumentované API vrací pole pod různými klíči podle verze.
-  // Trvat na jednom znamená, že se sekce jednou tiše vyprázdní.
-  const a = NEWSAPI.parsePulselive({content: [{title: 'A', titleUrlSegment: 'a-b'}]});
-  const b = NEWSAPI.parsePulselive({data: [{headline: 'B', id: 99}]});
-  if(a[0].title !== 'A' || !/a-b$/.test(a[0].link)) throw new Error('content: ' + JSON.stringify(a[0]));
-  if(b[0].title !== 'B') throw new Error('data: ' + JSON.stringify(b[0]));
-  if(NEWSAPI.pulseList({nic: 1}).length) throw new Error('vymyslelo si položky');
-  return 'content + data';
-});
-
-check('Scout zkouší víc adres, než to vzdá', () => {
+check('zdroj zkouší víc adres, než to vzdá', () => {
+  // RSS adresy se stěhují zřídka, ale stěhují. Kandidáti navíc znamenají,
+  // že se sekce nevyprázdní hned při prvním přesměrování.
   const src = fs.readFileSync('api/news.js', 'utf8');
-  if(!/urls:\s*\[/.test(src)) throw new Error('jen jedna adresa');
+  if(!/const urls = src\.urls \|\| \[src\.url\]/.test(src))
+    throw new Error('jen jedna adresa');
   // Status 200 s prázdným polem znamená, že adresa žije, ale vrací něco
   // jiného. Bez tohohle by se řetěz zastavil na první takové.
   if(!/200 ale 0 polozek/.test(src))
     throw new Error('prázdná odpověď se nebere jako neúspěch');
   return 'řetěz kandidátů';
+});
+
+check('zpravodaj má dva zdroje a oba jsou RSS', () => {
+  /* Oficiální The Scout je pryč. Premier League pro něj nemá RSS, takže
+     se četl přes nezdokumentované API, které bylo potřeba hádat — a
+     obsah za tu údržbu nestál. */
+  const api = fs.readFileSync('api/news.js', 'utf8');
+  const front = fs.readFileSync('js/news.js', 'utf8');
+  if(/pulselive|footballapi/i.test(api.replace(/^\/\/.*$/gm, '')))
+    throw new Error('v kódu zůstal mrtvý Pulselive');
+  if(/'scout'/.test(front)) throw new Error('filtr pořád nabízí The Scout');
+  const ids = [...api.matchAll(/id: "(\w+)"/g)].map(m => m[1]);
+  if(ids.join(',') !== 'ffs,ff247') throw new Error('zdroje: ' + ids.join(','));
+  return ids.join(' + ');
 });
 
 check('rozbitý zdroj neshodí ostatní', () => {
