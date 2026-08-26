@@ -2586,6 +2586,91 @@ check('plánovač je vypnutý, ne smazaný', () => {
   return 'vypnutý';
 });
 
+
+check('práh minut roste s odehranými koly', () => {
+  advSetup();
+  const zkus = n => {
+    w.__n = n;
+    w.eval('BOOT.events = Array.from({length: 38}, (_, i) => ' +
+      '({id: i + 1, finished: i < window.__n}))');
+    return w.eval('advMinMinutes()');
+  };
+  const ocekavane = {0: 60, 1: 60, 2: 120, 3: 180, 4: 180, 10: 180};
+  for(const [kol, chci] of Object.entries(ocekavane)){
+    const mam = zkus(Number(kol));
+    if(mam !== chci)
+      throw new Error(`po ${kol} kolech práh ${mam}, čekal jsem ${chci}`);
+  }
+  return '60 → 120 → 180';
+});
+
+check('po třetím kole je práh zase pevných 180', () => {
+  advSetup();
+  w.eval('BOOT.events = Array.from({length: 38}, (_, i) => ({id: i + 1, finished: i < 20}))');
+  if(w.eval('advMinMinutes()') !== w.eval('ADV_MIN_MINUTES'))
+    throw new Error('v půlce sezóny se práh liší od konstanty');
+  return 'shodné';
+});
+
+check('shrinkage stahuje k průměru tím víc, čím míň hráč odehrál', () => {
+  const dvakrat90 = w.eval('advShrink(2, 180, 0.5)');
+  const celaSezona = w.eval('advShrink(2, 1800, 0.5)');
+  if(Math.abs(dvakrat90 - 1.25) > 1e-9)
+    throw new Error('po 180 minutách nevyšla půlka na půlku: ' + dvakrat90);
+  if(celaSezona < 1.8)
+    throw new Error('po celé sezóně se pořád stahuje moc: ' + celaSezona);
+  if(w.eval('advShrink(2, 0, 0.5)') !== 0.5)
+    throw new Error('bez minut se nemá počítat nic vlastního');
+  return dvakrat90.toFixed(2) + ' → ' + celaSezona.toFixed(2);
+});
+
+check('jeden šťastný výstřel nevyhraje žebříček', () => {
+  const {elements} = advSetup();
+  w.eval('BOOT.events = Array.from({length: 38}, (_, i) => ({id: i + 1, finished: i < 1}))');
+
+  // Útočník, který odehrál jeden poločas a jednou trefil velkou šanci.
+  const stastny = elements.find(p => p.element_type === 4);
+  w.__id = stastny.id;
+  w.eval('(function(){ const q = BOOT.elements.find(p => p.id === window.__id);' +
+         'q.minutes = 60; q.expected_goals_per_90 = "1.60"; })()');
+
+  const m = w.eval('ADV_METRICS[4][0]');
+  const base = w.eval('advBase(advPool(4), ADV_METRICS[4][0])');
+  const syrove = w.eval('advValue(BOOT.elements.find(p => p.id === window.__id), ADV_METRICS[4][0])');
+  const stazene = w.eval('advRank(BOOT.elements.find(p => p.id === window.__id), ADV_METRICS[4][0], ' + base + ')');
+
+  if(syrove < 1.5) throw new Error('test si nenastavil, co chtěl');
+  if(stazene >= syrove * 0.55)
+    throw new Error('stažená hodnota je pořád skoro syrová: ' + stazene);
+  if(stazene <= base)
+    throw new Error('nadprůměrný hráč spadl pod průměr: ' + stazene);
+  return syrove.toFixed(2) + ' → ' + stazene.toFixed(2) + ' (průměr ' + base.toFixed(2) + ')';
+});
+
+check('v tabulce zůstává surové číslo, ne stažené', () => {
+  // Stažená hodnota se používá jen na pořadí. Kdyby se zobrazila,
+  // neseděla by s tím, co má člověk na oficiálním webu FPL.
+  const src = fs.readFileSync('js/advisor.js', 'utf8');
+  const karta = src.slice(src.indexOf('function advDiagCard'),
+                          src.indexOf('function advTipCard'));
+  if(/advRank|advShrink/.test(karta))
+    throw new Error('vykreslení sahá po stažené hodnotě');
+  if(!/advFmt\(r\.muj/.test(karta))
+    throw new Error('karta nekreslí surovou hodnotu');
+  return 'surové se zobrazuje';
+});
+
+check('základ pro shrinkage je vážený minutami', () => {
+  advSetup();
+  const m = w.eval('ADV_METRICS[3][0]');
+  const vazeny = w.eval('advBase(advPool(3), ADV_METRICS[3][0])');
+  const prosty = w.eval('advAvg(advPool(3), ADV_METRICS[3][0])');
+  if(!Number.isFinite(vazeny)) throw new Error('vážený průměr nevyšel');
+  if(vazeny === prosty && w.eval('new Set(advPool(3).map(p => p.minutes)).size') > 1)
+    throw new Error('při různých minutách vyšly oba průměry stejně');
+  return vazeny.toFixed(3) + ' vs prostý ' + prosty.toFixed(3);
+});
+
 check('poradce vrátil globální data, jak je našel', () => {
   w.__b = ADV_BOOT_ZALOHA; w.__f = ADV_FIX_ZALOHA;
   w.eval('BOOT = window.__b; FIX = window.__f');
