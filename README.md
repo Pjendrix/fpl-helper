@@ -46,6 +46,7 @@ css/small.css           do 640 px  (<link id="mqS">)
 css/mobile.css          mobilní skořápka (<link id="mqM">)
 js/core.js              konfigurace, cache, načtení kádru, záložky
 js/tabs.js              vykreslování obsahu jednotlivých sekcí
+js/h2h.js               H2H miniliga: losování, tabulka, box na Přehledu
 js/ui.js                téma, přepínač zobrazení, tooltip, kolejnice
 js/planner.js           plánovač přestupů
 js/sync.js              přihlášení a zrcadlení nastavení do Firestore
@@ -60,7 +61,7 @@ manifest.webmanifest    PWA manifest
 icon.svg, favicon.svg   ikona aplikace a favicon
 brand/                  logo, zdroje značky, mockup redesignu
 vercel.json             bezpečnostní hlavičky včetně CSP
-test.mjs                277 smoke testů nad falešnými daty FPL
+test.mjs                303 smoke testů nad falešnými daty FPL
 ```
 
 Skripty v `js/` jsou **klasické `<script>`, ne ES moduly**: sdílejí jeden

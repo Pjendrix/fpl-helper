@@ -110,7 +110,7 @@ const CSS_TAGS = [
 ];
 const SRC = [fs.readFileSync('index.html', 'utf8')]
   .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
-  .concat(['js/core.js','js/tabs.js','js/ui.js','js/planner.js','js/sync.js',
+  .concat(['js/core.js','js/tabs.js','js/h2h.js','js/ui.js','js/planner.js','js/sync.js',
            'js/mobile.js','js/boot.js','js/firebase.js']
     .map(f => fs.readFileSync(f, 'utf8')))
   .join('\n');
@@ -2414,6 +2414,226 @@ check('volba zobrazení se pamatuje', () => {
   if(w.localStorage.getItem('fpl_view') !== 'mobile')
     throw new Error('nepřepnulo zpátky: ' + w.localStorage.getItem('fpl_view'));
   return 'mobile ⇄ desktop';
+});
+
+/* ================= H2H miniliga ================= */
+
+/* H2H stojí na HUB, který v testu nikdo nenačetl. Postavíme ho ručně —
+   je to jen pořadí ligy plus historie, obojí ve tvaru, jaký vrací FPL. */
+function h2hSetup(pocet, kol = 3){
+  const members = Array.from({length: pocet}, (_, i) => ({
+    entry: 1000 + i, player_name: 'M' + i, entry_name: 'Tym ' + i,
+    total: 500 - i * 7, event_total: 40 + i,
+  }));
+  const hists = members.map((m, i) => ({
+    current: Array.from({length: kol}, (_, k) => ({
+      round: k + 1, points: 50 + ((i * 7 + k * 3) % 30),
+      event_transfers_cost: k === 1 && i === 0 ? 4 : 0,
+    })),
+  }));
+  /* HUB je `let` v js/h2h.js sousedním souboru — tedy globální lexikální
+     vazba, ne vlastnost window. Přiřazení w.HUB = … by vytvořilo jinou
+     proměnnou, kterou by kód nikdy nepřečetl. Musí se přes eval. */
+  w.eval('CONFIG.leagueId = 14044');
+  w.eval('HUB = ' + JSON.stringify({
+    st: {league: {name: 'Test'}}, members, hists, cur: {id: kol}, picks: [],
+  }));
+  w.eval('H2H_CACHE = null; H2H_GW = null');
+  return {members, hists};
+}
+
+/* gwPhase řídí, co se počítá do tabulky. Testy si ho potřebují ohnout,
+   ale nesmí ho nechat ohnutý — jinak spadnou úplně jiné testy o pár
+   set řádků níž a hledá se to půl hodiny. */
+function sFazi(faze, fn){
+  const puvodni = w.eval('gwPhase');
+  w.eval('gwPhase = () => ' + JSON.stringify(faze));
+  try{ return fn(); }
+  finally{ w.__puv = puvodni; w.eval('gwPhase = window.__puv'); }
+}
+
+check('los je stejný pro každého, kdo ho spočítá', () => {
+  // Jediná vlastnost, na které celý H2H stojí: appka nemá server, takže
+  // kdyby los byl opravdu náhodný, viděl by každý člen jiného soupeře.
+  h2hSetup(8);
+  const a = JSON.stringify(w.eval('h2hSeason()').map(r => r.matches));
+  w.eval('H2H_CACHE = null');
+  const b = JSON.stringify(w.eval('h2hSeason()').map(r => r.matches));
+  if(a !== b) throw new Error('dva výpočty daly jiné dvojice');
+  return 'shodné';
+});
+
+check('los se liší kolo od kola', () => {
+  h2hSetup(8);
+  const rounds = w.eval('h2hSeason()');
+  const podpisy = new Set(rounds.map(r => JSON.stringify(r.matches)));
+  if(podpisy.size < rounds.length)
+    throw new Error('dvě kola mají identické dvojice');
+  return rounds.length + ' různých kol';
+});
+
+check('každý hráč hraje v kole právě jednou', () => {
+  h2hSetup(8);
+  for(const r of w.eval('h2hSeason()')){
+    const vsichni = r.matches.flat();
+    if(new Set(vsichni).size !== vsichni.length)
+      throw new Error('GW' + r.gw + ': někdo hraje dvakrát');
+    if(vsichni.length !== 8)
+      throw new Error('GW' + r.gw + ': hraje jen ' + vsichni.length);
+  }
+  return '8 hráčů, 4 zápasy';
+});
+
+check('soupeř se neopakuje ve třech po sobě jdoucích kolech', () => {
+  h2hSetup(10, 4);
+  const rounds = w.eval('h2hSeason()');
+  for(let i = 1; i < rounds.length; i++){
+    if(rounds[i].okno < 3) continue;   // zkrácené okno má vlastní test
+    const dvojice = new Set();
+    rounds.slice(Math.max(0, i - 3), i).forEach(r =>
+      r.matches.forEach(([a, b]) => { dvojice.add(a + '|' + b); dvojice.add(b + '|' + a); }));
+    for(const [a, b] of rounds[i].matches)
+      if(dvojice.has(a + '|' + b))
+        throw new Error('GW' + rounds[i].gw + ': ' + a + ' vs ' + b + ' znovu');
+  }
+  return 'okno drží';
+});
+
+check('při lichém počtu dostane jeden hráč ducha', () => {
+  h2hSetup(7);
+  for(const r of w.eval('h2hSeason()')){
+    if(r.ghost == null) throw new Error('GW' + r.gw + ': duch chybí');
+    if(r.matches.flat().includes(r.ghost))
+      throw new Error('hráč s duchem hraje i zápas');
+    if(r.matches.length !== 3) throw new Error('špatný počet zápasů');
+  }
+  return '3 zápasy + duch';
+});
+
+check('ducha dostává postupně někdo jiný', () => {
+  // Bez rotace by smůla padala pořád na jednoho. Kdo ho měl nejméněkrát,
+  // je na řadě — evidence se dopočítá z předchozích kol.
+  h2hSetup(7, 6);
+  const duchove = w.eval('h2hSeason()').map(r => r.ghost).filter(x => x != null);
+  const kolikrat = {};
+  duchove.forEach(d => { kolikrat[d] = (kolikrat[d] || 0) + 1; });
+  const max = Math.max(...Object.values(kolikrat));
+  if(max > 1 && Object.keys(kolikrat).length < 6)
+    throw new Error('duch se hromadí u pár lidí: ' + JSON.stringify(kolikrat));
+  return Object.keys(kolikrat).length + ' různých hráčů';
+});
+
+check('duch skóruje průměr ostatních, ne nulu ani výhru', () => {
+  h2hSetup(7);
+  /* Poslední kolo v seznamu je to nadcházející — tam ještě nikdo body
+     nemá a duch nemá z čeho průměrovat. Bereme poslední odehrané. */
+  const r = w.eval('h2hSeason()').find(x => x.gw === 3);
+  const skore = w.eval('h2hGhostScore')(r);
+  const body = r.ucastnici.filter(x => x.m.entry !== r.ghost)
+    .map(x => w.eval('h2hScore')(x.i, r.gw));
+  const prumer = Math.round(body.reduce((a, b) => a + b, 0) / body.length);
+  if(skore !== prumer) throw new Error(skore + ' ≠ ' + prumer);
+  if(!Number.isInteger(skore)) throw new Error('desetinné skóre → remíza nemožná');
+  return 'průměr ' + skore;
+});
+
+check('do zápasu jdou body po odečtení pokut', () => {
+  // Bez odečtu odmění H2H toho, kdo si vzal tři mínusy, stejně jako
+  // toho, kdo si je nevzal. Nativní H2H ve FPL to počítá stejně.
+  h2hSetup(6);
+  const s = w.eval('h2hScore')(0, 2);   // M0 má v GW2 pokutu 4
+  const hrube = w.eval('HUB.hists[0].current.find(e => e.round === 2).points');
+  if(s !== hrube - 4) throw new Error(s + ' místo ' + (hrube - 4));
+  return hrube + ' − 4 = ' + s;
+});
+
+check('tabulka počítá jen dopočítaná kola', () => {
+  // Bonus umí překlopit výhru o bod na remízu. Kolo, které ještě čeká
+  // na bonusy, proto do tabulky nesmí.
+  h2hSetup(6);
+  const puvodni = w.eval('gwPhase');
+  const prazdna = sFazi('unchecked', () => w.eval('h2hTable()'));
+  if(prazdna.some(r => r.z > 0)) throw new Error('započítalo nedopočítané kolo');
+  const plna = sFazi('final', () => w.eval('h2hTable()'));
+  if(!plna.some(r => r.z > 0)) throw new Error('nezapočítalo ani dopočítané');
+  return 'čeká na bonusy';
+});
+
+check('výhra 3, remíza 1, prohra 0', () => {
+  h2hSetup(6);
+  const t = sFazi('final', () => w.eval('h2hTable()'));
+  for(const r of t){
+    const ocekavano = r.v * 3 + r.r * 1;
+    if(r.body !== ocekavano)
+      throw new Error(r.m.player_name + ': ' + r.body + ' ≠ ' + ocekavano);
+    if(r.z !== r.v + r.r + r.p) throw new Error('nesedí počet zápasů');
+  }
+  return t.length + ' řádků sedí';
+});
+
+check('při shodě bodů rozhodnou celkové body FPL', () => {
+  h2hSetup(6);
+  const t = sFazi('final', () => w.eval('h2hTable()'));
+  for(let i = 1; i < t.length; i++){
+    if(t[i - 1].body < t[i].body) throw new Error('tabulka není podle bodů');
+    if(t[i - 1].body === t[i].body && (t[i - 1].m.total || 0) < (t[i].m.total || 0))
+      throw new Error('shoda se nerozhodla podle celkových bodů');
+  }
+  return 'body → celkové body';
+});
+
+check('duch nemá řádek v tabulce', () => {
+  // Je to fikce, ne člen ligy. Kdyby měl řádek, měnil by pořadí ostatních.
+  h2hSetup(7);
+  const t = sFazi('final', () => w.eval('h2hTable()'));
+  if(t.length !== 7) throw new Error('řádků je ' + t.length);
+  return '7 řádků, 7 členů';
+});
+
+check('zkrácené okno se přizná, místo aby se zamlčelo', () => {
+  const src = SRC;
+  const fn = src.slice(src.indexOf('function h2hPairRound'),
+                       src.indexOf('function h2hGws'));
+  if(!/okno >= 0; okno--/.test(fn))
+    throw new Error('okno se nezkracuje — malá liga by neměla řešení');
+  if(!/round\.okno < H2H_WINDOW/.test(src))
+    throw new Error('UI o zkrácení mlčí');
+  return 'zkrácení je vidět';
+});
+
+check('los nevychází z pořadí ligy, ale z entry ID', () => {
+  // Pořadí se během sezóny mění. Kdyby z něj los vycházel, přepisovaly
+  // by se zpětně i dohrané zápasy.
+  h2hSetup(8);
+  const pred = JSON.stringify(w.eval('h2hSeason()').map(r => r.matches));
+  w.eval('HUB.members.reverse()');   // jiné pořadí, titíž lidé
+  w.eval('H2H_CACHE = null');
+  const po = JSON.stringify(w.eval('h2hSeason()').map(r => r.matches));
+  if(pred !== po) throw new Error('změna pořadí přepsala los');
+  return 'stabilní';
+});
+
+check('H2H má vlastní záložku i box na Přehledu', () => {
+  const html = SRC;
+  if(!/id="t-h2h"/.test(html)) throw new Error('chybí tlačítko záložky');
+  if(!/id="p-h2h"/.test(html)) throw new Error('chybí panel');
+  if(!/'t-h2h':\s*\(\) => loadH2H\(\)/.test(html))
+    throw new Error('záložka se sama nenačte');
+  if(!/homeH2H\(\)/.test(html)) throw new Error('chybí box na Přehledu');
+  return 'záložka + box';
+});
+
+check('H2H spadne na mobilu do plachty Více', () => {
+  // Ve spodní liště jsou čtyři pevné sekce; zbytek TABS jde do plachty.
+  const nav = w.document.getElementById('mnav');
+  const vListe = [...nav.querySelectorAll('[data-tab]')].map(b => b.dataset.tab);
+  if(vListe.includes('t-h2h')) throw new Error('H2H zabralo místo ve liště');
+  w.document.getElementById('mmore').click();
+  const vPlachte = [...w.document.querySelectorAll('#msheetBody [data-tab]')]
+    .map(b => b.dataset.tab);
+  w.document.querySelector('#msheet [data-mclose]').click();
+  if(!vPlachte.includes('t-h2h')) throw new Error('H2H v plachtě není');
+  return 'v plachtě';
 });
 
 check('kádr se dá přepnout na jeden seznam', () => {

@@ -122,6 +122,7 @@
       <button id="t-squad" role="tab" aria-selected="false" aria-controls="p-squad">Sestava</button>
       <button id="t-league" role="tab" aria-selected="false" aria-controls="p-league">Miniliga</button>
       <button id="t-hub" role="tab" aria-selected="false" aria-controls="p-hub">Hub ligy</button>
+      <button id="t-h2h" role="tab" aria-selected="false" aria-controls="p-h2h">H2H</button>
       <button id="t-players" role="tab" aria-selected="false" aria-controls="p-players">Top hráči</button>
       <button id="t-tr" role="tab" aria-selected="false" aria-controls="p-tr">Transfery</button>
       <button id="t-plan" role="tab" aria-selected="false" aria-controls="p-plan">Program</button>
@@ -163,6 +164,11 @@
       </div>
       <div id="hubmsg" role="status" aria-live="polite"></div>
       <div id="hubout"></div>
+    </div>
+
+    <div class="panel" id="p-h2h" role="tabpanel" tabindex="-1" aria-labelledby="t-h2h" hidden>
+      <div id="h2hmsg" role="status" aria-live="polite"></div>
+      <div id="h2hout"></div>
     </div>
 
     <div class="panel" id="p-players" role="tabpanel" tabindex="-1" aria-labelledby="t-players" hidden>
@@ -229,6 +235,7 @@
      selectTab a čte TABS. -->
 <script src="/js/core.js"></script>
 <script src="/js/tabs.js"></script>
+<script src="/js/h2h.js"></script>
 <script src="/js/ui.js"></script>
 <script src="/js/planner.js"></script>
 <script src="/js/sync.js"></script>
