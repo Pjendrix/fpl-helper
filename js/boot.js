@@ -8,12 +8,24 @@
    ale hoisting přes hranici souboru neplatí. Pořadí je proto součást
    kontraktu a je vypsané v index.html.
    ============================================================ */
-// předvyplnění z minula i z CONFIG nahoře v souboru
-$('eid').value = CONFIG.entryId || localStorage.getItem(ENTRY_KEY) || '';
-$('lid').value = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY) || '';
+/* Kdo tu byl minule.
 
-// když je všechno vyplněné v CONFIG, přeskoč vstupní obrazovku
-if(CONFIG.entryId) enterApp(CONFIG.entryId, CONFIG.leagueId);
+   enterApp() si ID ukládá do localStorage od začátku, ale start appky
+   se na to nikdy nepodíval — koukal jen do CONFIG. Kdo měl CONFIG
+   prázdný, dostal vstupní obrazovku po každém refreshi, přestože
+   appka jeho ID celou dobu znala. Uložená hodnota má stejnou váhu
+   jako CONFIG; z uživatelova pohledu je to totéž rozhodnutí, jen
+   udělané kliknutím místo úpravy souboru.
+
+   Vrátit se na vstupní obrazovku jde tlačítkem „Změnit ID“, které
+   uložené hodnoty smaže. Bez něj by tohle byla past. */
+const savedEntry = CONFIG.entryId || localStorage.getItem(ENTRY_KEY) || '';
+const savedLeague = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY) || '';
+
+$('eid').value = savedEntry;
+$('lid').value = savedLeague;
+
+if(savedEntry) enterApp(savedEntry, savedLeague);
 else bootstrapGate();
 
 /* Service worker drží skořápku appky offline. Data se nikdy necachují —

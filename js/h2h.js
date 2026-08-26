@@ -25,14 +25,17 @@ const H2H_WINDOW = 3;
 let H2H_GW = null;        // vybrané kolo v záložce
 let H2H_CACHE = null;     // {key, rounds} — přepočet celé sezóny není zadarmo
 
-/* Od kterého kola se H2H hraje. Liga nemusí začít s prvním kolem
-   sezóny — a když začne později, nemá smysl losovat kola, která se
-   nehrála: plnila by tabulku výsledky, o kterých nikdo nevěděl. */
-const H2H_START_KEY = 'fpl_h2h_start';
-function h2hStart(){
-  const v = parseInt(localStorage.getItem(H2H_START_KEY), 10);
-  return Number.isFinite(v) && v >= 1 ? v : 1;
-}
+/* Od kterého kola se H2H hraje.
+
+   Pravidlo ligy, ne nastavení uživatele. Dřív to byl výběr v panelu,
+   což byla chyba: každý člen by si mohl zvolit jiné číslo a viděl by
+   jinou tabulku než ostatní — a přitom o tom, kdy liga začíná, se
+   nerozhoduje v prohlížeči.
+
+   Změna čísla tady platí pro všechny, protože se losuje deterministicky
+   z ID ligy a čísla kola. */
+const H2H_START = 2;
+function h2hStart(){ return H2H_START; }
 
 /* ------------------------------------------------------------
    Zamrazená kola
@@ -473,22 +476,16 @@ function h2hCard(f, gw, velka){
   </div>`;
 }
 
-/* Volba, od kterého kola se hraje. Sedí přímo v panelu, protože je to
-   nastavení jedné věci — schovávat ji do obecných nastavení by
-   znamenalo hledat ji tam, kde nikdo hledat nebude. */
-function h2hStartPicker(){
-  const max = Math.min(38, Math.max(h2hLastPlayed() + 1, HUB.cur.id));
-  const opt = [];
-  for(let g = 1; g <= max; g++)
-    opt.push(`<option value="${g}" ${g === h2hStart() ? 'selected' : ''}>GW${g}</option>`);
-  return `<label class="h2hstart">Liga se hraje od
-    <select id="h2hstart">${opt.join('')}</select></label>`;
+/* Informace, ne ovládání. Kdo tabulku otevře v listopadu, musí vědět,
+   že se nezačínalo prvním kolem — jinak vypadá jako by chyběla data. */
+function h2hStartNote(){
+  return `<p class="h2hstart">Liga se hraje od <b>GW${H2H_START}</b>.</p>`;
 }
 
 function h2hPanel(){
   const gws = h2hGws();
   if(!gws.length){
-    return h2hStartPicker() + `<p class="note">Od GW${h2hStart()} zatím žádné
+    return h2hStartNote() + `<p class="note">Od GW${H2H_START} zatím žádné
       kolo nezačalo. Jakmile bude nejbližší kolo na řadě, objeví se tady
       dvojice.</p>`;
   }
@@ -562,7 +559,7 @@ function h2hPanel(){
       jsou všichni na nule. Jakmile FPL potvrdí bonusy, tabulka se naplní —
       dřív ne, protože bonus umí překlopit výhru o bod na remízu.</p>`}`;
 
-  return h2hStartPicker() + prepinac + okno + mujBox + seznam + tabulka;
+  return h2hStartNote() + prepinac + okno + mujBox + seznam + tabulka;
 }
 
 function renderH2H(){
@@ -572,6 +569,8 @@ function renderH2H(){
       serveru — appka žádný nemá. Počítají se z ID ligy, čísla kola a seznamu
       členů seedovaným generátorem, takže všem vyjdou stejné, aniž by se
       cokoli ukládalo.<br><br>
+      <b>Odkdy se hraje.</b> Liga startuje kolem GW${H2H_START}; dřívější
+      kola se nelosují ani nepočítají do tabulky.<br><br>
       <b>Neopakování soupeře.</b> Proti komu jsi hrál v posledních
       ${H2H_WINDOW} kolech, toho v tomhle kole nedostaneš. Když takové
       párování neexistuje (u malé ligy se to stává), omezení se zkrátí —
@@ -625,14 +624,6 @@ async function loadH2H(){
 document.addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-h2hgw]');
   if(btn){ H2H_GW = Number(btn.dataset.h2hgw); renderH2H(); }
-});
-
-document.addEventListener('change', ev => {
-  if(ev.target.id !== 'h2hstart') return;
-  lsSet(H2H_START_KEY, ev.target.value);
-  // Vybrané kolo mohlo vypadnout z rozsahu.
-  H2H_GW = null; H2H_CACHE = null;
-  renderH2H();
 });
 
 /* ------------------------------------------------------------

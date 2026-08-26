@@ -431,6 +431,13 @@ $('logout').addEventListener('click', () => {
   ENTRY_ID = null;
   CONFIG.entryId = '';
   CONFIG.leagueId = '';
+
+  /* Uložené ID musí pryč taky. Dokud se start appky díval jen do CONFIG,
+     bylo to jedno — teď by po refreshi vrátilo dovnitř toho, kdo právě
+     odešel, a ze vstupní obrazovky by nešlo odejít. */
+  lsDel(ENTRY_KEY);
+  lsDel(LEAGUE_KEY);
+
   stopCountdown();
 
   $('app').hidden = true;
