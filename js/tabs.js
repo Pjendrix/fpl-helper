@@ -2489,7 +2489,7 @@ function likeChip(v, kind){
   const slovo = LIKE_WORDS[n];
   return `<span class="lk ${dir} l${n}" title="${
     (v > 0 ? 'Zdražení' : 'Zlevnění')} ${kind || ''} — jistota ${n} z 5 podle FPL"
-    >${sipka} ${esc(slovo)}</span>`;
+    ><i aria-hidden="true">${sipka}</i>${esc(slovo)}</span>`;
 }
 
 /* Ukazatel naplněnosti. 100 % = pohyb dnes v noci. */
