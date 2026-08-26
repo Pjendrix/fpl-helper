@@ -2464,6 +2464,38 @@ check('úryvek se řeže na hranici slova, ne uprostřed', () => {
   return out.length + ' znaků';
 });
 
+check('podpis WordPressu se z úryvku odstřihne', () => {
+  /* Feedy lepí na konec "The post X appeared first on Y". Je to podpis
+     generátoru, ne obsah — a sežral půlku místa v kartě. */
+  const vstup = 'The stand-out Fantasy picks over the medium term ' +
+    'The post The FPL Watchlist appeared first on Best FPL Tips, Advice.';
+  const out = NEWSAPI.stripBoilerplate(vstup);
+  if(/The post|appeared first/i.test(out)) throw new Error('podpis zůstal: ' + out);
+  if(!/stand-out Fantasy picks/.test(out)) throw new Error('ustřihlo i obsah');
+  return out;
+});
+
+check('Pulselive se čte i z jiného tvaru odpovědi', () => {
+  // Nezdokumentované API vrací pole pod různými klíči podle verze.
+  // Trvat na jednom znamená, že se sekce jednou tiše vyprázdní.
+  const a = NEWSAPI.parsePulselive({content: [{title: 'A', titleUrlSegment: 'a-b'}]});
+  const b = NEWSAPI.parsePulselive({data: [{headline: 'B', id: 99}]});
+  if(a[0].title !== 'A' || !/a-b$/.test(a[0].link)) throw new Error('content: ' + JSON.stringify(a[0]));
+  if(b[0].title !== 'B') throw new Error('data: ' + JSON.stringify(b[0]));
+  if(NEWSAPI.pulseList({nic: 1}).length) throw new Error('vymyslelo si položky');
+  return 'content + data';
+});
+
+check('Scout zkouší víc adres, než to vzdá', () => {
+  const src = fs.readFileSync('api/news.js', 'utf8');
+  if(!/urls:\s*\[/.test(src)) throw new Error('jen jedna adresa');
+  // Status 200 s prázdným polem znamená, že adresa žije, ale vrací něco
+  // jiného. Bez tohohle by se řetěz zastavil na první takové.
+  if(!/200 ale 0 polozek/.test(src))
+    throw new Error('prázdná odpověď se nebere jako neúspěch');
+  return 'řetěz kandidátů';
+});
+
 check('rozbitý zdroj neshodí ostatní', () => {
   /* Tohle je celý smysl Promise.allSettled: jeden pomalý nebo mrtvý web
      nesmí znamenat prázdnou stránku. */
