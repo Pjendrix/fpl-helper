@@ -3359,10 +3359,10 @@ function mountPhases(leagueId, cur, myId){
    pole se překresluje jen jednou při otevření záložky; při psaní se
    mění pouze tabulka, jinak by po každém písmenu utekl kurzor.
    ============================================================ */
-const INJ_VIEWS = [['squad', 'Můj kádr'], ['all', 'Celá liga'],
+const INJ_VIEWS = [['all', 'Celá liga'], ['squad', 'Můj kádr'],
                    ['watch', 'Sledovaní']];
 
-let INJ = {view: 'squad', q: '', key: 'chance', dir: 1};
+let INJ = {view: 'all', q: '', key: 'chance', dir: 1};
 
 /* Řádky pro tabulku. Bereme jen hráče, u kterých je co říct:
    nehrající status nebo šance pod 100 %. Hráč se stoprocentní
