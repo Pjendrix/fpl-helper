@@ -35,6 +35,24 @@ if(FIREBASE_CONFIG.projectId){
       },
       write: (uid, data) =>
         store.setDoc(store.doc(db, "users", uid), data, {merge: true}),
+
+      /* Zamrazená H2H kola. Na rozdíl od users/{uid} je tohle sdílené:
+         losování je vlastnost ligy, ne jednoho člověka. Zapisuje ten,
+         kdo se na dohrané kolo podívá první; ostatní už jen čtou.
+
+         create bez update v pravidlech znamená, že zápis je jednorázový
+         — jakmile kolo jednou spadne dovnitř, nikdo (ani omylem, ani
+         schválně) ho nepřepíše. */
+      h2hRead: async lid => {
+        const snap = await store.getDocs(
+          store.collection(db, "leagues", String(lid), "h2h"));
+        const out = {};
+        snap.forEach(d => { out[d.id] = d.data(); });
+        return out;
+      },
+      h2hFreeze: (lid, gw, data) =>
+        store.setDoc(store.doc(db, "leagues", String(lid), "h2h", String(gw)),
+                     data),
     };
   }catch(e){
     // Bez sync appka funguje dál. Hlásit to na stránce nemá cenu —

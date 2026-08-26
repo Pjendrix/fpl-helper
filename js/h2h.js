@@ -25,6 +25,70 @@ const H2H_WINDOW = 3;
 let H2H_GW = null;        // vybrané kolo v záložce
 let H2H_CACHE = null;     // {key, rounds} — přepočet celé sezóny není zadarmo
 
+/* Od kterého kola se H2H hraje. Liga nemusí začít s prvním kolem
+   sezóny — a když začne později, nemá smysl losovat kola, která se
+   nehrála: plnila by tabulku výsledky, o kterých nikdo nevěděl. */
+const H2H_START_KEY = 'fpl_h2h_start';
+function h2hStart(){
+  const v = parseInt(localStorage.getItem(H2H_START_KEY), 10);
+  return Number.isFinite(v) && v >= 1 ? v : 1;
+}
+
+/* ------------------------------------------------------------
+   Zamrazená kola
+
+   Los se odvozuje ze seznamu členů. To má jednu slabinu: když někdo
+   ligu opustí, seznam se změní a dvojice se přepočítají — včetně těch
+   dohraných. Tabulka by den po odchodu vypadala jinak než předtím.
+
+   Řešení: jakmile je kolo dopočítané, uloží se do Firestore a od té
+   chvíle se čte odtamtud místo počítání. Zapisuje ten, kdo se na
+   dohrané kolo podívá první; pravidla dovolují jen `create`, takže
+   druhý zápis neprojde a historii nejde přepsat ani omylem.
+
+   Bez přihlášení to funguje dál, jen bez zámku — dvojice se pořád
+   počítají a pro stabilní ligu vyjdou stejně.
+   ------------------------------------------------------------ */
+let H2H_FROZEN = {};      // {gw: {matches, ghost, okno}}
+let H2H_FROZEN_LID = null;
+
+async function h2hLoadFrozen(lid){
+  if(!window.FB || !FB_USER || H2H_FROZEN_LID === lid) return;
+  try{
+    H2H_FROZEN = await window.FB.h2hRead(lid) || {};
+    H2H_FROZEN_LID = lid;
+    H2H_CACHE = null;
+  }catch(e){
+    // Zámek je pojistka, ne podmínka. Bez něj se prostě počítá.
+    console.warn('H2H: zamrazená kola se nepodařilo načíst', e);
+  }
+}
+
+async function h2hFreezeDone(lid){
+  if(!window.FB || !FB_USER) return;
+  let zapsano = 0;
+
+  for(const round of h2hSeason()){
+    if(round.frozen || gwPhase(round.gw) !== 'final') continue;
+    try{
+      await window.FB.h2hFreeze(lid, round.gw, {
+        gw: round.gw, matches: round.matches,
+        ghost: round.ghost ?? null, okno: round.okno,
+      });
+      H2H_FROZEN[String(round.gw)] = {
+        gw: round.gw, matches: round.matches,
+        ghost: round.ghost ?? null, okno: round.okno,
+      };
+      zapsano++;
+    }catch(e){
+      /* Nejčastější chyba tady je „už tam je“ — někdo z ligy byl
+         rychlejší. To není problém, to je přesně účel zámku. */
+      console.warn('H2H: kolo ' + round.gw + ' se nezamrazilo', e.message);
+    }
+  }
+  if(zapsano){ H2H_CACHE = null; renderH2H(); }
+}
+
 /* ------------------------------------------------------------
    Seedovaný generátor
 
@@ -171,12 +235,12 @@ function h2hPairRound(gw, historie){
    aby bylo před deadlinem vidět, proti komu se hraje. */
 function h2hGws(){
   const out = [];
-  for(let g = 1; g <= HUB.cur.id; g++){
+  for(let g = h2hStart(); g <= HUB.cur.id; g++){
     const ev = BOOT.events.find(e => e.id === g);
     if(ev && (ev.finished || ev.is_current || ev.data_checked)) out.push(g);
   }
   const nxt = BOOT.events.find(e => e.is_next);
-  if(nxt && !out.includes(nxt.id)) out.push(nxt.id);
+  if(nxt && nxt.id >= h2hStart() && !out.includes(nxt.id)) out.push(nxt.id);
   return out;
 }
 
@@ -185,11 +249,24 @@ function h2hGws(){
 function h2hSeason(){
   const lid = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY);
   const gws = h2hGws();
-  const key = [lid, HUB.members.length, gws.join(',')].join('#');
+  const key = [lid, HUB.members.length, gws.join(','),
+               Object.keys(H2H_FROZEN).join('.')].join('#');
   if(H2H_CACHE && H2H_CACHE.key === key) return H2H_CACHE.rounds;
 
   const rounds = [];
-  gws.forEach(g => rounds.push(h2hPairRound(g, rounds)));
+  gws.forEach(g => {
+    /* Zamrazené kolo se nepočítá, jen načte. Platí to i pro klouzavé
+       okno: zákaz opakování se čte z toho, co se opravdu hrálo, ne
+       z toho, co by dnešní seznam členů vylosoval. */
+    const z = H2H_FROZEN[String(g)];
+    if(z && Array.isArray(z.matches)){
+      rounds.push({gw: g, matches: z.matches, ghost: z.ghost ?? null,
+                   okno: z.okno ?? H2H_WINDOW, frozen: true,
+                   ucastnici: h2hParticipants(g)});
+      return;
+    }
+    rounds.push(h2hPairRound(g, rounds));
+  });
   H2H_CACHE = {key, rounds};
   return rounds;
 }
@@ -337,9 +414,25 @@ function h2hCard(f, gw, velka){
   </div>`;
 }
 
+/* Volba, od kterého kola se hraje. Sedí přímo v panelu, protože je to
+   nastavení jedné věci — schovávat ji do obecných nastavení by
+   znamenalo hledat ji tam, kde nikdo hledat nebude. */
+function h2hStartPicker(){
+  const max = Math.min(38, (BOOT.events.find(e => e.is_next) || HUB.cur).id);
+  const opt = [];
+  for(let g = 1; g <= max; g++)
+    opt.push(`<option value="${g}" ${g === h2hStart() ? 'selected' : ''}>GW${g}</option>`);
+  return `<label class="h2hstart">Liga se hraje od
+    <select id="h2hstart">${opt.join('')}</select></label>`;
+}
+
 function h2hPanel(){
   const gws = h2hGws();
-  if(!gws.length) return '<p class="note">Sezóna ještě nezačala.</p>';
+  if(!gws.length){
+    return h2hStartPicker() + `<p class="note">Od GW${h2hStart()} zatím žádné
+      kolo nezačalo. Jakmile bude nejbližší kolo na řadě, objeví se tady
+      dvojice.</p>`;
+  }
 
   const nxt = BOOT.events.find(e => e.is_next);
   const sel = H2H_GW || (nxt && gws.includes(nxt.id) ? nxt.id : HUB.cur.id);
@@ -353,10 +446,17 @@ function h2hPanel(){
       aria-selected="${g === sel}">GW${g}</button>`).join('')}
   </div>`;
 
+  /* Odkud dvojice jsou. Bez tohohle se nedá poznat, jestli tabulka
+     stojí na zamrazených výsledcích, nebo na dnešním přepočtu. */
+  const zamek = round && round.frozen
+    ? '<span class="livetag ok">zamrazeno</span>'
+    : (window.FB && typeof FB_USER !== 'undefined' && FB_USER
+        ? '' : '<span class="livetag">bez přihlášení</span>');
+
   const muj = h2hOrient(h2hMyFixture(sel, ENTRY_ID), ENTRY_ID);
   const mujBox = muj
     ? `<div class="secline"><h4>Tvůj zápas</h4>
-         <span class="livetag ${cls}">${stav}</span></div>
+         <span class="livetag ${cls}">${stav}</span>${zamek}</div>
        ${h2hCard(muj, sel, true)}`
     : `<p class="note">V tomhle kole tvůj tým v lize není.</p>`;
 
@@ -383,7 +483,7 @@ function h2hPanel(){
   const tabulka = `<div class="secline"><h4>Tabulka</h4>
       <span class="livetag ok">${odehrano} ${odehrano === 1 ? 'kolo' : 'kol'}</span>
     </div>
-    ${odehrano ? `<table class="h2ht">
+    ${`<table class="h2ht">
       <thead><tr><th>#</th><th>Tým</th><th class="n">Z</th><th class="n">V</th>
         <th class="n">R</th><th class="n">P</th><th class="n">Skóre</th>
         <th class="n">Body</th></tr></thead>
@@ -395,12 +495,12 @@ function h2hPanel(){
         <td class="n">${r.pro}:${r.proti}</td>
         <td class="n"><b>${r.body}</b></td>
       </tr>`).join('')}</tbody>
-    </table>`
-    : `<p class="note">Tabulka se plní až z dopočítaných kol. Zatím žádné
-       takové není — jakmile FPL potvrdí bonusy za ${sel <= HUB.cur.id
-       ? 'aktuální' : 'první'} kolo, objeví se tady.</p>`}`;
+    </table>`}
+    ${odehrano ? '' : `<p class="note">Zatím není dopočítané žádné kolo, takže
+      jsou všichni na nule. Jakmile FPL potvrdí bonusy, tabulka se naplní —
+      dřív ne, protože bonus umí překlopit výhru o bod na remízu.</p>`}`;
 
-  return prepinac + okno + mujBox + seznam + tabulka;
+  return h2hStartPicker() + prepinac + okno + mujBox + seznam + tabulka;
 }
 
 function renderH2H(){
@@ -442,12 +542,35 @@ async function loadH2H(){
   if(!HUB){ $('h2hmsg').textContent = 'Ligu se nepodařilo načíst.'; return; }
 
   $('h2hmsg').textContent = '';
-  renderH2H();
+
+  /* Zamrazená kola se načtou před vykreslením, jinak by panel na chvíli
+     ukázal přepočtené dvojice a pak je pod rukama vyměnil. */
+  await h2hLoadFrozen(lid);
+
+  /* Kdyby vykreslení spadlo, prázdný panel neřekne nic — a „nevidím
+     nic“ se pak hledá půl hodiny. Radši ať je vidět, co se stalo. */
+  try{ renderH2H(); }
+  catch(e){
+    $('h2hmsg').textContent = 'H2H se nepodařilo vykreslit: ' + e.message;
+    console.error('H2H:', e);
+    return;
+  }
+
+  // Zamrazení až po vykreslení: je to úklid, ne podmínka zobrazení.
+  h2hFreezeDone(lid);
 }
 
 document.addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-h2hgw]');
   if(btn){ H2H_GW = Number(btn.dataset.h2hgw); renderH2H(); }
+});
+
+document.addEventListener('change', ev => {
+  if(ev.target.id !== 'h2hstart') return;
+  lsSet(H2H_START_KEY, ev.target.value);
+  // Vybrané kolo mohlo vypadnout z rozsahu.
+  H2H_GW = null; H2H_CACHE = null;
+  renderH2H();
 });
 
 /* ------------------------------------------------------------
