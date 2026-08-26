@@ -2467,6 +2467,31 @@ function priceMoves(){
   return {up, down, ok: scored.length > 0};
 }
 
+/* Jistota pohybu ceny.
+
+   FPL posílá likelihood v rozsahu −5…+5. Dřív se kreslila jako řada
+   teček, což byl problém hned dvakrát: pět teček vedle čtyř nikdo na
+   první pohled nerozezná a nikde nebylo řečeno, co ta čísla znamenají.
+   Slovo přečteš i koutkem oka.
+
+   Procenta by tady lhala — likelihood není pravděpodobnost, je to
+   pořadí tlaku na stupnici, kterou FPL nezveřejňuje. Převádíme ho
+   proto na slova, ne na „80 %“. Naplněnost v procentech vedle už
+   v tabulce je a ta procenta jsou skutečná. */
+const LIKE_WORDS = {5: 'jisté', 4: 'skoro jisté', 3: 'pravděpodobné',
+                    2: 'možné', 1: 'nejisté'};
+
+function likeChip(v, kind){
+  const n = Math.min(5, Math.abs(v || 0));
+  if(!n) return '<span class="lk none">–</span>';
+  const dir = v > 0 ? 'up' : 'down';
+  const sipka = v > 0 ? '▲' : '▼';
+  const slovo = LIKE_WORDS[n];
+  return `<span class="lk ${dir} l${n}" title="${
+    (v > 0 ? 'Zdražení' : 'Zlevnění')} ${kind || ''} — jistota ${n} z 5 podle FPL"
+    >${sipka} ${esc(slovo)}</span>`;
+}
+
 /* Ukazatel naplněnosti. 100 % = pohyb dnes v noci. */
 function priceMeter(pct, dir){
   const w = Math.max(3, Math.min(100, Math.abs(pct)));
@@ -2497,8 +2522,8 @@ function buildPrices(){
       <td class="n">${(x.p.now_cost / 10).toFixed(1)}m</td>
       <td>${priceMeter(x.pct, dir)}<span class="sub">${x.pct.toFixed(0)} %${
         lock ? ' · zamčeno' : ''}</span></td>
-      <td class="n ${dir}">${'●'.repeat(Math.min(5, Math.abs(x.likeToday))) || '–'}</td>
-      <td class="n ${dir}">${'●'.repeat(Math.min(5, Math.abs(x.like3))) || '–'}</td>
+      <td>${likeChip(x.likeToday, 'dnes v noci')}</td>
+      <td class="hide-s">${likeChip(x.like3, 'do tří dnů')}</td>
     </tr>`;
   };
 
@@ -2506,7 +2531,7 @@ function buildPrices(){
     <h3>${title}</h3>
     ${rows.length
       ? `<table><thead><tr><th></th><th>Hráč</th><th class="n">Cena</th><th>Ukazatel</th>
-         <th class="n">Dnes</th><th class="n">Do 3 dnů</th></tr></thead>
+         <th>Dnes v noci</th><th class="hide-s">Do 3 dnů</th></tr></thead>
          <tbody>${rows.map(x => row(x, dir)).join('')}</tbody></table>`
       : '<p class="note">Nic výrazného.</p>'}
     <p class="note">${note}</p>`;
@@ -2516,8 +2541,9 @@ function buildPrices(){
       + 'dostaneš zpátky jen půlku zisku.')
     + tbl(mv.down, 'down', 'Nejblíž ke zlevnění',
       'Zlevnění ti sebere z hodnoty týmu. Pokud ho stejně plánuješ pustit, udělej to teď.')
-    + `<p class="note">Tečky jsou jistota pohybu podle FPL (1–5), ukazatel je naplněnost
-       v procentech. Zvýrazněné řádky jsou hráči z tvé sestavy.${
+    + `<p class="note">Sloupec <b>Dnes v noci</b> je jistota pohybu podle FPL
+       (pětistupňová škála, „jisté“ je nejvyšší), ukazatel vedle je skutečná
+       naplněnost cenového měřidla v procentech. Zvýrazněné řádky jsou hráči z tvé sestavy.${
        nextDl ? ' Nejbližší změna cen: <b>' + nextDl.toLocaleString('cs-CZ',
          {weekday: 'short', hour: '2-digit', minute: '2-digit'}) + '</b>.' : ''}</p>`;
 }
@@ -3076,7 +3102,10 @@ function buildWatch(){
 
   const adder = `<div class="watchadd">
     <label>Přidat hráče
-      <input type="search" id="wq" placeholder="Hledej podle jména…" autocomplete="off">
+      <input type="search" id="wq" placeholder="Hledej podle jména…" autocomplete="off"
+             role="combobox" aria-expanded="false" aria-controls="wsug"
+             aria-autocomplete="list">
+      <div class="wsug" id="wsug" role="listbox" hidden></div>
     </label>
     <label>Nebo vyber ze seznamu
       <select id="wsel"><option value="">Vyber hráče…</option>${opts}</select>
@@ -3099,10 +3128,11 @@ function buildWatch(){
   };
 
   return `<h3>Watchlist${info(`Hráči, které sleduješ. Ukazatel je naplněnost
-    cenového měřidla podle FPL, tečky jistota pohybu dnes v noci.`)}</h3>
+    cenového měřidla podle FPL, sloupec „Dnes v noci“ říká, jak jistý je
+    pohyb ceny při nejbližší změně.`)}</h3>
     ${adder}
     <table><thead><tr><th></th><th>Hráč</th><th class="n">Cena</th>
-      <th>Ukazatel</th><th class="n">Dnes</th><th class="hide-s">Stav</th></tr></thead>
+      <th>Ukazatel</th><th>Dnes v noci</th><th class="hide-s">Stav</th></tr></thead>
     <tbody>${rows.map(r => {
       const [cls, txt] = stateText(r);
       return `<tr${MY_SQUAD && MY_SQUAD.has(r.p.id) ? ' class="me"' : ''}>
@@ -3111,9 +3141,7 @@ function buildWatch(){
         <td class="n">${(r.p.now_cost / 10).toFixed(1)}m</td>
         <td>${priceMeter(r.pct, dirClass(r.like) || 'up')}<span class="sub">${
           r.pct.toFixed(0)} %</span></td>
-        <td class="n ${dirClass(r.like)}">${
-          r.like ? (r.like > 0 ? '▲' : '▼') + '●'.repeat(Math.min(5, Math.abs(r.like)))
-                 : '–'}</td>
+        <td>${likeChip(r.like, 'dnes v noci')}</td>
         <td class="hide-s ${cls}">${txt}</td>
       </tr>`;
     }).join('')}</tbody></table>
@@ -3147,28 +3175,110 @@ document.addEventListener('click', ev => {
 });
 
 /* Vyhledávání a select pro přidání do watchlistu. */
+/* Nabídka jmen pod vyhledávacím polem.
+
+   Dřív se hráč přidával rovnou při psaní: po třetím znaku se vzal
+   nejlepší shoda a strčila do watchlistu. Kdo hledal Fernandese, dostal
+   po napsání „fer“ Wieffera a ani se ho nikdo nezeptal.
+
+   Teď se shody jen nabídnou. Přidá se ta, na kterou člověk klikne nebo
+   kterou potvrdí Enterem — a dokud nepotvrdí, nestane se nic. */
+function watchMatches(text){
+  const needle = normName(text || '');
+  if(needle.length < 2) return [];
+
+  return BOOT.elements
+    .map(p => {
+      const jmeno = normName(p.web_name);
+      const cele = normName(p.first_name + ' ' + p.second_name);
+      // Shoda na začátku jména je skoro vždycky ta hledaná; shoda
+      // uprostřed („fer“ ve „Wieffer“) je až poslední možnost.
+      const rank = jmeno.startsWith(needle) ? 0
+        : cele.split(' ').some(w => w.startsWith(needle)) ? 1
+        : (jmeno + ' ' + cele).includes(needle) ? 2 : null;
+      return rank === null ? null : {p, rank};
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.rank - b.rank || b.p.total_points - a.p.total_points)
+    .slice(0, 8);
+}
+
+function watchRedraw(){
+  const sec = $('pr-3');
+  if(sec) sec.innerHTML = buildWatch();
+  else if($('watchbox')) $('watchbox').innerHTML = buildWatch();
+  wireWatch();
+  drawHome();
+}
+
 function wireWatch(){
-  const q = $('wq'), sel = $('wsel');
+  const q = $('wq'), sel = $('wsel'), sug = $('wsug');
+
   if(sel) sel.addEventListener('change', () => {
     if(!sel.value) return;
     toggleWatch(sel.value);
-    $('pr-3').innerHTML = buildWatch();
-    wireWatch();
-    drawHome();
+    watchRedraw();
   });
-  if(q) q.addEventListener('input', () => {
-    const needle = normName(q.value);
-    if(needle.length < 3) return;
-    const hit = BOOT.elements
-      .filter(p => normName(p.web_name + ' ' + p.second_name).includes(needle))
-      .sort((x, y) => y.total_points - x.total_points)[0];
-    if(hit && !isWatched(hit.id)){
-      toggleWatch(hit.id);
-      $('pr-3').innerHTML = buildWatch();
-      wireWatch();
-      drawHome();
+
+  if(!q || !sug) return;
+
+  let vyber = -1;   // index zvýrazněné nabídky pro ovládání klávesnicí
+
+  const zavri = () => {
+    sug.hidden = true;
+    sug.innerHTML = '';
+    q.setAttribute('aria-expanded', 'false');
+    vyber = -1;
+  };
+
+  const kresli = () => {
+    const hits = watchMatches(q.value).filter(h => !isWatched(h.p.id));
+    if(!hits.length){ zavri(); return; }
+
+    const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
+    sug.innerHTML = hits.map((h, i) => `<button type="button" role="option"
+      aria-selected="${i === vyber}" data-add="${h.p.id}">
+      <b>${esc(h.p.web_name)}</b>
+      <span>${esc((teams[h.p.team] || {}).short_name || '')} ·
+        ${POS[h.p.element_type]} · ${(h.p.now_cost / 10).toFixed(1)}m</span>
+    </button>`).join('');
+    sug.hidden = false;
+    q.setAttribute('aria-expanded', 'true');
+  };
+
+  q.addEventListener('input', () => { vyber = -1; kresli(); });
+
+  q.addEventListener('keydown', ev => {
+    const opts = [...sug.querySelectorAll('button[data-add]')];
+    if(ev.key === 'Escape'){ zavri(); return; }
+    if(!opts.length) return;
+
+    if(ev.key === 'ArrowDown' || ev.key === 'ArrowUp'){
+      ev.preventDefault();
+      vyber = ev.key === 'ArrowDown'
+        ? (vyber + 1) % opts.length
+        : (vyber - 1 + opts.length) % opts.length;
+      opts.forEach((b, i) => b.setAttribute('aria-selected', String(i === vyber)));
+      return;
+    }
+
+    /* Enter bez vybrané nabídky bere první — ale jen když člověk
+       opravdu zmáčkl Enter. Samo se nikdy nic nepřidá. */
+    if(ev.key === 'Enter'){
+      ev.preventDefault();
+      const b = opts[vyber >= 0 ? vyber : 0];
+      if(b){ toggleWatch(b.dataset.add); watchRedraw(); }
     }
   });
+
+  sug.addEventListener('click', ev => {
+    const b = ev.target.closest('button[data-add]');
+    if(!b) return;
+    toggleWatch(b.dataset.add);
+    watchRedraw();
+  });
+
+  q.addEventListener('blur', () => setTimeout(zavri, 150));
 }
 
 /* Hráči, kterým se cena pohnula za poslední kolo.
