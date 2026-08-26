@@ -277,6 +277,162 @@ function advTeam(id){
 }
 
 /* ============================================================
+   HRÁČI K ZAMYŠLENÍ
+
+   Dřív tuhle práci dělala záložka Transfery: patnáct rozbalovacích
+   karet, ke každé tabulka náhrad. Problém nebyl v rozsahu, ale v tom,
+   co považovala za důvod. Nejčastěji flagovala „těžký los“ — a los je
+   u hráče, který stejně nenastupuje, úplně vedlejší. Náhradní brankář
+   se neprodává kvůli programu, ale proto, že nehraje.
+
+   Signály jsou proto seřazené podle toho, jak jistě znamenají „tenhle
+   hráč ti nedá nic“:
+
+     1. nehraje, přestože je zdravý     — nejjistější
+     2. není k dispozici                — zranění, tresty, otazníky
+     3. nikdy nenastoupil do základu    — role náhradníka
+     4. sucho, které potvrzuje podklad  — ne každé sucho je krize
+     5. přebodovává podklad             — štěstí se srovná dolů
+
+   Program je jenom doplňková věta u hráče, který už jiný důvod má.
+   Sám o sobě nikoho neoznačí, protože „hraje a boduje, ale čeká ho
+   Liverpool“ není problém k řešení.
+   ============================================================ */
+
+/* Minuty po kolech. bootstrap má jen sezónní součet, takže „minulé kolo
+   neodehrál ani minutu“ z něj poznat nejde. event/{gw}/live/ je jeden
+   dotaz na celé kolo pro všechny hráče — ne patnáct dotazů na hráče,
+   jak to dělaly Transfery. */
+let ADV_MINS = null;   // Map(gw → Map(playerId → minuty))
+
+async function advLoadMinutes(){
+  ADV_MINS = new Map();
+  const hotova = (BOOT.events || []).filter(e => e.finished).map(e => e.id);
+  const posledni = hotova.slice(-2);
+
+  for(const gw of posledni){
+    try{
+      const live = await cached('event/' + gw + '/live/');
+      const m = new Map();
+      for(const el of (live.elements || []))
+        m.set(el.id, (el.stats && el.stats.minutes) || 0);
+      ADV_MINS.set(gw, m);
+    }catch(e){
+      /* Chybějící kolo se prostě nepoužije. Tvrdit „neodehrál ani
+         minutu“ na základě dotazu, který spadl, by bylo horší než
+         mlčet. */
+    }
+  }
+}
+
+/* Minuty hráče v posledních N dohraných kolech, nejnovější poslední.
+   Vrací prázdné pole, když data nemáme. */
+function advRecentMins(p){
+  if(!ADV_MINS) return [];
+  return [...ADV_MINS.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, m]) => m.get(p.id))
+    .filter(v => v != null);
+}
+
+/* Jeden hráč, jeden verdikt. Vrací {prio, duvody[]} nebo null. */
+function advFlag(p, base){
+  const duvody = [];
+  let prio = 0;
+  /* FPL posílá null, když je hráč v pořádku. Bere se i undefined:
+     chybějící pole nesmí znamenat „šance neznámá“, jinak by hráč
+     tiše propadl všemi pravidly. */
+  const ch = p.chance_of_playing_next_round;
+  const chance = (ch === null || ch === undefined) ? 100 : ch;
+  const mins = advRecentMins(p);
+  const zdravy = p.status === 'a' && chance === 100;
+
+  /* 1. Nehraje, přestože je zdravý.
+     Nejsilnější signál v celé sekci: žádná omluva, jen ho trenér
+     nestaví. Vyžaduje dvě kola — jedno může být rotace. */
+  if(zdravy && mins.length >= 2 && mins.every(v => v === 0)){
+    duvody.push('Poslední dvě kola neodehrál ani minutu, přestože není hlášený zraněný.');
+    prio = 1;
+  } else if(zdravy && mins.length === 1 && mins[0] === 0 && p.minutes === 0){
+    duvody.push('Zatím neodehrál ani minutu.');
+    prio = 1;
+  }
+
+  // 2. Není k dispozici.
+  if(p.status === 's'){ duvody.push('Suspendovaný.'); prio = 1; }
+  else if(p.status === 'i'){ duvody.push('Zraněný.'); prio = 1; }
+  else if(p.status === 'u' || p.status === 'n'){ duvody.push('V Premier League už není.'); prio = 1; }
+  else if(chance < 100){
+    duvody.push('Šance nastoupit jen ' + chance + ' %.');
+    prio = chance <= 50 ? 1 : Math.max(prio, 2);
+  }
+
+  /* 3. Role náhradníka. Někdo, kdo naskakuje na deset minut, není
+     zraněný ani ve špatné formě — jenom ho nemá smysl mít. */
+  if(!prio && p.starts === 0 && p.minutes > 0){
+    duvody.push('Celou sezónu nenastoupil do základní sestavy.');
+    prio = 2;
+  }
+
+  /* 4. Sucho, které potvrzuje podklad. Samotné sucho je často smůla;
+     sucho u hráče s podprůměrnými očekávanými čísly je trend. */
+  const m = ADV_METRICS[p.element_type][0];
+  const hodnota = advRank(p, m, base);
+  const podprumer = m.lower ? hodnota > base : hodnota < base;
+
+  if(!prio && p.minutes >= advMinMinutes() && podprumer){
+    const forma = parseFloat(p.form) || 0;
+    if(forma < 2){
+      duvody.push('Forma ' + forma.toFixed(1) + ' a podkladová čísla '
+        + 'jsou pod průměrem pozice — není to jen smůla.');
+      prio = 2;
+    }
+  }
+
+  /* 5. Přebodovává podklad. Není to důvod panikařit, ale je to jediné
+     místo v appce, kde se člověk dozví, že měl štěstí. */
+  if(!prio && p.minutes >= advMinMinutes() && advDelta(p) >= 2){
+    duvody.push('Nasbíral o ' + advDelta(p).toFixed(1) + ' gólového zapojení víc, '
+      + 'než říká podklad — takový náskok se obvykle srovná dolů.');
+    prio = 2;
+  }
+
+  if(!prio) return null;
+
+  /* Program jako doplněk. Nikdy sám: hráč, který hraje a boduje, se
+     kvůli rozpisu neprodává. */
+  const fdr = advFdr(p, 3);
+  if(fdr !== null && fdr >= 4) duvody.push('K tomu ho čeká těžký los (' + fdr.toFixed(1) + ').');
+
+  return {p, prio, duvody};
+}
+
+function advThinkList(squad){
+  const baseFor = {};
+  for(const pos of [1, 2, 3, 4])
+    baseFor[pos] = advBase(advPool(pos), ADV_METRICS[pos][0]);
+
+  return squad
+    .map(p => advFlag(p, baseFor[p.element_type]))
+    .filter(Boolean)
+    .sort((a, b) => a.prio - b.prio
+      || b.duvody.length - a.duvody.length
+      || b.p.now_cost - a.p.now_cost);
+}
+
+function advThinkCard(x){
+  return `<div class="advthink p${x.prio}">
+    <div class="hd">
+      <b>${esc(x.p.web_name)}</b>
+      <span class="tag">${esc(advTeam(x.p.team))} · ${POS[x.p.element_type]}
+        · ${advPrice(x.p).toFixed(1)}m</span>
+      ${x.prio === 1 ? '<span class="tag al">akutní</span>' : ''}
+    </div>
+    <p>${x.duvody.map(esc).join(' ')}</p>
+  </div>`;
+}
+
+/* ============================================================
    VYKRESLENÍ
    ============================================================ */
 
@@ -396,9 +552,10 @@ function advPanel(){
        orientační.</p>`
     : '';
 
+  const zamysleni = advThinkList(squad);
   const slabina = advWeakest(diag);
   const pos = ADV_POS || (slabina ? slabina.pos : 3);
-  const bank = bankValue();
+  const bank = advBank();
   const tipy = advCandidates(squad, pos, bank);
 
   const prepinac = `<div class="subnav" role="tablist" aria-label="Pozice">
@@ -420,12 +577,32 @@ function advPanel(){
       : `<p class="note">Na téhle pozici nemám co doporučit — buď na lepšího
          hráče nejsou peníze, nebo tvoji hráči nikoho lepšího nemají.</p>`}
 
+    <div class="secline"><h4>Hráči k zamyšlení</h4>${zamysleni.length
+      ? `<span class="livetag wn">${zamysleni.length}</span>` : ''}</div>
+    ${zamysleni.length
+      ? zamysleni.map(advThinkCard).join('')
+      : `<p class="note ok">Nikoho tu nemám. Nikdo není zraněný, všichni
+         nastupují a nikdo nebodoval nad rámec toho, co ukazuje podklad.</p>`}
+
+    <div class="diffs">${typeof buildDifferentials === 'function'
+      ? buildDifferentials() : ''}</div>
+
     <p class="advfoot">Metriky pocházejí z FPL API, jehož dodavatelem dat je
       Opta. Sequence involvement, pressures ani Power Rankings ve veřejných
       datech nejsou — kdo je chce, musí na placené rozhraní Stats Performu.</p>`;
 }
 
 let ADV_SQUAD = null;
+
+/* Banka. Dřív ji držel TR_STATE ze zrušené záložky Transfery a šlo ji
+   ručně přepsat. Teď je to prostě to, co posílá FPL — ruční korekce
+   zmizely spolu s editorem. */
+let ADV_BANK = null;
+
+function advBank(){
+  if(Number.isFinite(ADV_BANK)) return ADV_BANK;
+  return typeof bankValue === 'function' ? bankValue() : 0;
+}
 
 function renderAdvisor(){
   $('advout').innerHTML = `<h2>Přestupový poradce${info(`Poradce porovnává
@@ -463,7 +640,17 @@ async function loadAdvisor(){
     ADV_SQUAD = (picks.picks || [])
       .map(pk => BOOT.elements.find(e => e.id === pk.element))
       .filter(Boolean);
+    ADV_BANK = ((picks.entry_history || {}).bank || 0) / 10;
 
+    /* Nákupní ceny kvůli prodejní hodnotě. U zdraženého hráče vrací FPL
+       jen polovinu zisku — bez tohohle by rozpočet u tipů byl o desetiny
+       vyšší, než kolik člověk reálně dostane. */
+    if(typeof buildBuyCost === 'function' && !BUY_COST){
+      try{ BUY_COST = buildBuyCost(await cached('entry/' + ENTRY_ID + '/transfers/')); }
+      catch(e){ /* spadne to na cenu ze startu sezóny */ }
+    }
+
+    await advLoadMinutes();
     renderAdvisor();
   }catch(e){
     $('advmsg').textContent = e.message;

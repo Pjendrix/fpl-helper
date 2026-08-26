@@ -673,9 +673,11 @@ function sellFromBuy(nowCost, buy){
   return buy + Math.floor((nowCost - buy) / 2);
 }
 
+/* Ruční přepis prodejní ceny zmizel spolu se záložkou Transfery, kde
+   se editoval. Nákupní ceny z transfers/ jsou přesnější než cokoli,
+   co by člověk psal ručně, takže tu nic nechybí — jen se přestal číst
+   starý localStorage, kde komu zůstaly staré přepisy. */
 function sellPrice(p){
-  const v = parseFloat(loadSell()[p.id]);
-  if(Number.isFinite(v) && v > 0) return v;              // ruční přepis vyhrává
   return sellFromBuy(p.now_cost, buyCost(p)) / 10;
 }
 
