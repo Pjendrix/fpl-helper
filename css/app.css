@@ -1270,14 +1270,14 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
 
 .phead [data-sort]{user-select:none;
   display:inline-flex;align-items:center;justify-content:flex-end;gap:3px}
-.squadlist.flat .phead [data-sort]{cursor:pointer}
-.squadlist.flat .phead [data-sort]:hover{color:var(--blue)}
+.phead [data-sort]{cursor:pointer}
+.phead [data-sort]:hover{color:var(--blue)}
 .phead [data-sort] .sar{font-style:normal;width:7px;opacity:0;font-size:7px}
-.squadlist.flat .phead [data-sort][aria-sort="ascending"],
-.squadlist.flat .phead [data-sort][aria-sort="descending"]{color:var(--charcoal)}
-.squadlist.flat .phead [data-sort][aria-sort="ascending"] .sar::before{content:"\25B2"}
-.squadlist.flat .phead [data-sort][aria-sort="descending"] .sar::before{content:"\25BC"}
-.squadlist.flat .phead [data-sort]:not([aria-sort="none"]) .sar{opacity:1}
+.phead [data-sort][aria-sort="ascending"],
+.phead [data-sort][aria-sort="descending"]{color:var(--charcoal)}
+.phead [data-sort][aria-sort="ascending"] .sar::before{content:"\25B2"}
+.phead [data-sort][aria-sort="descending"] .sar::before{content:"\25BC"}
+.phead [data-sort]:not([aria-sort="none"]) .sar{opacity:1}
 
 /* Přepínač sedí těsně nad tabulkou, ne 20 px od ní jako běžná subnav. */
 .subnav:has(+ .squadlist){margin-bottom:8px}
