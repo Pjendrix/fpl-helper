@@ -129,10 +129,29 @@ function h2hSeed(lid, gw){
    prázdná tabulka a hláška, že tvůj tým v lize není.
 
    Bere se proto nejvyšší kolo, které má v historii aspoň jeden člen. */
+/* Číslo kola z jednoho záznamu historie.
+
+   FPL v `entry/{id}/history/` pojmenovává kolo `event`, ne `round` —
+   `round` je klíč z jiných částí toho API. Tenhle soubor se ptal na
+   `round`, takže historie vypadala prázdná: účastníci se nenašli,
+   poslední odehrané kolo vyšlo na nulu a dohraná kola tvrdila „ještě
+   nezačalo“. Skóre přesto sedělo, protože se propadlo na záložní
+   hodnotu z pořadí ligy — jenže ta platí jen pro právě běžící kolo,
+   takže starší kola by zůstala bez bodů.
+
+   Přijímají se obě jména. Kdyby FPL klíč zase přejmenovalo, je to
+   jedno místo. */
+function h2hRound(e){
+  return e && (e.event != null ? e.event : e.round);
+}
+
 function h2hLastPlayed(){
   let max = 0;
   (HUB.hists || []).forEach(h => {
-    (h && h.current || []).forEach(e => { if(e.round > max) max = e.round; });
+    (h && h.current || []).forEach(e => {
+      const g = h2hRound(e);
+      if(g > max) max = g;
+    });
   });
   return max;
 }
@@ -149,7 +168,7 @@ function h2hParticipants(gw){
     .map((m, i) => ({m, i}))
     .filter(x => {
       const h = hists[x.i];
-      return h && h.current && h.current.some(e => e.round === ref);
+      return h && h.current && h.current.some(e => h2hRound(e) === ref);
     });
 
   /* Před prvním odehraným kolem sezóny žádná historie není. Hrají tedy
@@ -166,7 +185,7 @@ function h2hParticipants(gw){
    Nativní H2H ve FPL to počítá stejně. */
 function h2hScore(i, gw){
   const h = HUB.hists[i];
-  const ev = h && h.current && h.current.find(e => e.round === gw);
+  const ev = h && h.current && h.current.find(e => h2hRound(e) === gw);
   if(ev) return (ev.points || 0) - (ev.event_transfers_cost || 0);
 
   // Běžící kolo bývá v historii až po dohrání; pořadí ligy ho nese živě.
