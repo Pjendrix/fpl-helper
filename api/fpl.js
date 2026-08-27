@@ -30,34 +30,113 @@ function ttlFor(path) {
   return 600;
 }
 
-// Cloudflare pred FPL API blokuje bot-like User-Agenty. Nejcasteji na
-// /fixtures/, ktere je jediny endpoint, co jede pres prisnejsi pravidlo.
-// Poctivy vlastni UA teto appky tedy dostaval 403, zatimco hlavicky
-// bezneho prohlizece projdou. Referer je soucasti kontroly - bez nej
-// to Cloudflare bere jako primy pristup na API a taky odmitne.
+// ---------------------------------------------------------------------
+// Cloudflare pred FPL API blokuje pozadavky, ktere nevypadaji jako
+// prohlizec. Puvodni sada hlavicek prestala stacit - vracelo se 403 i
+// na bootstrap-static/, tedy na tom nejmirnejsim endpointu, coz znamena,
+// ze blok neni endpointovy, ale ze nas Cloudflare klasifikuje jako bota.
+//
+// Tri veci, ktere to nejcasteji zpusobuji, a jak se resi:
+//
+// 1) NESOULAD HLAVICEK. Kdyz se posle Chrome User-Agent, ale chybi
+//    sec-ch-ua a sec-fetch-*, je to okamzity signal - skutecny Chrome je
+//    posila vzdycky. Radek "Chrome rika, ze je Chrome, ale nechova se
+//    jako Chrome" je presne to, co Cloudflare hleda. Cela sada musi
+//    sedet dohromady vcetne cisla verze.
+//
+// 2) ZASTARALA VERZE. UA s Chrome/124 v roce 2026 je verze stara pres
+//    rok - to samo o sobe zvedne skore. Verze se drzi v jedne konstante,
+//    aby se pri pristi aktualizaci menila na jednom miste.
+//
+// 3) CHYBEJICI COOKIE. Cloudflare casto pusti az druhy pozadavek, ktery
+//    nese cookie z prvniho. Proto se pri 403 nejdriv sahne na domovskou
+//    stranku, seberou se cookies a dotaz se zopakuje s nimi.
+//
+// Origin a X-Requested-With se posilat prestaly zamerne: prohlizec je
+// pri obycejnem GET na vlastni API neposila a jejich pritomnost byla
+// dalsi nesrovnalost navic.
+// ---------------------------------------------------------------------
+const CHROME_MAJOR = "137";
+
 const BROWSER_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    `(KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`,
   Accept: "application/json, text/plain, */*",
-  "Accept-Language": "en-GB,en;q=0.9",
+  "Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8",
+  "Accept-Encoding": "gzip, deflate, br",
   Referer: "https://fantasy.premierleague.com/",
-  Origin: "https://fantasy.premierleague.com",
-  "X-Requested-With": "XMLHttpRequest",
+  "sec-ch-ua": `"Chromium";v="${CHROME_MAJOR}", "Not/A)Brand";v="24", ` +
+    `"Google Chrome";v="${CHROME_MAJOR}"`,
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"Windows"',
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin",
+  "Cache-Control": "no-cache",
+  Pragma: "no-cache",
+  DNT: "1",
+  Connection: "keep-alive",
 };
 
-// Cloudflare vraci 403 i nahodne, ne jen systematicky. Jedno opakovani
-// spolehlive chyti vetsinu tech nahodnych - vic nema smysl, protoze
-// systematicky blok by se opakoval donekonecna.
+// Cookies z domovske stranky. Drzi se v pameti instance - Vercel funkce
+// zije mezi pozadavky nekolik minut, takze se homepage netaha pokazde.
+let COOKIE_JAR = null;
+let COOKIE_AT = 0;
+const COOKIE_TTL = 5 * 60 * 1000;
+
+async function getCookies(force) {
+  const fresh = COOKIE_JAR && Date.now() - COOKIE_AT < COOKIE_TTL;
+  if (fresh && !force) return COOKIE_JAR;
+
+  try {
+    const r = await fetch("https://fantasy.premierleague.com/", {
+      headers: {
+        ...BROWSER_HEADERS,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+      },
+      redirect: "follow",
+    });
+
+    // getSetCookie() je novejsi a vraci vsechny hlavicky zvlast; starsi
+    // runtime umi jen slepenou verzi pres get().
+    const raw = typeof r.headers.getSetCookie === "function"
+      ? r.headers.getSetCookie()
+      : [r.headers.get("set-cookie")].filter(Boolean);
+
+    COOKIE_JAR = raw.map((c) => String(c).split(";")[0]).join("; ") || null;
+    COOKIE_AT = Date.now();
+  } catch (e) {
+    COOKIE_JAR = null;
+  }
+  return COOKIE_JAR;
+}
+
+// Cloudflare vraci 403 nahodne i systematicky. Postup je proto
+// stupnovity: cisty dotaz, pak dotaz s cookie, pak dotaz s cerstvou
+// cookie. Kdyz neprojde ani treti, je blok skutecny a nema smysl
+// bombardovat dal.
 async function fetchUpstream(path) {
   const url = `${BASE}/${path}`;
-  let upstream = await fetch(url, { headers: BROWSER_HEADERS });
+  const pokus = (cookie) =>
+    fetch(url, {
+      headers: cookie ? { ...BROWSER_HEADERS, Cookie: cookie } : BROWSER_HEADERS,
+      cache: "no-store",
+      redirect: "follow",
+    });
 
+  let upstream = await pokus(COOKIE_JAR);
   if (upstream.status !== 403) return upstream;
 
-  await new Promise((r) => setTimeout(r, 400));
-  upstream = await fetch(url, { headers: BROWSER_HEADERS, cache: "no-store" });
-  return upstream;
+  await new Promise((r) => setTimeout(r, 350));
+  upstream = await pokus(await getCookies(false));
+  if (upstream.status !== 403) return upstream;
+
+  await new Promise((r) => setTimeout(r, 700));
+  return pokus(await getCookies(true));
 }
 
 export default async function handler(req, res) {
@@ -78,9 +157,23 @@ export default async function handler(req, res) {
     }
 
     if (!upstream.ok) {
-      return res
-        .status(upstream.status)
-        .json({ error: `FPL API vrátilo ${upstream.status} pro ${path}.` });
+      // U 403 se hodi vedet, co presne Cloudflare rekl - cf-ray se da
+      // dohledat a prvni radky tela prozradi, jestli slo o challenge
+      // stranku, nebo o tvrdy blok. Bez toho se hada.
+      const detail =
+        upstream.status === 403
+          ? {
+              cfRay: upstream.headers.get("cf-ray") || null,
+              cfMitigated: upstream.headers.get("cf-mitigated") || null,
+              server: upstream.headers.get("server") || null,
+              snippet: (await upstream.text().catch(() => "")).slice(0, 300),
+            }
+          : undefined;
+
+      return res.status(upstream.status).json({
+        error: `FPL API vrátilo ${upstream.status} pro ${path}.`,
+        ...(detail ? { detail } : {}),
+      });
     }
 
     // FPL obcas vrati HTML (udrzba, rate limit stranka) se statusem 200.
