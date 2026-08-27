@@ -38,10 +38,19 @@
                  '<path d="M17 5.2h2.5v1.3A3 3 0 0 1 17 9.4"/>' +
                  '<path d="M10.4 13.2h3.2l.6 3.4H9.8z"/><path d="M8.4 20.2h7.2"/>',
     't-hub':     '<path d="M4 10v4h3l7 3.8V6.2L7 10z"/><path d="M17.4 9.4a4 4 0 0 1 0 5.2"/>',
-    't-inj':     '<path d="M12 4.6v14.8"/><path d="M4.6 12h14.8"/>',
+    /* Zranění: zdravotnický kříž v kolečku. Samotný kříž byl k
+       nerozeznání od „přidat“. */
+    't-inj':     '<circle cx="12" cy="12" r="8.2"/>' +
+                 '<path d="M12 8.4v7.2"/><path d="M8.4 12h7.2"/>',
+    't-h2h':     '<path d="M9.4 4.6 4.6 12l4.8 7.4"/><path d="M14.6 4.6 19.4 12l-4.8 7.4"/>',
+    't-news':    '<path d="M4.4 5.4h12.4v13.2H6a1.6 1.6 0 0 1-1.6-1.6z"/>' +
+                 '<path d="M16.8 8.6h2.8v8.4a1.6 1.6 0 0 1-3.2 0"/>' +
+                 '<path d="M7.2 8.8h6.8"/><path d="M7.2 12h6.8"/><path d="M7.2 15.2h4.4"/>',
+    /* Poradce: žárovka. Sekce radí, nepočítá — proto ne graf. */
+    't-adv':     '<path d="M9.6 17.4a5.6 5.6 0 1 1 4.8 0"/>' +
+                 '<path d="M9.8 17.4h4.4v2.2H9.8z"/><path d="M10.6 21h2.8"/>',
     't-players': '<path d="M12 11.6a3.8 3.8 0 1 0 0-7.6 3.8 3.8 0 0 0 0 7.6z"/>' +
                  '<path d="M4.6 20.2a7.4 7.4 0 0 1 14.8 0"/>',
-    't-tr':      '<path d="M4 8.4h13l-3.6-3.6"/><path d="M20 15.6H7l3.6 3.6"/>',
     't-plan':    '<path d="M4.2 6.2h15.6v14H4.2z"/><path d="M4.2 10.4h15.6"/>' +
                  '<path d="M8.4 3.6v4"/><path d="M15.6 3.6v4"/>',
     't-prices':  '<path d="M4 16.4 9 11l3.4 3.4L20 6.8"/><path d="M15 6.8h5v5"/>',
@@ -91,6 +100,14 @@
         `<button type="button" data-tab="${tid}" aria-selected="false">
            ${svg(ICON[tid] || '')}<span>${label(tid)}</span>
          </button>`).join('') + '</div>' +
+      '<h3>Jinde</h3>' +
+      '<div class="mgrid">' +
+        `<a href="https://fantasy.premierleague.com/en/transfers" target="_blank"
+            rel="noopener noreferrer" data-out="1">${svg(
+          '<path d="M4.6 12v6.4a1.6 1.6 0 0 0 1.6 1.6h11.6a1.6 1.6 0 0 0 1.6-1.6V12"/>' +
+          '<path d="M12 14.6V4.2"/><path d="M8.2 7.6 12 4.2l3.8 3.4"/>'
+        )}<span>Oficiální FPL</span></a>` +
+      '</div>' +
       '<h3>Účet a zobrazení</h3>' +
       `<p class="mwho">Tým <b>${who}</b></p>` +
       '<div class="mgrid">' +
