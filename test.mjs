@@ -3392,17 +3392,27 @@ check('H2H má vlastní záložku i box na Přehledu', () => {
   return 'záložka + box';
 });
 
-check('H2H spadne na mobilu do plachty Více', () => {
-  // Ve spodní liště jsou čtyři pevné sekce; zbytek TABS jde do plachty.
+check('spodní lišta má pět sekcí a zbytek TABS je v plachtě', () => {
+  /* Lišta se rozšířila ze čtyř sekcí na pět (H2H, Ceny a Poradce se do
+     ní přesunuly). Šest dlaždic včetně „Více“ je strop — při sedmi se
+     popisky ořezávají do nečitelna. */
   const nav = w.document.getElementById('mnav');
   const vListe = [...nav.querySelectorAll('[data-tab]')].map(b => b.dataset.tab);
-  if(vListe.includes('t-h2h')) throw new Error('H2H zabralo místo ve liště');
+  if(vListe.length !== 5)
+    throw new Error('v liště je ' + vListe.length + ' sekcí, čekal jsem 5');
+  if(nav.querySelectorAll('button').length > 6)
+    throw new Error('víc než šest dlaždic se na telefon nevejde');
+
   w.document.getElementById('mmore').click();
   const vPlachte = [...w.document.querySelectorAll('#msheetBody [data-tab]')]
     .map(b => b.dataset.tab);
   w.document.querySelector('#msheet [data-mclose]').click();
-  if(!vPlachte.includes('t-h2h')) throw new Error('H2H v plachtě není');
-  return 'v plachtě';
+
+  // Dohromady musí sedět celý TABS — žádná sekce nesmí vypadnout.
+  const vsude = new Set([...vListe, ...vPlachte]);
+  const chybi = w.eval('TABS').map(t => t[0]).filter(t => !vsude.has(t));
+  if(chybi.length) throw new Error('nedostupné sekce: ' + chybi.join(', '));
+  return vListe.join(', ');
 });
 
 check('kádr se dá přepnout na jeden seznam', () => {
@@ -4689,6 +4699,62 @@ check('na mobilu je odkaz v plachtě, ne v liště', () => {
   if(!/\.navout\{display:none\}/.test(css))
     throw new Error('odkaz by se na mobilu tlačil do lišty se záložkami');
   return 'v sekci Jinde';
+});
+
+
+check('růst obsahuje jen hráče, kteří zdražili', () => {
+  /* Dřív se brala první a poslední patnáctka z jednoho seznamu, takže
+     dokud se hýbalo míň než třicet cen, seděli v „růstu“ i ti, kdo
+     zlevnili — jen proto, že klesli nejmíň. */
+  const els = bootstrap.elements;
+  const save = els.map(p => p.cost_change_start);
+  els.forEach(p => { p.cost_change_start = 0; });
+  els[0].cost_change_start = 3;
+  els[1].cost_change_start = 1;
+  els[2].cost_change_start = -2;
+  els[3].cost_change_start = -1;
+
+  const html = w.eval('buildSeason()');
+  const casti = html.split('Největší propad');
+  const rust = casti[0], propad = casti[1];
+  els.forEach((p, i) => { p.cost_change_start = save[i]; });
+
+  if(/-0\.2m|-0\.1m/.test(rust))
+    throw new Error('v růstu sedí hráči, kteří zlevnili');
+  if(/\+0\.3m|\+0\.1m/.test(propad))
+    throw new Error('v propadu sedí hráči, kteří zdražili');
+  return 'oddělené';
+});
+
+check('kratší tabulky se dopíšou prázdnými řádky', () => {
+  const els = bootstrap.elements;
+  const save = els.map(p => p.cost_change_start);
+  els.forEach(p => { p.cost_change_start = 0; });
+  els[0].cost_change_start = 2;
+
+  const html = w.eval('buildSeason()');
+  els.forEach((p, i) => { p.cost_change_start = save[i]; });
+
+  const prazdne = (html.match(/class="empty"/g) || []).length;
+  // 9 chybějících v růstu + 10 v celém prázdném propadu.
+  if(prazdne !== 19)
+    throw new Error('prázdných řádků je ' + prazdne + ', čekal jsem 19');
+  return prazdne + ' prázdných';
+});
+
+check('obě tabulky mají strop deset hráčů', () => {
+  const els = bootstrap.elements;
+  const save = els.map(p => p.cost_change_start);
+  els.forEach((p, i) => { p.cost_change_start = i < 20 ? 5 : (i < 40 ? -5 : 0); });
+
+  const html = w.eval('buildSeason()');
+  els.forEach((p, i) => { p.cost_change_start = save[i]; });
+
+  // Dvě hlavičky (<tr> v thead) plus dvakrát deset datových řádků.
+  const radky = (html.match(/<tr[ >]/g) || []).length;
+  if(radky !== 22)
+    throw new Error('řádků je ' + radky + ', čekal jsem 2 hlavičky + 2×10');
+  return '10 + 10';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
