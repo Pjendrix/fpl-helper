@@ -246,6 +246,18 @@ button.small{font-size:13px;padding:7px 14px}
 .nav button[aria-selected="true"]{color:#fff;border-bottom-color:var(--mint-fill)}
 .nav button:focus-visible{outline-offset:-3px}
 
+/* Odkaz na oficiální FPL. Sedí v liště napravo od záložek, ale záměrně
+   nevypadá jako ony — je to jediné místo v appce, které tě z ní pošle
+   pryč, a to má být vidět dřív, než na to člověk klikne. */
+.navrow{display:flex;align-items:stretch;gap:10px}
+.navrow .nav{flex:1;min-width:0}
+.navout{flex:none;display:flex;align-items:center;gap:5px;
+  color:#C7A8CE;text-decoration:none;font-size:12px;font-weight:600;
+  padding:0 2px 2px;white-space:nowrap;border-bottom:2px solid transparent}
+.navout span{font-size:10px;opacity:.8}
+.navout:hover{color:#fff;border-bottom-color:rgba(255,255,255,.35)}
+.navout:focus-visible{outline-offset:-2px}
+
 .panel{
   background:var(--white);border-radius:var(--r-card);
   padding:28px;margin:14px 0 48px;
