@@ -61,11 +61,16 @@
                  '<circle cx="18.4" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
   };
 
-  /* Do lišty se vejdou čtyři sekce plus Více. Vybrané jsou ty, které
-     se otevírají před deadlinem — zbytek je čtení po kole. */
-  const PRIMARY = ['t-home', 't-squad', 't-league', 't-hub'];
-  const SHORT   = {'t-home':'Přehled', 't-squad':'Sestava', 't-league':'Miniliga',
-                   't-hub':'Hub ligy'};
+  /* Do lišty se vejde pět sekcí plus Více — šest dlaždic je na 360px
+     displeji strop, při sedmi už se popisky ořezávají do nečitelna.
+     Popisky jsou proto zkrácené („Hub“ místo „Hub ligy“); plachta
+     zobrazuje plné názvy, takže se nikde neztratí.
+
+     Sestava a Miniliga se přesunuly do plachty: obojí se otevírá jednou
+     za kolo, kdežto Ceny a Poradce před každým deadlinem. */
+  const PRIMARY = ['t-home', 't-hub', 't-h2h', 't-prices', 't-adv'];
+  const SHORT   = {'t-home':'Přehled', 't-hub':'Hub', 't-h2h':'H2H',
+                   't-prices':'Ceny', 't-adv':'Poradce'};
 
   const nav    = document.getElementById('mnav');
   const sheet  = document.getElementById('msheet');

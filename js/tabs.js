@@ -3324,11 +3324,25 @@ function buildMoved(){
 
 function buildSeason(){
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
-  const sorted = BOOT.elements
-    .filter(p => (p.cost_change_start || 0) !== 0)
-    .sort((a, b) => b.cost_change_start - a.cost_change_start);
-  const top = sorted.slice(0, 15);
-  const bot = sorted.slice(-15).reverse();
+
+  /* Dřív se bralo prvních a posledních patnáct z jednoho seřazeného
+     seznamu. Dokud se hýbalo míň než třicet cen, obě tabulky si sáhly
+     do stejné hromádky a v „růstu“ pak seděli hráči, kteří zlevnili —
+     jen proto, že klesli nejmíň.
+
+     Každá tabulka si proto filtruje po svém. Když hráčů není deset,
+     zbytek zůstane prázdný: prázdný řádek je poctivější než cizí. */
+  const TOP = 10;
+  const rostli = BOOT.elements
+    .filter(p => (p.cost_change_start || 0) > 0)
+    .sort((a, b) => b.cost_change_start - a.cost_change_start)
+    .slice(0, TOP);
+  const padali = BOOT.elements
+    .filter(p => (p.cost_change_start || 0) < 0)
+    .sort((a, b) => a.cost_change_start - b.cost_change_start)
+    .slice(0, TOP);
+
+  const prazdny = `<tr class="empty"><td colspan="4">—</td></tr>`;
 
   const tbl = list => `<table><thead><tr><th>Hráč</th><th class="n">Start</th>
       <th class="n">Teď</th><th class="n">Změna</th></tr></thead>
@@ -3341,15 +3355,15 @@ function buildSeason(){
         <td class="n">${(p.now_cost / 10).toFixed(1)}m</td>
         <td class="n ${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d.toFixed(1)}m</td>
       </tr>`;
-    }).join('')}</tbody></table>`;
+    }).join('') + prazdny.repeat(Math.max(0, TOP - list.length))}</tbody></table>`;
 
-  if(!sorted.length)
+  if(!rostli.length && !padali.length)
     return '<p class="note">Od začátku sezóny se zatím žádná cena nepohnula.</p>';
 
-  return `<h3>Největší růst</h3>${tbl(top)}
+  return `<h3>Největší růst</h3>${tbl(rostli)}
     <h3>Největší propad${info(`Růst hodnoty týmu je dlouhá hra: každé zdražení hráče,
       kterého držíš, ti přidá 0,1m do rozpočtu — ale při prodeji dostaneš
-      zpátky jen polovinu zisku.`)}</h3>${tbl(bot)}
+      zpátky jen polovinu zisku.`)}</h3>${tbl(padali)}
     `;
 }
 
