@@ -116,7 +116,7 @@
   </div>
 
   <div class="navbar">
-    <div class="wrap">
+    <div class="wrap navrow">
       <div class="nav" role="tablist" aria-label="Sekce aplikace">
       <button id="t-home" role="tab" aria-selected="true" aria-controls="p-home">Přehled</button>
       <button id="t-squad" role="tab" aria-selected="false" aria-controls="p-squad">Sestava</button>
@@ -141,6 +141,10 @@
       <button id="t-planner" role="tab" aria-selected="false" aria-controls="p-planner">Plánovač</button>
       -->
       </div>
+      <!-- Odkaz ven, ne záložka: proto <a> mimo role="tablist", jinak by
+           ho čtečka ohlašovala jako panel, který nikam nevede. -->
+      <a class="navout" id="fplLink" href="https://fantasy.premierleague.com/en/transfers"
+         target="_blank" rel="noopener noreferrer">Oficiální FPL<span aria-hidden="true">↗</span></a>
     </div>
   </div>
 

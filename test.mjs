@@ -4646,6 +4646,51 @@ check('otevření záložky vykreslí tabulku', () => sZranenymi(ps => {
   return 'panel stojí';
 }));
 
+
+check('každá živá záložka má na mobilu ikonu', () => {
+  /* Chybějící ikona se neprojeví chybou — dlaždice se prostě vykreslí
+     s prázdným svg. Proto to hlídá test, ne prohlížeč. */
+  const src = fs.readFileSync('js/mobile.js', 'utf8');
+  const bezIkony = w.eval('TABS').map(t => t[0])
+    .filter(tid => !new RegExp("'" + tid + "':").test(src));
+  if(bezIkony.length)
+    throw new Error('bez ikony: ' + bezIkony.join(', '));
+  return w.eval('TABS').length + ' ikon';
+});
+
+check('ikony vypnutých záložek v mobilu nestraší', () => {
+  const src = fs.readFileSync('js/mobile.js', 'utf8');
+  const zive = new Set(w.eval('TABS').map(t => t[0]));
+  const vypnute = ["'t-tr'", "'t-planner'"].filter(k =>
+    new RegExp(k + ':').test(src) && !zive.has(k.replace(/'/g, '')));
+  if(vypnute.includes("'t-tr'"))
+    throw new Error('ikona zrušených Transferů zůstala');
+  return 'uklizeno';
+});
+
+check('odkaz na oficiální FPL je odkaz, ne záložka', () => {
+  const a = w.document.getElementById('fplLink');
+  if(!a) throw new Error('odkaz v liště chybí');
+  if(a.tagName !== 'A') throw new Error('není to <a>: ' + a.tagName);
+  if(a.closest('[role="tablist"]'))
+    throw new Error('sedí uvnitř tablistu, čtečka ho ohlásí jako panel');
+  if(!/fantasy\.premierleague\.com/.test(a.href))
+    throw new Error('míří jinam: ' + a.href);
+  if(a.target !== '_blank' || !/noopener/.test(a.rel))
+    throw new Error('otevírá se nebezpečně nebo přes aktuální kartu');
+  return a.getAttribute('href');
+});
+
+check('na mobilu je odkaz v plachtě, ne v liště', () => {
+  const src = fs.readFileSync('js/mobile.js', 'utf8');
+  if(!/fantasy\.premierleague\.com/.test(src))
+    throw new Error('plachta odkaz nenabízí');
+  const css = fs.readFileSync('css/mobile.css', 'utf8');
+  if(!/\.navout\{display:none\}/.test(css))
+    throw new Error('odkaz by se na mobilu tlačil do lišty se záložkami');
+  return 'v sekci Jinde';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);
