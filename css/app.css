@@ -1518,3 +1518,7 @@ th[aria-sort="ascending"],th[aria-sort="descending"]{color:var(--ink)}
 .wsug button:last-child{border-bottom:0}
 .wsug button:hover,.wsug button[aria-selected="true"]{background:var(--line)}
 .wsug button span{font-family:var(--f-mono);font-size:10.5px;color:var(--mute)}
+
+/* Dokud se nepohnulo deset cen, tabulky sezónních pohybů se dopisují
+   prázdnými řádky — ať výška nepodskakuje s každou změnou cen. */
+tr.empty td{color:var(--line);text-align:center;font-family:var(--f-mono)}
