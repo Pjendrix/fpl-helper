@@ -183,10 +183,66 @@ function h2hParticipants(gw){
   return ucastnici.sort((a, b) => a.m.entry - b.m.entry);
 }
 
+/* ------------------------------------------------------------
+   Živé body kola
+
+   Historie i pořadí ligy se u běžícího kola aktualizují se zpožděním —
+   dokud FPL kolo nedopočítá, obojí klidně tvrdí nulu. Panel pak během
+   sobotního odpoledne ukazoval samé 0:0, což je horší než chybějící
+   údaj: vypadá to jako výsledek.
+
+   Endpoint event/{gw}/live/ dává body jednotlivých hráčů okamžitě, tak
+   se skóre skládá z něj a ze sestav, které hub načítá tak jako tak.
+   Do tabulky to nesahá — ta pořád počítá jen kola ve stavu `final`.
+   ------------------------------------------------------------ */
+let H2H_LIVE = null;      // {gw, pts: Map, ts}
+let H2H_TIMER = null;
+
+async function h2hEnsureLive(){
+  if(!HUB || !HUB.cur) return;
+  const gw = HUB.cur.id;
+  if(gwPhase(gw) === 'final'){ H2H_LIVE = null; return; }
+
+  // Během kola se čísla mění po každém zápase, takže cache appky tady
+  // nestačí — po minutě se ptáme znovu.
+  if(H2H_LIVE && H2H_LIVE.gw === gw && Date.now() - H2H_LIVE.ts < 60000) return;
+
+  try{
+    const live = await api('event/' + gw + '/live/');
+    H2H_LIVE = {
+      gw,
+      pts: new Map((live.elements || []).map(e =>
+        [e.id, (e.stats && e.stats.total_points) || 0])),
+      ts: Date.now(),
+    };
+  }catch(e){
+    // Živé body jsou vylepšení, ne podmínka. Bez nich se propadneme
+    // na historii jako dřív.
+    console.warn('H2H: živé body se nepodařilo načíst', e);
+  }
+}
+
+function h2hLiveScore(i, gw){
+  if(!H2H_LIVE || H2H_LIVE.gw !== gw) return null;
+  const pk = HUB.picks && HUB.picks[i];
+  if(!pk || !pk.picks) return null;
+
+  let sum = 0;
+  for(const p of pk.picks){
+    if(p.multiplier <= 0) continue;
+    sum += (H2H_LIVE.pts.get(p.element) || 0) * p.multiplier;
+  }
+  return sum - ((pk.entry_history && pk.entry_history.event_transfers_cost) || 0);
+}
+
 /* Body do zápasu. Odečítám pokutu za přestupy — H2H bez toho odmění
    toho, kdo si vzal tři mínusy, stejně jako toho, kdo si je nevzal.
    Nativní H2H ve FPL to počítá stejně. */
 function h2hScore(i, gw){
+  // Běžící kolo má přednost před historií — ta je do dopočtu nespolehlivá.
+  const zive = h2hLiveScore(i, gw);
+  if(zive !== null) return zive;
+
   const h = HUB.hists[i];
   const ev = h && h.current && h.current.find(e => h2hRound(e) === gw);
   if(ev) return (ev.points || 0) - (ev.event_transfers_cost || 0);
@@ -445,6 +501,16 @@ const H2H_STAV = {
   final: ['ok', 'konečné'],
 };
 
+/* Začalo už kolo?
+
+   Nestačí se ptát historie: ta se u běžícího kola plní se zpožděním,
+   takže první sobotní zápas by ještě běžel „vs“. Rozpis to ví hned —
+   jakmile má kolo rozehraný zápas, hraje se. */
+function h2hZacalo(gw){
+  if(gw <= h2hLastPlayed()) return true;
+  return Array.isArray(FIX) && FIX.some(f => f.event === gw && f.started);
+}
+
 function h2hVysledek(f){
   if(f.sa === null || f.sb === null) return {cls: '', txt: '–'};
   if(f.sa > f.sb) return {cls: 'w', txt: 'výhra'};
@@ -452,8 +518,12 @@ function h2hVysledek(f){
   return {cls: 'd', txt: 'remíza'};
 }
 
-function h2hJmeno(x){
-  return x ? esc(x.m.player_name) : 'Duch kola';
+/* Jméno manažera je odkaz na jeho sestavu — pro duchy kola pochopitelně
+   ne, ten žádnou nemá. Bez `gw` (box na Přehledu) zůstává obyčejný text. */
+function h2hJmeno(x, gw){
+  if(!x) return 'Duch kola';
+  if(gw == null || typeof squadBtn !== 'function') return esc(x.m.player_name);
+  return squadBtn(x.m.entry, gw, x.m.player_name, x.m.entry_name);
 }
 function h2hTym(x){
   return x ? esc(x.m.entry_name) : 'průměr ostatních';
@@ -461,16 +531,16 @@ function h2hTym(x){
 
 function h2hCard(f, gw, velka){
   const v = h2hVysledek(f);
-  const zacalo = gw <= h2hLastPlayed();
+  const zacalo = h2hZacalo(gw);
   return `<div class="h2hm${velka ? ' big' : ''} ${v.cls}">
     <div class="side">
-      <b>${h2hJmeno(f.a)}</b><em>${h2hTym(f.a)}</em>
+      <b>${h2hJmeno(f.a, gw)}</b><em>${h2hTym(f.a)}</em>
     </div>
     <div class="sc">${zacalo
       ? `<span>${f.sa ?? '–'}</span><i>:</i><span>${f.sb ?? '–'}</span>`
       : '<u>vs</u>'}</div>
     <div class="side r">
-      <b>${h2hJmeno(f.b)}${f.ghost ? '<span class="badge">duch</span>' : ''}</b>
+      <b>${h2hJmeno(f.b, gw)}${f.ghost ? '<span class="badge">duch</span>' : ''}</b>
       <em>${h2hTym(f.b)}</em>
     </div>
   </div>`;
@@ -497,7 +567,7 @@ function h2hPanel(){
     ? H2H_GW : (prvni != null ? prvni : gws[gws.length - 1]);
   const round = h2hSeason().find(r => r.gw === sel);
   const zapasy = round ? h2hFixtures(round) : [];
-  const zacalo = sel <= h2hLastPlayed();
+  const zacalo = h2hZacalo(sel);
   const [cls, stav] = zacalo ? H2H_STAV[gwPhase(sel)] : ['', 'ještě nezačalo'];
 
   const prepinac = `<div class="gwnav" role="tablist" aria-label="Kolo H2H">
@@ -548,7 +618,8 @@ function h2hPanel(){
         <th class="n">Body</th></tr></thead>
       <tbody>${t.map((r, i) => `<tr class="${r.m.entry === ENTRY_ID ? 'me' : ''}">
         <td class="n">${i + 1}</td>
-        <td><b>${esc(r.m.entry_name)}</b><u>${esc(r.m.player_name)}</u></td>
+        <td><b>${squadBtn(r.m.entry, sel, r.m.entry_name, r.m.player_name)}</b>
+          <u>${esc(r.m.player_name)}</u></td>
         <td class="n">${r.z}</td><td class="n">${r.v}</td>
         <td class="n">${r.r}</td><td class="n">${r.p}</td>
         <td class="n">${r.pro}:${r.proti}</td>
@@ -607,6 +678,7 @@ async function loadH2H(){
   /* Zamrazená kola se načtou před vykreslením, jinak by panel na chvíli
      ukázal přepočtené dvojice a pak je pod rukama vyměnil. */
   await h2hLoadFrozen(lid);
+  await h2hEnsureLive();
 
   /* Kdyby vykreslení spadlo, prázdný panel neřekne nic — a „nevidím
      nic“ se pak hledá půl hodiny. Radši ať je vidět, co se stalo. */
@@ -619,6 +691,24 @@ async function loadH2H(){
 
   // Zamrazení až po vykreslení: je to úklid, ne podmínka zobrazení.
   h2hFreezeDone(lid);
+  h2hAutoRefresh();
+}
+
+/* Během běžícího kola se skóre samo obnovuje. Timer se zakládá jen jeden
+   a končí ve chvíli, kdy záložka není vidět nebo je kolo dopočítané —
+   jinak by appka na pozadí donekonečna tahala data, na která se nikdo
+   nedívá. */
+function h2hAutoRefresh(){
+  if(H2H_TIMER) return;
+  H2H_TIMER = setInterval(async () => {
+    const panel = $('p-h2h');
+    if(!panel || panel.hidden || document.hidden) return;
+    if(!HUB || !HUB.cur || gwPhase(HUB.cur.id) === 'final'){
+      clearInterval(H2H_TIMER); H2H_TIMER = null; return;
+    }
+    await h2hEnsureLive();
+    try{ renderH2H(); }catch(e){ console.error('H2H:', e); }
+  }, 60000);
 }
 
 document.addEventListener('click', ev => {
@@ -652,7 +742,7 @@ function homeH2H(){
   const f = h2hOrient(h2hMyFixture(gw, ENTRY_ID), ENTRY_ID);
   if(!f) return box('<p class="note">V tomhle kole tvůj tým v lize není.</p>');
 
-  const zacalo = gw <= h2hLastPlayed();
+  const zacalo = h2hZacalo(gw);
   const v = h2hVysledek(f);
   return box(`<div class="hrow h2hrow ${v.cls}">
       <b>${h2hJmeno(f.b)}${f.ghost ? '<span class="badge">duch</span>' : ''}</b>

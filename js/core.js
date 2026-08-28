@@ -1664,7 +1664,7 @@ async function renderLive(members, picks, cur, myId){
 
   const body = rows.map((r, i) => `<tr${r.entry === myId ? ' class="me"' : ''}>
       <td>${i + 1}</td>
-      <td>${esc(r.team)}<span class="sub">${esc(r.name)}</span></td>
+      <td>${squadBtn(r.entry, cur.id, r.team, r.name)}<span class="sub">${esc(r.name)}</span></td>
       <td>${esc(r.cap)}</td>
       <td>${r.toPlay ? r.toPlay : '–'}</td>
       <td><b>${r.gw}</b>${r.cost ? `<span class="sub">−${r.cost} za přestupy</span>` : ''}</td>
