@@ -110,7 +110,7 @@ const CSS_TAGS = [
 ];
 const SRC = [fs.readFileSync('index.html', 'utf8')]
   .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
-  .concat(['js/core.js','js/tabs.js','js/h2h.js','js/news.js','js/advisor.js','js/ui.js','js/planner.js','js/sync.js',
+  .concat(['js/core.js','js/tabs.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js','js/ui.js','js/planner.js','js/sync.js',
            'js/mobile.js','js/boot.js','js/firebase.js']
     .map(f => fs.readFileSync(f, 'utf8')))
   .join('\n');
@@ -3380,6 +3380,142 @@ check('bez přihlášení H2H funguje dál', () => {
   if(!rounds.length || !rounds[0].matches.length)
     throw new Error('bez zámku nic nevylosuje');
   return rounds.length + ' kol';
+});
+
+/* ---- živé skóre a okno se sestavou ---- */
+
+check('živé kolo se počítá ze sestav, ne z historie', () => {
+  /* Historie i pořadí ligy se u běžícího kola plní se zpožděním, takže
+     panel ukazoval 0:0 uprostřed sobotního odpoledne. Body hráčů ale
+     chodí okamžitě — skóre se skládá z nich. */
+  h2hSetup(8);
+  w.eval(`HUB.cur = {id: 9};
+    HUB.picks = HUB.members.map((m, i) => ({
+      picks: [{element: 1, multiplier: i === 0 ? 2 : 1},
+              {element: 2, multiplier: 1},
+              {element: 3, multiplier: 0}],
+      entry_history: {event_transfers_cost: i === 1 ? 4 : 0},
+    }));
+    H2H_LIVE = {gw: 9, ts: Date.now(),
+      pts: new Map([[1, 6], [2, 3], [3, 20]])};`);
+
+  const a = w.eval('h2hScore(0, 9)');   // 6×2 + 3 = 15
+  const b = w.eval('h2hScore(1, 9)');   // 6 + 3 − 4 = 5
+  if(a !== 15) throw new Error('kapitán se nezdvojnásobil: ' + a);
+  if(b !== 5) throw new Error('pokuta za přestupy se neodečetla: ' + b);
+  const c = w.eval('h2hScore(0, 1)');   // starší kolo pořád z historie
+  if(c === 15) throw new Error('živé body přebily dohrané kolo');
+  w.eval('H2H_LIVE = null');
+  return a + ' : ' + b;
+});
+
+check('lavička se do živého skóre nepočítá', () => {
+  h2hSetup(8);
+  w.eval(`HUB.cur = {id: 9};
+    HUB.picks = HUB.members.map(() => ({
+      picks: [{element: 1, multiplier: 1}, {element: 3, multiplier: 0}],
+      entry_history: {event_transfers_cost: 0},
+    }));
+    H2H_LIVE = {gw: 9, ts: Date.now(), pts: new Map([[1, 6], [3, 20]])};`);
+  const v = w.eval('h2hScore(0, 9)');
+  w.eval('H2H_LIVE = null');
+  if(v !== 6) throw new Error('do součtu se dostala lavička: ' + v);
+  return '6 bodů, lavička stranou';
+});
+
+check('rozehrané kolo ukáže skóre, ne „vs“', () => {
+  // Rozpis ví o prvním výkopu hned, historie až po dopočtu.
+  h2hSetup(8);
+  const puv = w.eval('FIX');
+  w.__fx = [{event: 42, started: true, stats: []}];
+  w.eval('FIX = window.__fx');
+  const ano = w.eval('h2hZacalo(42)');
+  const ne = w.eval('h2hZacalo(43)');
+  w.__fx = puv; w.eval('FIX = window.__fx');
+  if(!ano) throw new Error('rozehrané kolo se tváří jako nezačaté');
+  if(ne) throw new Error('nezačaté kolo se tváří jako rozehrané');
+  return 'GW42 běží, GW43 ne';
+});
+
+check('živé body se obnovují, ale jen když je na ně vidět', () => {
+  const src = fs.readFileSync('js/h2h.js', 'utf8');
+  if(!/setInterval/.test(src)) throw new Error('skóre se samo neobnovuje');
+  if(!/panel\.hidden \|\| document\.hidden/.test(src))
+    throw new Error('timer běží i nad skrytou záložkou');
+  if(!/clearInterval/.test(src)) throw new Error('timer se nikdy nezastaví');
+  return 'obnova po minutě, na pozadí stojí';
+});
+
+check('jméno v H2H otevírá sestavu, duch kola ne', () => {
+  h2hSetup(8);
+  const html = w.eval('h2hPanel()');
+  if(!/data-squad="\d+"/.test(html)) throw new Error('jména nejsou klikatelná');
+  if(!/data-sqgw="\d+"/.test(html)) throw new Error('chybí kolo u odkazu');
+  const duch = w.eval('h2hJmeno(null, 5)');
+  if(/data-squad/.test(duch)) throw new Error('duch kola nemá sestavu');
+  return 'manažeři ano, duch ne';
+});
+
+check('box na Přehledu zůstává textem, ne odkazem', () => {
+  // Na Přehledu je to jedna věta, ne seznam — tlačítko by tam rušilo.
+  h2hSetup(8);
+  const bez = w.eval('h2hJmeno({m: HUB.members[0]})');
+  if(/data-squad/.test(bez)) throw new Error('bez kola se udělal odkaz');
+  return 'prostý text';
+});
+
+check('okno se sestavou je v DOM a má jeden zavírací mechanismus', () => {
+  const m = w.document.getElementById('sqmodal');
+  if(!m) throw new Error('okno v index.html chybí');
+  if(!m.hidden) throw new Error('okno je vidět hned po načtení');
+  if(!m.querySelector('[role="dialog"][aria-modal="true"]'))
+    throw new Error('okno není modální pro čtečku');
+  if(m.querySelectorAll('[data-sqclose]').length < 2)
+    throw new Error('scrim ani křížek nezavírají');
+  return 'skryté, modální, zavíratelné';
+});
+
+check('sestava se skládá ze základu, lavičky a součtu', () => {
+  w.eval(`SQ_SEQ = 0`);
+  const pk = {
+    active_chip: 'bboost',
+    entry_history: {event_transfers_cost: 4},
+    picks: [
+      {element: 1, position: 1, multiplier: 1},
+      {element: 2, position: 2, multiplier: 2, is_captain: true},
+      {element: 3, position: 12, multiplier: 1},
+    ],
+  };
+  w.__pk = pk;
+  w.eval(`window.__live = {gw: 7,
+    pts: new Map([[1, 2], [2, 9], [3, 30]]),
+    mins: new Map([[1, 90], [2, 90], [3, 0]])}`);
+  const html = w.eval('sqBody(window.__pk, window.__live, 7)');
+  // 2 + 9×2 − 4 = 16; lavička (30) mimo součet
+  if(!/>16<\/?/.test(html.replace(/\s+/g, '')) && !/16<span>bodů v GW7/.test(html.replace(/\s+/g, '')))
+    throw new Error('součet kola nesedí');
+  if(!/Bench Boost/.test(html)) throw new Error('čip se neukázal');
+  if(!/Lavička/.test(html)) throw new Error('chybí lavička');
+  if(!/−4 za přestupy/.test(html)) throw new Error('chybí pokuta');
+  return 'základ + lavička + součet';
+});
+
+check('okno se sestavou má mobilní podobu', () => {
+  const mob = fs.readFileSync('css/mobile.css', 'utf8');
+  if(!/\.sqm \.card/.test(mob)) throw new Error('na mobilu zůstalo desktopové okno');
+  if(!/border-radius:22px 22px 0 0/.test(mob))
+    throw new Error('není z toho spodní plachta');
+  return 'plachta zezdola';
+});
+
+check('squad.js je v HTML, v service workeru i před h2h.js', () => {
+  const html = fs.readFileSync('index.html', 'utf8');
+  const sw = fs.readFileSync('sw.js', 'utf8');
+  if(!/js\/squad\.js/.test(sw)) throw new Error('offline by okno chybělo');
+  const iSq = html.indexOf('/js/squad.js'), iH2 = html.indexOf('/js/h2h.js');
+  if(iSq < 0 || iH2 < 0) throw new Error('skript se nenačítá');
+  if(iSq > iH2) throw new Error('squadBtn se definuje až po h2h.js');
+  return 'pořadí sedí';
 });
 
 check('H2H má vlastní záložku i box na Přehledu', () => {

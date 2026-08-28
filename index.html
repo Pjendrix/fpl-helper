@@ -248,6 +248,23 @@
 </div>
 
 <!-- ============================================================
+     SESTAVA V OKNĚ
+
+     Jedno okno pro celou appku: kdekoli je klikatelné jméno manažera,
+     otevře se sem jeho sestava. Markup je tady, protože je společný pro
+     všechny záložky a nemá smysl ho skládat v JS při každém otevření.
+     ============================================================ -->
+<div id="sqmodal" class="sqm" hidden>
+  <div class="scrim" data-sqclose></div>
+  <div class="card" role="dialog" aria-modal="true" aria-labelledby="sqmTitle">
+    <button type="button" class="x" data-sqclose aria-label="Zavřít">×</button>
+    <div class="grip" data-sqclose></div>
+    <h3 id="sqmTitle"></h3>
+    <div id="sqmBody"></div>
+  </div>
+</div>
+
+<!-- ============================================================
      FIREBASE
 
      Načítá se jako ESM modul přímo z gstatic CDN — žádný bundler,
@@ -269,6 +286,7 @@
      selectTab a čte TABS. -->
 <script src="/js/core.js"></script>
 <script src="/js/tabs.js"></script>
+<script src="/js/squad.js"></script>
 <script src="/js/h2h.js"></script>
 <script src="/js/advisor.js"></script>
 <script src="/js/news.js"></script>
