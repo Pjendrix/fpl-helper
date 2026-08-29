@@ -313,9 +313,13 @@ function enterApp(entryId, leagueId){
   // vzápětí přepíše na název týmu a iniciály přes setWhoName().
   $('whoName').textContent = '#' + entryId;
   // V režimu jedné ligy má smysl mít v hlavičce její název, ne obecný nadpis.
-  if(CONFIG.leagueName){
-    const bt = $('brandTop');
-    if(bt) bt.textContent = CONFIG.leagueName.toUpperCase();
+  const bt = $('brandTop');
+  if(bt && CONFIG.leagueName){
+    bt.textContent = CONFIG.leagueName;
+    // Dlouhý název se sází menším písmem, aby se vešel do dvou řádků
+    // vedle segmentu; krátký zůstane velký.
+    bt.classList.toggle('long', CONFIG.leagueName.length > 18);
+    bt.title = CONFIG.leagueName + ' · Squad Check';
   }
 
   // ligové záložky nedávají smysl bez ID ligy
