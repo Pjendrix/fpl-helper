@@ -1413,11 +1413,19 @@ check('proxy se nehlásí botím User-Agentem', () => {
   return 'hlavičky prohlížeče';
 });
 
-check('proxy zkusí 403 ještě jednou', () => {
+check('proxy zkusí odmítnutí ještě jednou', () => {
   const js = fs.readFileSync('api/fpl.js', 'utf8');
   if(!js.includes('fetchUpstream')) throw new Error('chybí opakování');
-  if(!/status !== 403/.test(js)) throw new Error('403 se neopakuje');
-  return 'dva pokusy';
+
+  /* Tenhle test dřív trval na `status !== 403`. Držel tím ale jen půlku
+     pravdy: opakovat se má každé odmítnutí od Cloudflare, a to chodí i
+     pod 404. Test psaný na jedno číslo tu změnu neodhalil — prošel by
+     i ve chvíli, kdy appka kvůli tomu nenačte ani jedno kolo. */
+  if(!js.includes('function jeBlok'))
+    throw new Error('chybí rozpoznání bloku podle tvaru odpovědi');
+  if(!/!jeBlok\(upstream\)/.test(js))
+    throw new Error('opakování se neřídí jeBlok');
+  return 'tři pokusy podle tvaru odpovědi';
 });
 
 check('při chybě smí edge pustit stará data', () => {
@@ -5671,6 +5679,46 @@ check('histcache.js je v service workeru i v index.html', () => {
   if(html.indexOf('/js/histcache.js') < html.indexOf('/js/tabs.js'))
     throw new Error('histcache.js se načítá dřív než tabs.js');
   return 'ok';
+});
+
+
+check('blok od Cloudflare se pozná podle tvaru, ne podle čísla', () => {
+  const src = fs.readFileSync('api/fpl.js', 'utf8');
+  const fn = src.slice(src.indexOf('function jeBlok'), src.indexOf('async function fetchUpstream'));
+
+  /* Cloudflare odmítal pod 404 a stupňované pokusy s cookies ani
+     objížďka přes Worker se nespustily, protože se čekalo na 403.
+     Poctivá chyba od FPL chodí jako JSON — podle toho se to pozná. */
+  if(!/ctype\.includes\("json"\)/.test(fn))
+    throw new Error('jeBlok nerozlišuje JSON od HTML stránky');
+  if(!/server\.includes\("cloudflare"\)/.test(fn))
+    throw new Error('jeBlok se nedívá na hlavičku server');
+
+  const retry = src.slice(src.indexOf('async function fetchUpstream'),
+                          src.indexOf('async function presWorker'));
+  if(/status !== 403/.test(retry))
+    throw new Error('opakování se pořád řídí statusem 403');
+  if((retry.match(/!jeBlok\(upstream\)/g) || []).length !== 3)
+    throw new Error('všechny tři stupně musí používat jeBlok');
+
+  // Objížďka přes Worker je poslední záchrana — musí být za posledním stupněm.
+  if(!/presWorker\(path\)/.test(retry))
+    throw new Error('po vyčerpání pokusů se nejde přes Worker');
+  return 'podle obsahu';
+});
+
+check('náhodná chyba shodí kolo až po opakování', () => {
+  const src = fs.readFileSync('js/core.js', 'utf8');
+  const fn = src.slice(src.indexOf('async function api(p'), src.indexOf('let API_LAST'));
+
+  /* Ceny i zprávy potřebují všech jedenáct dotazů najednou, takže jeden
+     zákmit shodí celé kolo. Opakovat se musí i 403 a 404 — pod nimi
+     Cloudflare odmítá — ale ne odmítnutí od naší vlastní proxy. */
+  if(!/r\.status === 404/.test(fn)) throw new Error('404 se nezkouší znovu');
+  if(!/r\.status >= 500/.test(fn)) throw new Error('chyby serveru se nezkouší znovu');
+  if(!/naseOdmitnuti/.test(fn))
+    throw new Error('nepovolená cesta by se zkoušela dokola');
+  return 'opakuje se';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
