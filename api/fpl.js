@@ -170,21 +170,39 @@ async function fetchUpstream(path) {
 
 // Objížďka přes Cloudflare Worker (worker.js). Vrací null, když není
 // nastavená - appka pak běží jako dřív a spadne na původní chybu.
+/* Proč objížďka nevyšla. Vracet jen `null` byl omyl: nenastavená
+   proměnná, rozejité tokeny a nedostupný Worker vypadaly navenek
+   úplně stejně, takže se v odpovědi objevilo `via: "vercel"` a nedalo
+   se poznat, kterou ze tří věcí spravit. */
+let WORKER_LAST = null;
+
 async function presWorker(path) {
   const url = process.env.FPL_WORKER_URL;
   const token = process.env.FPL_WORKER_TOKEN;
-  if (!url || !token) return null;
+  if (!url || !token) {
+    WORKER_LAST = "chybi promenne";
+    return null;
+  }
 
   try {
     const r = await fetch(
       `${url.replace(/\/$/, "")}/?path=${encodeURIComponent(path)}`,
       { headers: { "x-proxy-token": token }, cache: "no-store" }
     );
+
     // 401 znamená rozejité tokeny mezi Vercelem a Workerem. Vracet to
     // dál by vypadalo jako chyba FPL a hledalo by se to na špatném
-    // místě, takže radši původní 403.
-    return r.status === 401 ? null : r;
+    // místě, takže radši původní blok — ale ať je aspoň vidět proč.
+    if (r.status === 401) {
+      WORKER_LAST = "401 - token ve Vercelu nesedi s PROXY_TOKEN ve Workeru";
+      return null;
+    }
+
+    WORKER_LAST = `worker odpovedel ${r.status}`;
+    return r;
   } catch (e) {
+    // Nejčastěji špatná adresa nebo Worker, který vůbec neběží.
+    WORKER_LAST = `worker nedostupny: ${String(e && e.message || e).slice(0, 120)}`;
     return null;
   }
 }
@@ -293,6 +311,7 @@ export default async function handler(req, res) {
         // nebo neni nastavena. Bez toho jsou obe situace k nerozeznani.
         via: upstream.headers.get("x-via") || "vercel",
         upstreamServer: upstream.headers.get("x-upstream-server") || null,
+        workerLast: WORKER_LAST,
         workerUrl: process.env.FPL_WORKER_URL ? "nastaveno" : "chybi",
         workerToken: process.env.FPL_WORKER_TOKEN ? "nastaveno" : "chybi",
         snippet: (await upstream.text().catch(() => "")).slice(0, 300),
