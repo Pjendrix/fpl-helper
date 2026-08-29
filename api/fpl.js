@@ -222,6 +222,21 @@ export default async function handler(req, res) {
     }
 
     if (!upstream.ok) {
+      // Edge cache smi pri chybe pustit starou odpoved. Bez tohohle
+      // znamena kazdy vypadek FPL prazdnou stranku, i kdyz je na edge
+      // odpoved z pred deseti minut, ktera by poslouzila.
+      //
+      // stale-if-error rekne CDN: kdyz origin vrati chybu, servisni
+      // posledni znamou verzi az 24 hodin. Plati jen pro data, ktera
+      // mezi koly stoji - ziva cisla kola se tim krotit nesmi, protoze
+      // stara cisla vydavana za aktualni jsou horsi nez poctiva chyba.
+      if (!/^event\/\d+\/live\/$/.test(path)) {
+        res.setHeader(
+          "Cache-Control",
+          "public, s-maxage=0, stale-if-error=86400, stale-while-revalidate=600"
+        );
+      }
+
       // Plny rozpis ma zalozni cestu - viz fixturesByEvent().
       if (upstream.status === 403 && path === "fixtures/") {
         const slozeno = await fixturesByEvent();
