@@ -117,7 +117,26 @@ async function getCookies(force) {
   return COOKIE_JAR;
 }
 
-// Cloudflare vraci 403 nahodne i systematicky. Postup je proto
+/* Je tahle odpověď blok od Cloudflare?
+
+   Dřív se to poznávalo podle `status === 403`. To přestalo platit:
+   Cloudflare odmítá i pod 404, a od "ten endpoint neexistuje" to jde
+   rozeznat jen podle tvaru odpovědi. Následek byl tichý a nepříjemný —
+   cookies ani objížďka přes Worker se vůbec nespustily, protože se
+   čekalo na jiné číslo.
+
+   Rozhoduje proto obsah, ne status: FPL API vrací i chyby jako JSON,
+   kdežto Cloudflare posílá HTML stránku a hlásí se v `server`. Číslo,
+   které si k tomu vybere, je jeho věc a může ho zítra změnit zas. */
+function jeBlok(res) {
+  if (res.ok) return false;
+  const ctype = res.headers.get("content-type") || "";
+  if (ctype.includes("json")) return false;   // poctivá chyba od FPL
+  const server = (res.headers.get("server") || "").toLowerCase();
+  return res.status === 403 || server.includes("cloudflare");
+}
+
+// Cloudflare blokuje nahodne i systematicky. Postup je proto
 // stupnovity: cisty dotaz, pak dotaz s cookie, pak dotaz s cerstvou
 // cookie. Kdyz neprojde ani treti, je blok skutecny a nema smysl
 // bombardovat dal.
@@ -131,19 +150,20 @@ async function fetchUpstream(path) {
     });
 
   let upstream = await pokus(COOKIE_JAR);
-  if (upstream.status !== 403) return upstream;
+  if (!jeBlok(upstream)) return upstream;
 
   await new Promise((r) => setTimeout(r, 350));
   upstream = await pokus(await getCookies(false));
-  if (upstream.status !== 403) return upstream;
+  if (!jeBlok(upstream)) return upstream;
 
   await new Promise((r) => setTimeout(r, 700));
   upstream = await pokus(await getCookies(true));
-  if (upstream.status !== 403) return upstream;
+  if (!jeBlok(upstream)) return upstream;
 
   // Ani třetí pokus neprošel - blok tedy není náhodný a je na IP, ne na
   // chování. Cookies ani hlavičky s tím nehnou, protože nás FPL odmítá
-  // dřív, než se na ně podívá. Poslední možnost je jít odjinud.
+  // dřív, než se na ně podívá. Poslední možnost je jít odjinud:
+  // Worker běží na cizí IP, kterou Cloudflare nemá proč odmítat.
   const pres = await presWorker(path);
   return pres || upstream;
 }
@@ -238,7 +258,9 @@ export default async function handler(req, res) {
       }
 
       // Plny rozpis ma zalozni cestu - viz fixturesByEvent().
-      if (upstream.status === 403 && path === "fixtures/") {
+      // Podminka je zamerne stejna jako v fetchUpstream: kdyz se blok
+      // pozna podle tvaru tam, nesmi se tady vracet zpatky ke statusu.
+      if (jeBlok(upstream) && path === "fixtures/") {
         const slozeno = await fixturesByEvent();
         if (slozeno) {
           res.setHeader(
