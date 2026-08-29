@@ -118,6 +118,10 @@
       '<div class="mgrid">' +
         actionBtn('theme',   'Tmavý režim',   '<path d="M20 14.4A8.4 8.4 0 0 1 9.6 4 8.4 8.4 0 1 0 20 14.4z"/>') +
         actionBtn('reload',  'Načíst znovu',  '<path d="M20 5.6v5h-5"/><path d="M19.3 14a7.6 7.6 0 1 1-1.5-7"/>') +
+        /* Jediná cesta z mobilní verze zpátky na desktopovou. Dřív byla
+           v liště, ale do hlavičky s názvem ligy se nevejde — a schované
+           tlačítko, které nikde jinde není, znamená past. */
+        actionBtn('viewmode', 'Přepnout zobrazení', '<path d="M4 8.4h16"/><path d="M7.6 4.8 4 8.4l3.6 3.6"/><path d="M20 15.6H4"/><path d="M16.4 12 20 15.6 16.4 19.2"/>') +
         actionBtn('gauth',   'Přihlásit',     '<path d="M15.2 20v-1.8a3.6 3.6 0 0 0-3.6-3.6H7.2A3.6 3.6 0 0 0 3.6 18.2V20"/><path d="M9.4 11.2a3.6 3.6 0 1 0 0-7.2 3.6 3.6 0 0 0 0 7.2z"/><path d="M17.6 8.4h4"/>') +
         actionBtn('logout',  'Změnit ID',     '<path d="M9.6 20H5.2A1.6 1.6 0 0 1 3.6 18.4V5.6A1.6 1.6 0 0 1 5.2 4h4.4"/><path d="M15.6 16.4 20 12l-4.4-4.4"/><path d="M20 12H9.6"/>') +
       '</div>';
