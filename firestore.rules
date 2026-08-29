@@ -32,5 +32,23 @@ service cloud.firestore {
         && request.resource.data.gw is int;
       // Žádné update ani delete: zamrazené je zamrazené.
     }
+
+    /* Archiv dohraných kol. Táž úvaha jako u h2h: sdílené v rámci ligy,
+       zapisovatelné právě jednou. Dohrané kolo se nemění, takže jediný,
+       komu by `update` k něčemu byl, je ten, kdo chce historii ligy
+       přepsat.
+
+       Kontrolujeme tvar, ne obsah — ověřit, že sestavy odpovídají FPL,
+       by šlo jen dalším dotazem na FPL, což pravidla neumějí. */
+    match /leagues/{lid}/gw/{gw} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll(['v', 'gw', 'picks', 'live'])
+        && request.resource.data.gw is int
+        && request.resource.data.v is int
+        && request.resource.data.live is string
+        && request.resource.data.picks is map
+        && request.resource.data.picks.size() > 0;
+    }
   }
 }

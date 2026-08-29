@@ -110,7 +110,7 @@ const CSS_TAGS = [
 ];
 const SRC = [fs.readFileSync('index.html', 'utf8')]
   .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
-  .concat(['js/core.js','js/tabs.js','js/status.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js','js/ui.js','js/planner.js','js/sync.js','js/topbar.js',
+  .concat(['js/core.js','js/tabs.js','js/status.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js','js/histcache.js','js/ui.js','js/planner.js','js/sync.js','js/topbar.js',
            'js/mobile.js','js/boot.js','js/firebase.js']
     .map(f => fs.readFileSync(f, 'utf8')))
   .join('\n');
@@ -4430,8 +4430,18 @@ check('zápisy jdou přes lsSet, ne přímo do localStorage', () => {
   const vrstva = app.slice(app.indexOf('const SYNC_PREFIX'),
                            app.indexOf('function setSyncStatus'));
   const uvnitr = [...vrstva.matchAll(/localStorage\.(setItem|removeItem)\(/g)].length;
-  if(primo.length > uvnitr)
-    throw new Error((primo.length - uvnitr) + ' zápisů obchází lsSet');
+
+  /* Archiv dohraných kol je druhá výjimka. Není to nastavení uživatele,
+     ale cache ligy: klíče nemají prefix `fpl_`, patří lize a ne účtu,
+     a nahrát stovky kilobajtů sestav do synchronizovaného dokumentu
+     s watchlistem by bylo prostě špatně. Proto sahá na localStorage
+     přímo — a proto se sem nesmí dostat nic dalšího. */
+  const archiv = app.slice(app.indexOf('function snapLocalRead'),
+                           app.indexOf('let SNAP_CLOUD'));
+  const vArchivu = [...archiv.matchAll(/localStorage\.(setItem|removeItem)\(/g)].length;
+
+  if(primo.length > uvnitr + vArchivu)
+    throw new Error((primo.length - uvnitr - vArchivu) + ' zápisů obchází lsSet');
   return 'všechny zápisy hlásí změnu';
 });
 
@@ -5558,6 +5568,109 @@ check('obě tabulky mají strop deset hráčů', () => {
   if(radky !== 22)
     throw new Error('řádků je ' + radky + ', čekal jsem 2 hlavičky + 2×10');
   return '10 + 10';
+});
+
+
+/* ---------- archiv dohraných kol ---------- */
+
+check('snímek kola přežije zabalení a rozbalení', () => {
+  const members = [{entry: 11}, {entry: 22}];
+  const picks = [
+    {active_chip: 'bboost', entry_history: {event_transfers_cost: 4, points: 61},
+     picks: [{element: 5, position: 1, multiplier: 1, is_captain: false, is_vice_captain: false},
+             {element: 9, position: 2, multiplier: 3, is_captain: true, is_vice_captain: false},
+             {element: 7, position: 3, multiplier: 1, is_captain: false, is_vice_captain: true}]},
+    {active_chip: null, entry_history: {event_transfers_cost: 0, points: 44},
+     picks: [{element: 5, position: 1, multiplier: 2, is_captain: true, is_vice_captain: false}]},
+  ];
+  const live = {elements: [{id: 5, stats: {total_points: 12, minutes: 90}},
+                           {id: 9, stats: {total_points: 0, minutes: 0}},
+                           {id: 7, stats: {total_points: 2, minutes: 0}}]};
+
+  w.__m = members; w.__p = picks; w.__l = live;
+  const back = w.eval(`(() => {
+    const snap = packSnap(3, window.__m, window.__p, window.__l);
+    return {snap, u: unpackSnap(snap, window.__m)};
+  })()`);
+
+  const a = back.u.picks[0];
+  if(a.active_chip !== 'bboost') throw new Error('ztratil se čip');
+  if(a.entry_history.event_transfers_cost !== 4) throw new Error('ztratila se penalizace');
+  if(a.picks.length !== 3) throw new Error('sestava má ' + a.picks.length + ' hráčů');
+  const c = a.picks.find(x => x.is_captain);
+  if(!c || c.element !== 9 || c.multiplier !== 3)
+    throw new Error('kapitán s trojnásobkem se nezachoval');
+  if(!a.picks.find(x => x.is_vice_captain && x.element === 7))
+    throw new Error('ztratil se vicekapitán');
+  if(back.u.chybi.length) throw new Error('nikdo chybět nemá');
+
+  // Hráč s nulou v bodech i minutách se neukládá — vrátí se jako nula z mapy.
+  if(back.snap.live.split(',').length !== 2)
+    throw new Error('do archivu šli i nuloví hráči');
+  return back.snap.live;
+});
+
+check('snímek zná členy podle entry ID, ne podle pořadí', () => {
+  const members = [{entry: 11}, {entry: 22}];
+  const picks = [
+    {entry_history: {}, picks: [{element: 1, position: 1, multiplier: 1}]},
+    {entry_history: {}, picks: [{element: 2, position: 1, multiplier: 1}]},
+  ];
+  w.__m = members; w.__p = picks; w.__l = {elements: []};
+  // Do ligy někdo přibyl a pořadí se otočilo.
+  w.__m2 = [{entry: 99}, {entry: 22}, {entry: 11}];
+  const u = w.eval(`unpackSnap(packSnap(4, window.__m, window.__p, {elements: []}), window.__m2)`);
+  if(u.picks[0] !== null) throw new Error('nový člen dostal cizí sestavu');
+  if(u.picks[1].picks[0].element !== 2 || u.picks[2].picks[0].element !== 1)
+    throw new Error('sestavy se prohodily');
+  if(u.chybi.length !== 1 || u.chybi[0].entry !== 99)
+    throw new Error('chybějící člen se nenahlásil');
+  return 'chybí ' + u.chybi.length;
+});
+
+check('archiv se nezapisuje z neúplného kola', () => {
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  const fn = src.slice(src.indexOf('function snapSave'));
+  if(!/every\(p => p && p\.picks/.test(fn))
+    throw new Error('snapSave neověřuje, že jsou všechny sestavy');
+  if(!/elements \|\| \[\]\)\.length/.test(fn))
+    throw new Error('snapSave neověřuje, že jsou body hráčů');
+  return 'ověřeno';
+});
+
+check('do archivu jde jen dopočítané kolo', () => {
+  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const fn = src.slice(src.indexOf('async function nactiKolo'),
+                       src.indexOf('async function nactiCelouSezonu'));
+  if(!/const konecne = gwPhase\(g\) === 'final'/.test(fn))
+    throw new Error('nactiKolo nerozlišuje fázi kola');
+  if(!/if\(konecne\) snapSave\(/.test(fn))
+    throw new Error('rozehrané kolo by se uložilo do archivu');
+  if(!/await snapLoad\(g, HUB\.members\)/.test(fn))
+    throw new Error('nactiKolo se archivu vůbec neptá');
+  return 'jen final';
+});
+
+check('sdílený archiv kol je zapsatelný jednou', () => {
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  const blok = rules.slice(rules.indexOf('/leagues/{lid}/gw/{gw}'));
+  if(!/allow create/.test(blok)) throw new Error('chybí allow create');
+  if(/allow (update|write)/.test(blok))
+    throw new Error('archiv by šel přepsat — historie ligy musí být neměnná');
+  if(!/request\.auth != null/.test(blok))
+    throw new Error('do archivu by mohl kdokoli');
+  return 'create-only';
+});
+
+check('histcache.js je v service workeru i v index.html', () => {
+  const sw = fs.readFileSync('sw.js', 'utf8');
+  const html = fs.readFileSync('index.html', 'utf8');
+  if(!sw.includes('/js/histcache.js')) throw new Error('chybí v FILES service workeru');
+  if(!html.includes('/js/histcache.js')) throw new Error('chybí v index.html');
+  // Musí být až po tabs.js — čte NEWS_PICKS a NEWS_LIVE.
+  if(html.indexOf('/js/histcache.js') < html.indexOf('/js/tabs.js'))
+    throw new Error('histcache.js se načítá dřív než tabs.js');
+  return 'ok';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
