@@ -1252,6 +1252,23 @@ function newsGws(){
    potřebují, se u něj vynechají místo aby hlásily nuly. */
 function gwRows(gwId){
   const {members, hists} = HUB;
+
+  /* Třetí zdroj: sestavy a body hráčů toho kola.
+
+     Historie chybí nejen u běžícího kola — na začátku sezóny nemá FPL
+     řádek ani pro dohrané GW1, a pořadí ligy zná jen kolo aktuální.
+     Archiv starších kol pak hlásil „za tohle kolo zatím nejsou data“,
+     přestože sestavy i body appka kvůli cenám stejně stahuje. Když
+     jsou, spočítá se kolo z nich; jinak se nedělá nic. */
+  const picks = NEWS_PICKS.get(gwId);
+  const live = NEWS_LIVE.get(gwId);
+  const zeSestav = (i) => {
+    const pk = picks && picks[i];
+    if(!pk || !pk.picks || !live) return null;
+    const L = resolveLineup(pk, liveStats(live), gwId);
+    return {round: gwId, points: L.total, total_points: null, zeSestav: true};
+  };
+
   return members.map((m, i) => {
     const h = hists[i];
     let ev = h && h.current.find(x => x.round === gwId);
@@ -1259,6 +1276,7 @@ function gwRows(gwId){
       ev = {round: gwId, points: m.event_total, total_points: m.total,
             zeStandings: true};
     }
+    if(!ev) ev = zeSestav(i);
     return {m, i, ev};
   }).filter(x => x.ev);
 }
@@ -2051,7 +2069,15 @@ function newsPanel(){
 
   const awards = buildAwards(sel, NEWS_PICKS.get(sel), NEWS_LIVE.get(sel));
   if(!awards.length && !news.length){
-    return prepinac + stav + '<p class="note">Za tohle kolo zatím nejsou data.</p>';
+    /* Prázdné kolo neznamená prázdný panel: síň slávy je součet celé
+       sezóny a s vybraným kolem nemá nic společného. Dřív mizela spolu
+       s cenami a vypadalo to, že se ztratila. */
+    const cekame = !NEWS_PICKS.has(sel) || !NEWS_LIVE.has(sel);
+    return prepinac + stav
+      + `<p class="note">${cekame
+          ? 'Načítám sestavy a body tohohle kola…'
+          : 'Za tohle kolo se nepodařilo dopočítat ani ceny, ani zprávy.'}</p>`
+      + hallPanel();
   }
 
   /* Dokud se kolo nedopočítá, jsou ceny průběžné. Ať je to vidět na
