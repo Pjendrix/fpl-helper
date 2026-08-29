@@ -165,9 +165,29 @@ async function api(p, tries = 3){
     data = await r.json();
     if(r.ok){ API_LAST = Date.now(); staleSave(p, data); return data; }
 
-    // 429 není chyba, je to žádost o strpení. Čekáme déle po každém pokusu.
-    if(r.status === 429 && attempt < tries - 1){
-      const hinted = Number(r.headers.get('retry-after')) || 0;
+    /* Co má smysl zkusit znovu.
+
+       Původně jen 429, protože to je jediný status, který o opakování
+       přímo říká. Jenže Cloudflare před FPL API odmítá i pod 403 a 404,
+       a to náhodně: tentýž dotaz o vteřinu později projde. Jeden takový
+       zákmit v jednom z jedenácti dotazů přitom shodí celé kolo, protože
+       ceny i zprávy potřebují všechny sestavy najednou.
+
+       404 tedy neznamená „to neexistuje“ — cesty jsou v proxy na
+       whitelistu, takže nesmyslná se sem nedostane. Znamená to „něco po
+       cestě to nepustilo“ a je to k nerozeznání od 403.
+
+       Nezkoušíme dál jen 403 od naší vlastní proxy (nepovolená cesta),
+       ta se pozná podle toho, že tělo nemá `detail` od upstreamu. */
+    const naseOdmitnuti = r.status === 403 && data && !data.detail;
+    const doCasne = !naseOdmitnuti &&
+      (r.status === 429 || r.status === 403 || r.status === 404 ||
+       r.status >= 500);
+
+    if(doCasne && attempt < tries - 1){
+      // 429 umí říct, jak dlouho čekat. U ostatních jen couváme.
+      const hinted = r.status === 429
+        ? Number(r.headers.get('retry-after')) || 0 : 0;
       await sleep(Math.max(hinted * 1000, 700 * Math.pow(2, attempt)));
       continue;
     }
