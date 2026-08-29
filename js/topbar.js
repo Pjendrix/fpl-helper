@@ -49,6 +49,9 @@
      Skládá se při každém otevření: dostupnost přihlášení i název týmu
      se mění za běhu a zamrazená kopie by lhala. */
   function akce(id, text){
+    /* `hidden` je property, ne CSS: tlačítka v liště jsou schovaná
+       stylem, ale sync.js jimi pořád hýbe (přihlášení). Čteme tedy
+       skutečný stav, ne to, jestli je vidět. */
     const src = document.getElementById(id);
     if(!src || src.hidden || src.disabled) return '';
     return `<button type="button" role="menuitem" data-topclick="${id}">${esc(text)}</button>`;

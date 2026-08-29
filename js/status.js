@@ -61,32 +61,35 @@ function drawStatus(){
   if(!el || !BOOT) return;
 
   const cur = BOOT.events.find(e => e.is_current);
-  if(!cur){ el.hidden = true; return; }
+  const nxt = BOOT.events.find(e => e.is_next);
+  if(!cur && !nxt){ el.hidden = true; return; }
 
-  const faze = typeof gwPhase === 'function' ? gwPhase(cur.id) : 'running';
+  const faze = cur && typeof gwPhase === 'function' ? gwPhase(cur.id) : null;
   const [cls, txt, vysvetleni] = STAV_TXT[faze] || STAV_TXT.running;
   const dvoj = dvojityDeadline();
 
+  /* Deadline patří sem, ne do lišty: nahoře překrýval stavový čip a musel
+     se zkracovat, tady se vejde i s číslem kola. */
+  const deadline = nxt
+    ? `<span class="sbdl"><b>GW${nxt.id}</b> ${esc(untilText(
+        new Date(nxt.deadline_time).getTime() - Date.now()))}</span>`
+    : '';
+
   el.hidden = false;
   el.innerHTML = `<div class="wrap">
-    <span class="livetag ${cls}">GW${cur.id} · ${txt}</span>
-    <span class="sbnote">${esc(vysvetleni)}</span>
-    ${dvoj ? `<span class="livetag wn" title="Dvě kola těsně po sobě">
-      Pozor: GW${dvoj[0].id} i GW${dvoj[1].id} do tří dnů</span>` : ''}
+    ${cur ? `<span class="livetag ${cls}">GW${cur.id} · ${txt}</span>
+      <span class="sbnote">${esc(vysvetleni)}</span>` : ''}
+    ${dvoj ? `<span class="livetag wn">Pozor: GW${dvoj[0].id} i GW${dvoj[1].id}
+      do tří dnů</span>` : ''}
     <span class="sbspace"></span>
+    ${deadline}
     <span class="sbtime" id="sbtime">data ${esc(stavCas(API_LAST))}</span>
-    <button type="button" class="small" id="sbreload">Aktualizovat</button>
   </div>`;
-
-  const b = $('sbreload');
-  if(b) b.addEventListener('click', () => hardReload());
 }
 
-// Čas se posouvá sám, i když se nic nenačítá — od toho tam je.
-setInterval(() => {
-  const t = $('sbtime');
-  if(t) t.textContent = 'data ' + stavCas(API_LAST);
-}, 30000);
+/* Čas i odpočet se posouvají samy, i když se nic nenačítá — od toho
+   tam jsou. Překreslujeme celý pruh, protože odpočet je jeho součástí. */
+setInterval(() => { try{ drawStatus(); }catch(e){} }, 30000);
 
 /* ------------------------------------------------------------
    Zvýraznění změny
