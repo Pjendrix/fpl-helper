@@ -33,6 +33,10 @@
   .bar .brand .tx{display:block;font-size:13px;line-height:1.15;
     letter-spacing:.01em;-webkit-line-clamp:1;max-width:none;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Třídu `long` přidává sync.js dlouhým názvům kvůli desktopovému
+     segmentu, který si vedle sebe bere místo. Na telefonu žádný segment
+     není, takže se název může roztáhnout přes celou lištu. */
+  .bar .brand .tx.long{font-size:13px;letter-spacing:.01em;max-width:none}
 
   /* Stav kola a odpočet na jednom řádku pod názvem. Nahrazuje celý
      stavový pruh, který pod lištou zabíral dva řádky. */
@@ -46,11 +50,12 @@
   /* Stav dat má na telefonu místo v hlavičce, ne ve vlastním pruhu. */
   .statusbar{display:none!important}
   .bar .who{margin-left:0;gap:5px;flex:none}
-  /* Jméno týmu a správa účtu jdou do plachty „Více“. Přepínač
-     zobrazení ne — je to jediná cesta, jak se z mobilní verze dostat
-     na desktopovou, a schovávat ji o dvě kliknutí hlouběji znamená,
-     že ji člověk na telefonu nenajde. */
+  /* Jméno týmu a správa účtu jdou do plachty „Více“. */
   .bar .who b,#logout,#gauth{display:none!important}
+  /* V liště zůstává jedno tlačítko: obnovit. Zobrazení i tmavý režim
+     se přepínají v plachtě „Víc“ — vedle názvu ligy není na tři
+     kolečka místo a název je to, kvůli čemu se sem člověk dívá. */
+  .bar #viewmode,.bar #theme{display:none}
   .bar .who button.small.icon{padding:4px 7px;min-width:28px;font-size:13px}
 
   /* Vodorovná navigace se nahrazuje spodní lištou. */
