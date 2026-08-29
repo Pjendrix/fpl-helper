@@ -1605,78 +1605,31 @@ body.sq-lock{overflow:hidden}
 .sqp.bench{opacity:.72}
 
 /* ============================================================
-   PRUH SE STAVEM DAT
-
-   Jedna odpověď na otázku „je tohle už konečné?“, která během kola
-   nezmizí, ať je člověk na kterékoli záložce.
-   ============================================================ */
-.statusbar{border-bottom:1px solid var(--line);background:var(--haze)}
-.statusbar .wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-  padding:7px 0;font-size:12px}
-.statusbar .sbnote{color:var(--mute)}
-.statusbar .sbspace{flex:1}
-.sbtime{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
-
-/* Záblesk po tichém přepsání čísel: bez něj se nedá poznat, jestli se
-   něco stalo, nebo jestli obnova nefunguje. */
-@keyframes flashbg{from{background:rgba(204,156,72,.28)}to{background:transparent}}
-.flash{animation:flashbg 1.2s ease-out}
-
-/* Chyba s možností zkusit to znovu. Bez tlačítka nezbývá než reload
-   celé stránky, který zahodí i to, co se načetlo v pořádku. */
-.errbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-  background:var(--haze);border:1px solid var(--line);border-radius:10px;
-  padding:9px 12px;font-size:13px;margin:8px 0}
-.errbox span{flex:1;min-width:180px}
-
-/* ---- H2H: forma, průběh kola, vzájemná bilance ---- */
-.forma{display:inline-flex;gap:3px}
-.forma i{font-style:normal;font-family:var(--f-mono);font-size:9.5px;
-  font-weight:700;width:15px;height:15px;line-height:15px;text-align:center;
-  border-radius:4px;color:var(--white)}
-.forma i.w{background:var(--ok)}
-.forma i.l{background:var(--alert)}
-.forma i.d{background:var(--mute)}
-.forma i.none{background:none;color:var(--mute)}
-
-.h2hm .zbyva{display:block;font-family:var(--f-mono);font-size:10px;
-  color:var(--mute);margin-top:3px}
-.h2hm.big{position:relative}
-.h2hm .bilance{position:absolute;left:50%;transform:translateX(-50%);
-  bottom:6px;font-size:10.5px;color:var(--mute);white-space:nowrap}
-/* Výsledek nesmí nést jen barva rámečku — značka to řekne i bez ní. */
-.h2hm .sc .vysl{font-style:normal;font-size:12px;margin-left:6px;color:var(--mute)}
-.h2hm.w .sc .vysl{color:var(--ok)}
-.h2hm.l .sc .vysl{color:var(--alert)}
-
-/* ---- okno se sestavou: rozdíly a porovnání ---- */
-.sqdiffs{display:flex;flex-wrap:wrap;gap:5px}
-.sqdiff{display:inline-flex;align-items:center;gap:4px;font-size:12px;
-  border:1px solid var(--line);border-radius:20px;padding:3px 9px}
-.sqdiff.plus{border-color:var(--ok)}
-.sqdiff.minus{color:var(--mute)}
-.sqdiff u{text-decoration:none;font-family:var(--f-mono);font-size:10.5px;
-  color:var(--mute)}
-.sqcmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.sqcol .big{font-family:var(--f-disp);font-size:22px;margin-bottom:6px}
-.sqcol .big span{font-family:var(--f);font-size:10.5px;color:var(--mute);
-  margin-left:4px}
-.linklike{border:0;background:none;padding:0;font:inherit;color:var(--blue);
-  text-decoration:underline;cursor:pointer}
-
-/* ============================================================
    HORNÍ LIŠTA — pět sekcí, nabídka, hledání
 
    Jedenáct záložek ve vlastním pruhu nebyla navigace, ale seznam.
    Segment drží pětici denně otevíraných sekcí, zbytek je pod „Víc“
-   hned za nimi — je to pokračování navigace, ne ovládání účtu, takže
-   patří k ní a ne k tlačítkům vpravo.
+   hned za nimi.
+
+   Pravidlo rozvržení: JEDEN ŘÁDEK, KTERÝ SE NIKDY NEZALOMÍ. Značka se
+   ořezává, hledání se scvrkne na ikonu, jméno týmu zmizí — ale segment
+   a stavový čip zůstávají v plné šířce, protože kvůli nim se sem
+   člověk dívá.
    ============================================================ */
-.bar .wrap{flex-wrap:nowrap;min-width:0}
-.bar .wrap>*{min-width:0}
+.bar .wrap{display:flex;align-items:center;gap:10px;height:58px;
+  flex-wrap:nowrap;min-width:0}
+.barspace{flex:1 1 auto;min-width:8px}
+
+/* Značka se musí umět zúžit, jinak podleze segment. Ořízne se podtitul
+   i název; pohár vlevo appku pozná i tak. */
+.bar .brand{flex:0 1 auto;min-width:0;overflow:hidden;text-decoration:none}
+.bar .brand img{width:30px;height:30px}
+.bar .brand .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  min-width:0;font-size:14px}
+.bar .brand .tx small{letter-spacing:2.2px;font-size:8px}
 
 /* Starý pruh se záložkami zůstává v DOM jako zdroj pravdy o otevřené
-   sekci — jen ho není vidět. Na mobilu ho stejně nahrazuje spodní lišta. */
+   sekci — jen ho není vidět. */
 .navbar{display:none}
 
 #topnav{flex:none}
@@ -1684,7 +1637,7 @@ body.sq-lock{overflow:hidden}
   border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:3px}
 .seg button{background:none;border:0;color:#CBAFD2;font-family:var(--f);
   font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:8px;
-  cursor:pointer;white-space:nowrap}
+  cursor:pointer;white-space:nowrap;line-height:1.2}
 .seg button:hover:not([aria-selected="true"]){color:#fff;background:rgba(255,255,255,.08)}
 .seg button[aria-selected="true"]{background:#fff;color:#2A0030}
 .seg button:disabled{opacity:.45;cursor:default}
@@ -1711,42 +1664,66 @@ body.sq-lock{overflow:hidden}
   background:var(--alert);color:#fff;border-radius:20px;padding:1px 7px}
 .morewrap .sheet hr{border:0;border-top:1px solid var(--line);margin:5px 4px}
 
-/* Hledání se smí zúžit, ale nikdy nepřeteče: popisek se ořízne a pod
-   1240 px z tlačítka zbyde ikona. Lišta se nesmí zalomit. */
-.bar .cmd{flex:1 1 150px;min-width:0;display:flex;align-items:center;gap:8px;
-  background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.14);
-  border-radius:11px;padding:7px 12px;color:#B99EC1;font-family:var(--f);
-  font-size:12.5px;cursor:text;white-space:nowrap;overflow:hidden}
-.bar .cmd:hover{border-color:rgba(255,255,255,.3);color:#E4D2E8}
-.bar .cmd .txt{overflow:hidden;text-overflow:ellipsis;min-width:0}
-.bar .cmd kbd{margin-left:auto;flex:none;font-family:var(--f-mono);font-size:10px;
-  border:1px solid rgba(255,255,255,.2);border-radius:5px;padding:2px 5px;
+/* Hledání: normální tlačítko, ne pole. Text i klávesová zkratka zmizí
+   dřív, než by se cokoli mohlo zalomit. */
+.bar .cmd{flex:none;display:inline-flex;align-items:center;gap:7px;height:32px;
+  padding:0 12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.14);
+  border-radius:10px;color:#C9AFD1;font-family:var(--f);font-size:12.5px;
+  cursor:pointer;white-space:nowrap}
+.bar .cmd:hover{border-color:rgba(255,255,255,.34);color:#fff}
+.bar .cmd kbd{font-family:var(--f-mono);font-size:9.5px;
+  border:1px solid rgba(255,255,255,.22);border-radius:5px;padding:2px 5px;
   color:#D8C4DD}
 
-/* Stavový čip: během kola průběžné body, jinak odpočet do deadlinu. */
-.bar .state{display:inline-flex;align-items:center;gap:8px;flex:none;
-  border-radius:999px;padding:5px 12px 5px 9px;background:rgba(255,255,255,.09);
+/* Stavový čip. Během kola průběžné body — deadline má vlastní místo
+   v pruhu pod lištou, kde se vejde i s číslem kola. */
+.bar .state{display:inline-flex;align-items:center;gap:7px;flex:none;height:32px;
+  border-radius:999px;padding:0 13px 0 10px;background:rgba(255,255,255,.09);
   border:1px solid rgba(255,255,255,.16);color:#F0E4F3;font-family:var(--f);
   font-size:12.5px;white-space:nowrap}
-.bar .state .dot{width:7px;height:7px;border-radius:50%;
+.bar .state .dot{width:7px;height:7px;border-radius:50%;flex:none;
   background:rgba(255,255,255,.5)}
 .bar .state.live .dot{background:var(--mint-fill);
   box-shadow:0 0 0 0 rgba(0,255,135,.6);animation:statepulse 2.4s infinite}
 @keyframes statepulse{70%{box-shadow:0 0 0 7px rgba(0,255,135,0)}
   100%{box-shadow:0 0 0 0 rgba(0,255,135,0)}}
 .bar .state.wait .dot{background:var(--gold-lift)}
-.bar .state.soon{border-color:var(--gold);color:#FBEFD8}
-.bar .state.soon .dot{background:var(--gold-lift)}
 .bar .state b{font-family:var(--f-mono);font-weight:700}
 .bar .state .sep{opacity:.4}
 
-/* Kolejnice sezóny přestala být pruhem a je z ní vlásek pod lištou. */
-.rail{background:var(--aubergine-lift)}
-.rail .wrap{height:6px;padding-top:0;padding-bottom:0;align-items:stretch}
-.rail .gw i{height:3px}
-.rail .gw.now i{height:6px}
+/* Vpravo jen ⟳ a iniciály. Přepínače, přihlášení a odhlášení jsou
+   v nabídce „Víc“ a v mobilní plachtě; tady zůstávají skryté stylem,
+   protože obě nabídky na ně klikají a čtou z nich stav. */
+#viewmode,#theme,#logout,#gauth{display:none}
+.bar .cd{display:none}
+.statusbar{display:block}
 
-/* Paleta hledání */
+.bar .who{flex:none;margin-left:0;gap:8px}
+.bar .who b{display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;border-radius:50%;background:var(--aubergine-lift);
+  border:1px solid rgba(255,255,255,.24);overflow:visible}
+/* V kolečku jsou jen iniciály. Název týmu se sem nevejde a je hned pod
+   lištou v Přehledu; tady by z něj byla šmouha přes tři písmena. */
+.bar .who b .tn{display:none}
+.bar .who b .ini{font-family:var(--f-mono);font-size:11px;font-weight:700;
+  color:#fff;letter-spacing:.04em;line-height:1}
+
+/* Kolejnice sezóny zmizela. Ve výšce vlásku byla nečitelná a popisek
+   kola z ní lezl do lišty; číslo kola i postup sezónou říká pruh se
+   stavem dat celou větou. */
+.rail,.railkey{display:none}
+
+/* ---------- pruh se stavem dat ----------
+   Deadline se přestěhoval sem: v liště překrýval stavový čip, tady má
+   vlastní místo a vejde se i s číslem kola. */
+.statusbar{border-bottom:1px solid var(--line);background:var(--haze)}
+.statusbar .wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:8px 0;font-size:12.5px}
+.statusbar .sbnote{color:var(--mute)}
+.statusbar .sbspace{flex:1}
+.sbtime{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
+
+/* ---------- paleta hledání ---------- */
 #palette{position:fixed;inset:0;z-index:95}
 #palette .scrim{position:absolute;inset:0;background:rgba(15,0,18,.45)}
 #palette .card{position:absolute;left:50%;top:14vh;transform:translateX(-50%);
@@ -1760,15 +1737,70 @@ body.sq-lock{overflow:hidden}
   text-align:left;cursor:pointer;color:var(--charcoal)}
 #palout button.on,#palout button:hover{background:var(--haze)}
 #palout .s{font-size:12px;color:var(--mute)}
-#palout .k{margin-left:auto;font-family:var(--f-mono);font-size:10px;
-  color:var(--mute)}
+#palout .k{margin-left:auto;font-family:var(--f-mono);font-size:10px;color:var(--mute)}
 #palout .empty{color:var(--mute);font-size:13px;padding:12px 11px;margin:0}
 
-@media(max-width:1240px){
-  .bar .cmd{flex:0 0 40px;justify-content:center;padding:7px}
-  .bar .cmd .txt,.bar .cmd kbd{display:none}
+/* Zúžené okno: napřed popisek hledání, pak podtitul značky, pak název
+   appky. Segment se nedotýká nikdy. */
+@media(max-width:1200px){
+  .bar .cmd kbd,.bar .cmd .txt{display:none}
+  .bar .cmd{padding:0 9px}
 }
-@media(max-width:1060px){
-  .brand .tx small{display:none}
+@media(max-width:1080px){
+  .bar .brand .tx small{display:none}
   .seg button{padding:7px 10px;font-size:12px}
 }
+@media(max-width:960px){
+  .bar .brand .tx{display:none}
+}
+
+/* Záblesk po tichém přepsání čísel. */
+@keyframes flashbg{from{background:rgba(204,156,72,.28)}to{background:transparent}}
+.flash{animation:flashbg 1.2s ease-out}
+
+/* Chyba s možností zkusit to znovu. */
+.errbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--haze);border:1px solid var(--line);border-radius:10px;
+  padding:9px 12px;font-size:13px;margin:8px 0}
+.errbox span{flex:1;min-width:180px}
+
+/* ---- H2H: forma, průběh kola, vzájemná bilance ---- */
+.forma{display:inline-flex;gap:3px}
+.forma i{font-style:normal;font-family:var(--f-mono);font-size:9.5px;
+  font-weight:700;width:15px;height:15px;line-height:15px;text-align:center;
+  border-radius:4px;color:var(--white)}
+.forma i.w{background:var(--ok)}
+.forma i.l{background:var(--alert)}
+.forma i.d{background:var(--mute)}
+.forma i.none{background:none;color:var(--mute)}
+
+.h2hm .zbyva{display:block;font-family:var(--f-mono);font-size:10px;
+  color:var(--mute);margin-top:3px}
+.h2hm.big{position:relative}
+.h2hm .bilance{position:absolute;left:50%;transform:translateX(-50%);
+  bottom:6px;font-size:10.5px;color:var(--mute);white-space:nowrap}
+.h2hm .sc .vysl{font-style:normal;font-size:12px;margin-left:6px;color:var(--mute)}
+.h2hm.w .sc .vysl{color:var(--ok)}
+.h2hm.l .sc .vysl{color:var(--alert)}
+
+/* ---- okno se sestavou: rozdíly a porovnání ---- */
+.sqdiffs{display:flex;flex-wrap:wrap;gap:5px}
+.sqdiff{display:inline-flex;align-items:center;gap:4px;font-size:12px;
+  border:1px solid var(--line);border-radius:20px;padding:3px 9px}
+.sqdiff.plus{border-color:var(--ok)}
+.sqdiff.minus{color:var(--mute)}
+.sqdiff u{text-decoration:none;font-family:var(--f-mono);font-size:10.5px;
+  color:var(--mute)}
+.sqcmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sqcol .big{font-family:var(--f-disp);font-size:22px;margin-bottom:6px}
+.sqcol .big span{font-family:var(--f);font-size:10.5px;color:var(--mute);
+  margin-left:4px}
+.linklike{border:0;background:none;padding:0;font:inherit;color:var(--blue);
+  text-decoration:underline;cursor:pointer}
+
+/* Deadline v pruhu se stavem: má vlastní místo vpravo, hned před časem
+   posledních dat. Zlatý rámeček je tentýž jazyk jako u odpočtu dřív. */
+.statusbar .sbdl{display:inline-flex;align-items:center;gap:6px;
+  border:1px solid var(--gold);border-radius:999px;padding:3px 11px;
+  background:#FDF6E8;color:#7A5A1E;font-size:12px;white-space:nowrap}
+.statusbar .sbdl b{font-family:var(--f-disp);letter-spacing:.05em;color:#5E4416}

@@ -287,5 +287,8 @@
      Bez @media schválně: přepínač zobrazení přepisuje media atribut
      na <link>, takže „mobilní verze na širokém monitoru“ musí platit
      taky — a vnořený dotaz by ji vypnul. */
-  #topnav,.bar .cmd,.bar .state{display:none}
-  .rail{display:none}
+  #topnav,.bar .cmd,.bar .state,.barspace{display:none}
+  /* Iniciály v kolečku zabírají v úzké liště víc než název týmu, který
+     se dá zkrátit — na telefonu proto zůstává původní podoba. */
+  .bar .who b{width:auto;height:auto;border:0;background:none;border-radius:0}
+  .bar .who b .tn{display:inline}
