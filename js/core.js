@@ -179,15 +179,19 @@ async function api(p, tries = 3){
 
        Nezkoušíme dál jen 403 od naší vlastní proxy (nepovolená cesta),
        ta se pozná podle toho, že tělo nemá `detail` od upstreamu. */
-    const naseOdmitnuti = r.status === 403 && data && !data.detail;
-    const doCasne = !naseOdmitnuti &&
-      (r.status === 429 || r.status === 403 || r.status === 404 ||
-       r.status >= 500);
+    /* Blok od Cloudflare tady vědomě NEopakujeme, i když je to
+       přechodné a opakování by pomohlo. Dělá to totiž už proxy, a to
+       třemi stupni s cookies. Kdyby si klient přidal svoje tři, znamená
+       jedna cesta až devět dotazů na FPL — a při jedenácti cestách na
+       kolo je z appky nástroj na to, jak si říct o ban. Přesně tím
+       skončil první pokus tohle opravit.
+
+       Opakuje se proto jen to, co proxy neřeší: žádost o strpení (429)
+       a chyba serveru. Blok se nechává padnout a chytí ho staleLoad. */
+    const doCasne = r.status === 429 || r.status >= 500;
 
     if(doCasne && attempt < tries - 1){
-      // 429 umí říct, jak dlouho čekat. U ostatních jen couváme.
-      const hinted = r.status === 429
-        ? Number(r.headers.get('retry-after')) || 0 : 0;
+      const hinted = Number(r.headers.get('retry-after')) || 0;
       await sleep(Math.max(hinted * 1000, 700 * Math.pow(2, attempt)));
       continue;
     }
@@ -225,7 +229,11 @@ function dropCached(re){
 
 /* Zpracuje seznam po `limit` položkách naráz.
    onDone(hotovo, celkem) se volá po každé — panely tím ukazují postup. */
-async function pooled(items, fn, limit = 5, onDone = null){
+/* Kolik dotazů běží naráz. Bylo pět. Pět souběžných dotazů z jedné IP
+   datacentra je ale přesně ten obrazec, který si u FPL vyslouží blok —
+   a když se jednou spustí, schytá to i to, co předtím procházelo.
+   Dva jsou pomalejší o pár set milisekund a projdou. */
+async function pooled(items, fn, limit = 2, onDone = null){
   const out = new Array(items.length);
   let next = 0, done = 0;
 
