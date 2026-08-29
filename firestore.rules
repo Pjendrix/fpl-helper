@@ -42,8 +42,24 @@ service cloud.firestore {
        by šlo jen dalším dotazem na FPL, což pravidla neumějí. */
     match /leagues/{lid}/gw/{gw} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.keys().hasAll(['v', 'gw', 'picks', 'live'])
+      allow create: if request.auth != null && archivMaTvar();
+
+      /* Jediná povolená změna je povýšení verze snímku.
+
+         Bez ní by `create`-only znamenalo, že kolo uložené starou verzí
+         appky tam zůstane starou verzí navždy — a nová pole (například
+         řádek historie ve v2) by se do už archivovaných kol nikdy
+         nedostala. Zamrazená je tedy verze, ne dokument.
+
+         `resource.data.v < request.resource.data.v` je to podstatné:
+         přepsat jde jen novějším, nikdy stejným ani starším. Historii
+         tak pořád nejde přepsat jinými čísly téže verze. */
+      allow update: if request.auth != null && archivMaTvar()
+        && resource.data.v < request.resource.data.v;
+    }
+
+    function archivMaTvar() {
+      return request.resource.data.keys().hasAll(['v', 'gw', 'picks', 'live'])
         && request.resource.data.gw is int
         && request.resource.data.v is int
         && request.resource.data.live is string

@@ -3480,7 +3480,11 @@ check('pravidla Firestore nedovolí přepsat zamrazené kolo', () => {
   // Kdyby šlo update, ztratil by zámek smysl — kdokoli by mohl
   // přepsat historii ligy.
   const rules = fs.readFileSync('firestore.rules', 'utf8');
-  const blok = rules.slice(rules.indexOf('match /leagues/'));
+  /* Výřez končí u archivu kol. Dřív bral zbytek souboru, takže se
+     chytil na `allow update` v úplně jiném bloku — test o H2H, který
+     spadne kvůli pravidlu pro archiv, ukazuje na špatné místo. */
+  const blok = rules.slice(rules.indexOf('match /leagues/{lid}/h2h/{gw}'),
+                           rules.indexOf('/* Archiv dohraných kol'));
   if(!/allow create:/.test(blok)) throw new Error('chybí create');
   if(/allow (update|write|delete)/.test(blok))
     throw new Error('zamrazené kolo jde přepsat');
@@ -5661,13 +5665,21 @@ check('do archivu jde jen dopočítané kolo', () => {
 
 check('sdílený archiv kol je zapsatelný jednou', () => {
   const rules = fs.readFileSync('firestore.rules', 'utf8');
-  const blok = rules.slice(rules.indexOf('/leagues/{lid}/gw/{gw}'));
+  const blok = rules.slice(rules.indexOf('/leagues/{lid}/gw/{gw}'),
+                           rules.indexOf('function archivMaTvar'));
   if(!/allow create/.test(blok)) throw new Error('chybí allow create');
-  if(/allow (update|write)/.test(blok))
+
+  /* `update` je povolené, ale jen pro povýšení verze snímku — jinak by
+     kolo uložené starou verzí appky zůstalo bez nových polí navždy.
+     Přepsat kolo jinými čísly TÉŽE verze pořád nejde, a o to tu jde. */
+  if(/allow write/.test(blok))
+    throw new Error('allow write obchází podmínku na verzi');
+  if(/allow update/.test(blok) && !/resource\.data\.v < request\.resource\.data\.v/.test(blok))
     throw new Error('archiv by šel přepsat — historie ligy musí být neměnná');
+  if(/allow delete/.test(blok)) throw new Error('archiv jde mazat');
   if(!/request\.auth != null/.test(blok))
     throw new Error('do archivu by mohl kdokoli');
-  return 'create-only';
+  return 'create + povýšení verze';
 });
 
 check('histcache.js je v service workeru i v index.html', () => {
@@ -5817,6 +5829,90 @@ check('archiv počká, až se dořeší přihlášení', () => {
   if(!/await authReady\(\)/.test(cteni))
     throw new Error('čtení z cloudu na přihlášení nečeká');
   return 'čeká se';
+});
+
+
+check('řádek historie přežije zabalení a rozbalení', () => {
+  const eh = {points: 61, total_points: 124, rank: 3, overall_rank: 900123,
+              event_transfers: 2, event_transfers_cost: 4,
+              points_on_bench: 7, value: 1003, bank: 12};
+  w.__eh = eh;
+  const r = w.eval('unpackHist(packHist(window.__eh), 5)');
+  if(r.round !== 5 || r.event !== 5) throw new Error('kolo se neuložilo');
+  for(const k of Object.keys(eh))
+    if(r[k] !== eh[k]) throw new Error('pole ' + k + ' se rozešlo: ' + r[k]);
+  // Chybějící pole nesmí projít jako nuly — to by tiše zkazilo tabulku.
+  if(w.eval('unpackHist("1:2:3", 5)') !== null)
+    throw new Error('zkrácený řádek se tváří jako platný');
+  return Object.keys(eh).length + ' polí';
+});
+
+check('historie z archivu nahradí dotaz na každého člena', () => {
+  /* entry/{id}/history/ je dotaz NA ČLENA — právě on dělá z otevření
+     Hubu deset dotazů u vaší ligy a sto u stočlenné. Dohraná kola má
+     archiv, běžící dodá pořadí ligy. */
+  const tabs = fs.readFileSync('js/tabs.js', 'utf8');
+  const core = fs.readFileSync('js/core.js', 'utf8');
+  for(const [jm, src] of [['tabs.js', tabs], ['core.js', core]]){
+    if(!/await snapHists\(members, cur\.id\)/.test(src))
+      throw new Error(jm + ' se archivu na historii neptá');
+    // Záloha musí zůstat — bez ní by prázdný archiv znamenal prázdnou tabulku.
+    if(!/cached\('entry\/' \+ m\.entry \+ '\/history\/'\)/.test(src))
+      throw new Error(jm + ' přišel o pád zpátky na API');
+  }
+  return 'obě místa';
+});
+
+check('neúplný archiv se raději nepoužije vůbec', () => {
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  const fn = src.slice(src.indexOf('async function snapHists'),
+                       src.indexOf('/* Uloží kolo do archivu'));
+
+  /* Míchat archiv s API po jednotlivých kolech nedává smysl: dotaz na
+     history/ vrací všechna kola najednou, takže jedno chybějící kolo
+     stojí přesně tolik jako všechna. Zato tabulka s dírou není vidět
+     jako chyba — jen jako jiná čísla. */
+  if(!/if\(!snap \|\| snap\.v !== ARCH_V \|\| !snap\.picks\) return null/.test(fn))
+    throw new Error('chybějící nebo staré kolo neshodí celou cestu');
+  if(!/gwPhase\(g\) !== 'final'/.test(fn))
+    throw new Error('do historie by se dostalo rozehrané kolo');
+  if(!/if\(!row\) return null/.test(fn))
+    throw new Error('snímek v1 bez historie projde jako platný');
+  return 'všechno, nebo nic';
+});
+
+check('čipy se poskládají z archivu spolu s historií', () => {
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  const fn = src.slice(src.indexOf('async function snapHists'),
+                       src.indexOf('/* Uloží kolo do archivu'));
+  // buildBoards čte h.chips — bez nich by zmizel přehled použitých čipů.
+  if(!/chips\.push\(\{name: v\.c, event: g\}\)/.test(fn))
+    throw new Error('čipy se z archivu neskládají');
+  if(!/past: \[\]/.test(fn))
+    throw new Error('past musí existovat, i když ho archiv neumí');
+  return 'čipy i past';
+});
+
+
+check('archiv jde povýšit na novější verzi, ale ne přepsat', () => {
+  /* create-only mělo skrytý důsledek: kolo uložené starou verzí by
+     zůstalo starou verzí navždy a nová pole by se do něj nedostala.
+     Zamrazená je proto verze, ne dokument — přepsat jde jen novějším. */
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  const blok = rules.slice(rules.indexOf('/leagues/{lid}/gw/{gw}'),
+                           rules.indexOf('function archivMaTvar'));
+  if(!/allow update/.test(blok)) throw new Error('povýšení verze nejde');
+  if(!/resource\.data\.v < request\.resource\.data\.v/.test(blok))
+    throw new Error('update nevyžaduje vyšší verzi — historie by šla přepsat');
+  if(/allow delete/.test(blok)) throw new Error('mazání se povolilo');
+
+  const hc = fs.readFileSync('js/histcache.js', 'utf8');
+  if(!/snap\.v < ARCH_V/.test(hc))
+    throw new Error('starý snímek se nepovyšuje');
+  // Starší snímek musí pro sestavy dál fungovat, jinak se stáhne znovu.
+  if(!/snap\.v <= ARCH_V/.test(hc))
+    throw new Error('starší snímek se zahazuje místo použití');
+  return 'jen nahoru';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
