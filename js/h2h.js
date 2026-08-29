@@ -208,13 +208,8 @@ async function h2hEnsureLive(){
   if(H2H_LIVE && H2H_LIVE.gw === gw && Date.now() - H2H_LIVE.ts < 60000) return;
 
   try{
-    const live = await api('event/' + gw + '/live/');
-    H2H_LIVE = {
-      gw,
-      pts: new Map((live.elements || []).map(e =>
-        [e.id, (e.stats && e.stats.total_points) || 0])),
-      ts: Date.now(),
-    };
+    H2H_LIVE = {gw, stats: liveStats(await api('event/' + gw + '/live/')),
+                ts: Date.now()};
   }catch(e){
     // Živé body jsou vylepšení, ne podmínka. Bez nich se propadneme
     // na historii jako dřív.
@@ -227,25 +222,37 @@ function h2hLiveScore(i, gw){
   const pk = HUB.picks && HUB.picks[i];
   if(!pk || !pk.picks) return null;
 
-  let sum = 0;
-  for(const p of pk.picks){
-    if(p.multiplier <= 0) continue;
-    sum += (H2H_LIVE.pts.get(p.element) || 0) * p.multiplier;
-  }
-  return sum - ((pk.entry_history && pk.entry_history.event_transfers_cost) || 0);
+  /* Autosuby a kapitánskou pásku řeší resolveLineup. Bez toho by zápas
+     mohl skončit obráceně, než jak dopadl — a to je u H2H ta poslední
+     věc, kterou si appka může dovolit. */
+  return resolveLineup(pk, H2H_LIVE.stats, gw).total;
 }
 
 /* Body do zápasu. Odečítám pokutu za přestupy — H2H bez toho odmění
    toho, kdo si vzal tři mínusy, stejně jako toho, kdo si je nevzal.
    Nativní H2H ve FPL to počítá stejně. */
 function h2hScore(i, gw){
-  // Běžící kolo má přednost před historií — ta je do dopočtu nespolehlivá.
+  const h = HUB.hists[i];
+
+  /* Kdo má přednost, živý dopočet nebo historie?
+
+     Během kola historie zaostává — tam vede živý dopočet. Jakmile jsou
+     ale zápasy dohrané, FPL už do historie zapsalo číslo se vším všudy
+     a to je pro jistotu autoritativnější než náš vlastní součet. Proto
+     se živě počítá jen ve fázi `running`, a i tam jen dokud historie
+     pro to kolo nic nemá. */
+  const zaznam = h && h.current && h.current.find(e => h2hRound(e) === gw);
+  if(!zaznam && gwPhase(gw) === 'running'){
+    const zive = h2hLiveScore(i, gw);
+    if(zive !== null) return zive;
+  }
+
+  if(zaznam) return (zaznam.points || 0) - (zaznam.event_transfers_cost || 0);
+
+  // Dohrané kolo bez záznamu v historii: pořád je lepší vlastní součet
+  // než nula z pořadí ligy.
   const zive = h2hLiveScore(i, gw);
   if(zive !== null) return zive;
-
-  const h = HUB.hists[i];
-  const ev = h && h.current && h.current.find(e => h2hRound(e) === gw);
-  if(ev) return (ev.points || 0) - (ev.event_transfers_cost || 0);
 
   // Běžící kolo bývá v historii až po dohrání; pořadí ligy ho nese živě.
   const m = HUB.members[i];

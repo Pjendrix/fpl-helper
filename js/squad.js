@@ -41,12 +41,13 @@ async function sqLive(gw){
 
   const data = bezi ? await api('event/' + gw + '/live/')
                     : await cached('event/' + gw + '/live/');
+  const stats = liveStats(data);
   const pts = new Map(), mins = new Map();
-  for(const e of (data.elements || [])){
-    pts.set(e.id, (e.stats && e.stats.total_points) || 0);
-    mins.set(e.id, (e.stats && e.stats.minutes) || 0);
+  for(const [id, st] of stats){
+    pts.set(id, st.total_points || 0);
+    mins.set(id, st.minutes || 0);
   }
-  SQ_LIVE = {gw, pts, mins, ts: Date.now()};
+  SQ_LIVE = {gw, stats, pts, mins, ts: Date.now()};
   return SQ_LIVE;
 }
 
@@ -60,21 +61,24 @@ function sqTeam(p){
 
 /* Jeden řádek sestavy. Kapitánova násobička se ukazuje u bodů, ne u jména —
    „12 (×2)“ řekne rovnou, odkud se to číslo vzalo. */
-function sqRow(pick, live, lavicka){
+function sqRow(pick, live, lavicka, ef){
   const p = sqPlayer(pick.element);
   const jmeno = p ? p.web_name : 'Neznámý hráč';
   const pos = p ? SQ_POS_SHORT[p.element_type] : '';
   const raw = live.pts.get(pick.element) || 0;
-  const mult = pick.multiplier > 0 ? pick.multiplier : 0;
+  const mult = ef ? ef.mult : (pick.multiplier > 0 ? pick.multiplier : 0);
   const min = live.mins.get(pick.element) || 0;
 
-  const znak = pick.is_captain ? '<i class="cap" title="Kapitán">C</i>'
-             : pick.is_vice_captain ? '<i class="cap vc" title="Náhradní kapitán">V</i>'
-             : '';
+  const znak = (ef ? ef.captain : pick.is_captain)
+      ? '<i class="cap" title="Kapitán">C</i>'
+    : pick.is_vice_captain ? '<i class="cap vc" title="Náhradní kapitán">V</i>'
+    : '';
+  const sub = ef && ef.subbedIn ? '<i class="sub" title="Přišel střídáním">↑</i>'
+            : ef && ef.subbedOut ? '<i class="sub out" title="Vystřídán">↓</i>' : '';
 
   return `<div class="sqp${lavicka ? ' bench' : ''}${min ? '' : ' idle'}">
     <i class="pos">${pos}</i>
-    <b>${esc(jmeno)}${znak}</b>
+    <b>${esc(jmeno)}${znak}${sub}</b>
     <em>${esc(sqTeam(p))}</em>
     <span class="pts">${lavicka ? raw : raw * (mult || 1)}${
       mult > 1 ? `<u>×${mult}</u>` : ''}</span>
@@ -83,14 +87,19 @@ function sqRow(pick, live, lavicka){
 
 function sqBody(pk, live, gw){
   const picks = (pk.picks || []).slice().sort((a, b) => a.position - b.position);
-  const zaklad = picks.filter(x => x.position <= 11);
-  const lav = picks.filter(x => x.position > 11);
 
-  const cost = (pk.entry_history && pk.entry_history.event_transfers_cost) || 0;
-  const body = zaklad.reduce((s, x) =>
-    s + (live.pts.get(x.element) || 0) * (x.multiplier > 0 ? x.multiplier : 0), 0) - cost;
+  /* Efektivní sestava: kdo přišel autosubem, patří mezi hrající, ne na
+     lavičku — a součet musí sedět s tím, co ukazuje FPL. */
+  const L = resolveLineup(pk, live.stats, gw);
+  const ef = new Map(L.rows.map(r => [r.element, r]));
+  const hraje = x => (ef.get(x.element) || {}).mult > 0;
 
-  const nehralo = zaklad.filter(x => !(live.mins.get(x.element) || 0)).length;
+  const zaklad = picks.filter(hraje);
+  const lav = picks.filter(x => !hraje(x));
+
+  const cost = L.cost;
+  const body = L.total;
+  const nehralo = L.toPlay;
   const chip = pk.active_chip ? (SQ_CHIPS[pk.active_chip] || pk.active_chip) : null;
 
   /* Základ se dělí po řadách. Bez toho je to patnáct řádků za sebou a
@@ -101,7 +110,7 @@ function sqBody(pk, live, gw){
       return p && p.element_type === t;
     });
     return v.length ? `<div class="sqline"><h5>${SQ_POS[t]}</h5>
-      ${v.map(x => sqRow(x, live, false)).join('')}</div>` : '';
+      ${v.map(x => sqRow(x, live, false, ef.get(x.element))).join('')}</div>` : '';
   }).join('');
 
   return `<div class="sqsum">
@@ -114,10 +123,11 @@ function sqBody(pk, live, gw){
       </div>
     </div>
     ${rady}
-    <div class="sqline"><h5>Lavička</h5>${lav.map(x => sqRow(x, live, true)).join('')}</div>
-    <p class="note">Body jsou průběžné, dokud FPL nedopočítá bonusy. Čísla u
-      lavičky se do součtu nepočítají — leda s čipem Bench Boost, kde má
-      lavička násobičku 1.</p>`;
+    <div class="sqline"><h5>Lavička</h5>${lav.map(x => sqRow(x, live, true, ef.get(x.element))).join('')}</div>
+    <p class="note">Body jsou průběžné, dokud FPL nedopočítá bonusy. Součet
+      počítá automatická střídání (šipka u jména) i přesun kapitánské pásky
+      na vicekapitána. Čísla u lavičky se do součtu nepočítají — leda
+      s čipem Bench Boost, kde hraje celý kádr.</p>`;
 }
 
 function sqClose(){

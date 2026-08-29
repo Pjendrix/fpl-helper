@@ -1665,34 +1665,46 @@ function liveMap(live){
 
 /* Kapitáni kola i s body po zdvojení. Trojnásobný kapitán (TC) má
    multiplier 3, takže se bere z picku a ne natvrdo dvojka. */
-function capRows(picksFor, live){
+function capRows(picksFor, live, gw){
   const picks = picksFor || [];
   const body = liveMap(live);
+  const stats = liveStats(live);
   if(!picks.length || !body.size) return [];
   return HUB.members.map((m, i) => {
     const pk = picks[i];
     if(!pk || !pk.picks) return null;
-    const c = pk.picks.find(x => x.is_captain);
+
+    /* Kapitán, který se doopravdy počítal. Když ten nasazený neodehrál,
+       přebral pásku vicekapitán — dřív se v tom případě zdvojovala nula
+       a cena šla nesprávnému hráči. */
+    const L = resolveLineup(pk, stats, gw != null ? gw : HUB.cur.id);
+    const c = L.rows.find(r => r.captain);
     if(!c || !body.has(c.element)) return null;
-    const mult = c.multiplier > 0 ? c.multiplier : 2;
+    const mult = c.mult > 1 ? c.mult : 2;
     return {m, i, pid: c.element, mult, pts: body.get(c.element) * mult,
             raw: body.get(c.element)};
   }).filter(Boolean);
 }
 
 /* Hráči, které manažer nechal na lavičce, i s body. */
-function lavickaRows(pk, live){
+function lavickaRows(pk, live, gw){
   const body = liveMap(live);
   if(!pk || !pk.picks || !body.size) return [];
+
+  /* Kdo se autosubem dostal do hry, na lavičce neseděl — obviňovat
+     manažera z bodů, které nakonec dostal, je horší než cenu neudělit. */
+  const L = resolveLineup(pk, liveStats(live), gw != null ? gw : HUB.cur.id);
+  const hral = new Set(L.rows.filter(r => r.mult > 0).map(r => r.element));
+
   return pk.picks
-    .filter(p => p.multiplier === 0 && p.position >= 12 && p.position <= 15)
+    .filter(p => p.position >= 12 && p.position <= 15 && !hral.has(p.element))
     .map(p => ({pid: p.element, pts: body.get(p.element) || 0}));
 }
 
 /* Nejlepší hráč z lavičky. Doplňuje cenu pro smolaře o jméno —
    samotné číslo neřekne, koho to mrzí. */
-function nejLavicka(pk, live){
-  const nej = lavickaRows(pk, live).sort((a, b) => b.pts - a.pts)[0];
+function nejLavicka(pk, live, gwId){
+  const nej = lavickaRows(pk, live, gwId).sort((a, b) => b.pts - a.pts)[0];
   return nej && nej.pts > 0 ? nej : null;
 }
 
@@ -1705,11 +1717,11 @@ function nejLavicka(pk, live){
    máme, takže si součet spočítáme sami; z historie se bere jen tehdy,
    když tam je. Vrací null, když se nedá zjistit vůbec — to je pořád
    lepší než tvrdit nulu. */
-function lavickaBody(row, pk, live){
+function lavickaBody(row, pk, live, gwId){
   if(row.ev && !row.ev.zeStandings && Number.isFinite(row.ev.points_on_bench)){
     return row.ev.points_on_bench;
   }
-  const lav = lavickaRows(pk, live);
+  const lav = lavickaRows(pk, live, gwId);
   return lav.length ? lav.reduce((a, x) => a + x.pts, 0) : null;
 }
 
@@ -1720,9 +1732,9 @@ function lavickaBody(row, pk, live){
    dělí a nad polovinou ligy propadá, stejně jako u kapitánů. Do počtu
    se berou jen manažeři, u kterých se lavička dá spočítat; kdo má
    `null` (chybí historie i sestavy), do statistiky nepatří. */
-function smolari(gw, picksFor, live){
+function smolari(gw, picksFor, live, gwId){
   const picks = picksFor || [];
-  const s = gw.map(x => ({...x, lav: lavickaBody(x, picks[x.i], live)}))
+  const s = gw.map(x => ({...x, lav: lavickaBody(x, picks[x.i], live, gwId)}))
     .filter(x => Number.isFinite(x.lav));
   if(!s.length) return {vsichni: [], nej: []};
   const max = Math.max(...s.map(x => x.lav));
@@ -1731,8 +1743,8 @@ function smolari(gw, picksFor, live){
 
 /* Zpětně kompatibilní jednička — používá ji síň slávy, kde se počítá
    jen to, kdo cenu dostal. */
-function smolar(gw, picksFor, live){
-  const {nej} = smolari(gw, picksFor, live);
+function smolar(gw, picksFor, live, gwId){
+  const {nej} = smolari(gw, picksFor, live, gwId);
   return nej.length ? nej[0] : null;
 }
 
@@ -1753,7 +1765,7 @@ window.debugCeny = function(gw){
     '· z toho prázdných:', picks ? picks.filter(p => !p || !p.picks).length : '-');
   console.log('hráčů v mapě bodů:', body.size,
     '· live:', live ? 'objekt' : String(live));
-  const caps = capRows(picks, live);
+  const caps = capRows(picks, live, g);
   console.log('spárovaných kapitánů:', caps.length);
   console.table(caps.map(c => ({
     manazer: c.m.player_name, kapitan: c.pid, raw: c.raw,
@@ -1811,7 +1823,7 @@ function buildAwards(gwId, picksFor, liveFor){
   /* Smolař — nejvíc bodů na lavičce. Platí tu totéž pravidlo jako
      u kapitánů: cena je odlišení, takže se při polovině ligy a víc
      neuděluje. Deset lidí se stejnou lavičkou není smolař, to je kolo. */
-  const {vsichni: lavVsichni, nej: lavNej} = smolari(gw, picksFor, liveFor);
+  const {vsichni: lavVsichni, nej: lavNej} = smolari(gw, picksFor, liveFor, id);
   if(lavNej.length){
     const vsichniStejne = lavNej.length === lavVsichni.length;
     const vetsinaLav = lavNej.length * 2 >= lavVsichni.length;
@@ -1832,7 +1844,7 @@ function buildAwards(gwId, picksFor, liveFor){
       });
     }else{
       const kdo = lavNej[0];
-      const nej = lavNej.length === 1 ? nejLavicka((picksFor || [])[kdo.i], liveFor) : null;
+      const nej = lavNej.length === 1 ? nejLavicka((picksFor || [])[kdo.i], liveFor, id) : null;
       out.push({
         key: 'bench',
         who: jmenaLav(lavNej),
@@ -1857,7 +1869,7 @@ function buildAwards(gwId, picksFor, liveFor){
      Obě strany se posuzují zvlášť. Když devět lidí vsadí na stejného
      kapitána a jeden ne, kapitánská cena propadne, ale ten jeden pořád
      může dostat propadáka — a naopak. */
-  const caps = capRows(picksFor, liveFor);
+  const caps = capRows(picksFor, liveFor, id);
   if(caps.length >= 2){
     const dle = caps.slice().sort((a, b) => b.pts - a.pts);
     const nej = dle[0], nic = dle[dle.length - 1];
@@ -1946,12 +1958,12 @@ function hallOfFame(){
       const r = podleEntry.get(x.m.entry); if(r) r.win++;
     });
 
-    const lav = smolar(gw, NEWS_PICKS.get(g), NEWS_LIVE.get(g));
+    const lav = smolar(gw, NEWS_PICKS.get(g), NEWS_LIVE.get(g), g);
     if(lav){
       const r = podleEntry.get(lav.m.entry); if(r) r.bench++;
     }
 
-    const caps = capRows(NEWS_PICKS.get(g), NEWS_LIVE.get(g));
+    const caps = capRows(NEWS_PICKS.get(g), NEWS_LIVE.get(g), g);
     if(caps.length >= 2){
       const dle = caps.slice().sort((a, b) => b.pts - a.pts);
       if(dle[0].pts !== dle[dle.length - 1].pts){

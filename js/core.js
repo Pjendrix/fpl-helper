@@ -198,8 +198,7 @@ async function load(id){
     let live = null;
     if(cur){
       try {
-        const data = await cached('event/' + pickGw + '/live/');
-        live = new Map(data.elements.map(e => [e.id, e.stats]));
+        live = liveStats(await cached('event/' + pickGw + '/live/'));
       } catch(e){ live = null; }
     }
 
@@ -218,6 +217,141 @@ async function load(id){
   }catch(e){
     $('msg').textContent = e.message;
   }
+}
+
+/* ============================================================
+   EFEKTIVNÍ SESTAVA — autosuby a kapitánská páska
+
+   FPL nepočítá body podle toho, koho manažer postavil, ale podle toho,
+   kdo nakonec hrál. Když někdo ze základu neodehraje ani minutu,
+   nastoupí za něj náhradník z lavičky v pořadí 12→15, pokud to dovolí
+   formace. A když neodehraje kapitán, přechází násobička na
+   vicekapitána.
+
+   Appka tohle dřív nedělala nikde: dres na Přehledu, živá tabulka
+   Miniligy, H2H skóre i ceny kola sčítaly hráče s `multiplier > 0` a nic
+   víc. Po dohraném kole tím ukazovaly méně bodů, než manažer doopravdy
+   měl — a u H2H to znamenalo zápas, který mohl skončit obráceně, než
+   jak dopadl.
+
+   Proto jedna funkce a čtyři místa, která ji volají. Kdyby FPL pravidla
+   změnilo, mění se to tady, ne na čtyřech místech s pokaždé trochu
+   jiným zaokrouhlením.
+
+   Vstup:
+     pk    — objekt z entry/{id}/event/{gw}/picks/
+     stats — Map(playerId → {minutes, total_points}) z event/{gw}/live/
+     gw    — číslo kola; slouží k dohledání rozpisu
+
+   Výstup: {rows, total, benchTotal, toPlay, capId, subs}
+   ============================================================ */
+
+/* Odehrál hráč pro tohle kolo všechno, co měl?
+
+   Podstatné pro autosuby: dokud jeho tým ještě hraje, není nula nula —
+   je to „zatím“. FPL substituci provede až po posledním zápase kola,
+   takže dřív ji dělat nesmíme ani my, jinak by se během soboty střídalo
+   tam a zpátky.
+
+   Bez rozpisu (nebo u hráče bez zápasu) se odpovídá `false`: raději
+   nesubstituovat než substituovat na základě dohadu. */
+function playerDone(pid, gw){
+  const el = (BOOT && BOOT.elements || []).find(p => p.id === pid);
+  if(!el || !Array.isArray(FIX)) return false;
+  const fs = FIX.filter(f => f.event === gw &&
+    (f.team_h === el.team || f.team_a === el.team));
+  if(!fs.length) return false;   // blank: střídat za koho není proč čekat, ale ani není jistota
+  return fs.every(f => f.finished || f.finished_provisional);
+}
+
+/* Smí sestava vypadat takhle? FPL uznává 1 brankáře, aspoň 3 obránce
+   a aspoň jednoho útočníka; víc pravidel netřeba, zbytek z toho plyne
+   (na patnáctičlenný kádr nezbyde než mít aspoň dva záložníky). */
+function validShape(types){
+  const c = t => types.filter(x => x === t).length;
+  return types.length === 11 && c(1) === 1 && c(2) >= 3 && c(4) >= 1;
+}
+
+function resolveLineup(pk, stats, gw){
+  const els = Object.fromEntries((BOOT.elements || []).map(p => [p.id, p]));
+  const st = id => stats && stats.get(id) || null;
+  const mins = id => { const x = st(id); return x ? (x.minutes || 0) : 0; };
+  const pts  = id => { const x = st(id); return x ? (x.total_points || 0) : 0; };
+
+  const picks = (pk.picks || []).slice().sort((a, b) => a.position - b.position);
+  const bench = picks.filter(x => x.position > 11);
+
+  /* Bench Boost hraje celý kádr, takže není koho a za koho střídat.
+     Rozeznává se podle násobičky na lavičce, ne podle názvu čipu —
+     `active_chip` u cizích manažerů občas chybí. */
+  const bboost = pk.active_chip === 'bboost' || bench.some(x => x.multiplier > 0);
+
+  // Efektivní násobička; výchozí je ta z picku.
+  const mult = new Map(picks.map(x => [x.element, x.multiplier]));
+  const subs = [];   // [{out, in}] — jen pro zobrazení
+
+  if(!bboost){
+    const xi = picks.filter(x => x.position <= 11).map(x => x.element);
+    const typ = id => (els[id] ? els[id].element_type : 0);
+    const lavice = bench.map(x => x.element);
+
+    for(const out of xi.slice()){
+      if(mins(out) > 0 || !playerDone(out, gw)) continue;
+
+      for(const cand of lavice){
+        if(mins(cand) <= 0 || subs.some(s => s.in === cand)) continue;
+
+        // Brankář se střídá jen za brankáře; u ostatních rozhoduje formace.
+        const zkus = xi.map(id => (id === out ? cand : id)).map(typ);
+        if(!validShape(zkus)) continue;
+
+        const i = xi.indexOf(out);
+        xi[i] = cand;
+        mult.set(cand, 1);
+        mult.set(out, 0);
+        subs.push({out, in: cand});
+        break;
+      }
+    }
+  }
+
+  /* Kapitánská páska. Když kapitán neodehrál a jeho zápasy skončily,
+     přebírá ji vicekapitán — i s trojnásobkem, pokud je aktivní Triple
+     Captain. Když nehrál ani vicekapitán, nezdvojuje se nikdo. */
+  const cptn = picks.find(x => x.is_captain);
+  const vice = picks.find(x => x.is_vice_captain);
+  let capId = cptn ? cptn.element : null;
+
+  if(cptn && mins(cptn.element) === 0 && playerDone(cptn.element, gw) && vice){
+    const nasobek = cptn.multiplier > 1 ? cptn.multiplier : 2;
+    mult.set(cptn.element, mult.get(cptn.element) > 0 ? 1 : 0);
+    if(mult.get(vice.element) > 0 || mins(vice.element) > 0){
+      mult.set(vice.element, nasobek);
+      capId = vice.element;
+    }
+  }
+
+  const rows = picks.map(x => ({
+    pick: x, element: x.element, mult: mult.get(x.element) || 0,
+    raw: pts(x.element), pts: pts(x.element) * (mult.get(x.element) || 0),
+    minutes: mins(x.element), played: mins(x.element) > 0,
+    subbedIn: subs.some(s => s.in === x.element),
+    subbedOut: subs.some(s => s.out === x.element),
+    captain: x.element === capId,
+  }));
+
+  const cost = (pk.entry_history && pk.entry_history.event_transfers_cost) || 0;
+  const total = rows.reduce((a, r) => a + r.pts, 0) - cost;
+  const benchTotal = rows.filter(r => !r.mult).reduce((a, r) => a + r.raw, 0);
+  const toPlay = rows.filter(r => r.mult > 0 && !r.played).length;
+
+  return {rows, total, benchTotal, toPlay, capId, subs, cost, bboost};
+}
+
+/* Mapa hráč → statistiky z event/{gw}/live/. Všechny volající chtějí
+   totéž, tak ať to nedělá každý po svém. */
+function liveStats(data){
+  return new Map(((data && data.elements) || []).map(e => [e.id, e.stats || {}]));
 }
 
 function fdr(teamId, startGw, n){
@@ -324,6 +458,13 @@ function render(entry, picks, startGw, liveCtx){
   const live = liveCtx && liveCtx.live;
   const liveGw = liveCtx ? liveCtx.gw : null;
 
+  /* Efektivní sestava po autosubech a po případném přesunu kapitánské
+     pásky. Bez ní by dres ukazoval nulu u hráče, za kterého FPL dávno
+     nasadilo náhradníka — a součet kola by byl nižší než na webu FPL. */
+  const lineup = live ? resolveLineup(picks, live, liveGw) : null;
+  const efekt = lineup
+    ? new Map(lineup.rows.map(r => [r.element, r])) : null;
+
   const squad = picks.picks.map(pk => {
     const p = els[pk.element];
     const f = fdr(p.team, startGw, 5);
@@ -332,10 +473,12 @@ function render(entry, picks, startGw, liveCtx){
     // za kapitána. `played` odlišuje nulu od „ještě nenastoupil“ —
     // to jsou dvě úplně jiné zprávy.
     const st = live ? live.get(pk.element) : null;
-    const gwPts = st ? st.total_points * (pk.multiplier || 0) : null;
+    const ef = efekt ? efekt.get(pk.element) : null;
+    const gwPts = ef ? ef.pts : null;
 
-    return {p, pk, team: teams[p.team], f,
-            starting: pk.position <= 11,
+    return {p, pk, team: teams[p.team], f, ef,
+            // Kdo přišel autosubem, hraje — i když ho manažer nepostavil.
+            starting: ef ? ef.mult > 0 : pk.position <= 11,
             st, gwPts,
             played: st ? st.minutes > 0 : false,
             chance: p.chance_of_playing_next_round === null ? 100 : p.chance_of_playing_next_round};
@@ -345,22 +488,20 @@ function render(entry, picks, startGw, liveCtx){
   squad.filter(s => s.starting).forEach(s => rows[s.p.element_type].push(s));
 
   // Součet za kolo — to je číslo, kvůli kterému se člověk během soboty dívá.
-  const liveTotal = live
-    ? squad.reduce((a, s) => a + (s.gwPts || 0), 0)
-      - ((picks.entry_history && picks.entry_history.event_transfers_cost) || 0)
-    : null;
+  const liveTotal = lineup ? lineup.total : null;
   LAST_LIVE_TOTAL = liveTotal;
 
-  const benchTotal = live
-    ? squad.filter(s => !s.starting)
-        .reduce((a, s) => a + (s.st ? s.st.total_points : 0), 0)
-    : null;
-  const toPlay = live ? squad.filter(s => s.starting && !s.played).length : null;
+  const benchTotal = lineup ? lineup.benchTotal : null;
+  const toPlay = lineup ? lineup.toPlay : null;
 
   /* Na dresu je během kola to, co hráč skutečně nasbíral. FDR na příští
      kolo se vrátí, jakmile kolo skončí a začne se plánovat další. */
   const shirt = s => {
-    const cap = s.pk.is_captain ? '<span class="cap">C</span>'
+    /* Páska podle toho, kdo ji opravdu má: když kapitán neodehrál,
+       přešla na vicekapitána a dres to musí ukázat, jinak nesedí
+       zdvojené body s označením. */
+    const jeCap = s.ef ? s.ef.captain : s.pk.is_captain;
+    const cap = jeCap ? '<span class="cap">C</span>'
               : s.pk.is_vice_captain ? '<span class="cap v">V</span>' : '';
 
     const foot = live
@@ -1628,33 +1769,23 @@ async function renderLive(members, picks, cur, myId){
   catch(e){ box.innerHTML = '<p class="note">Průběžné body se nepodařilo načíst: '
     + esc(e.message) + '</p>'; return; }
 
-  const pts = new Map(live.elements.map(e => [e.id, e.stats]));
+  const pts = liveStats(live);
   const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
 
   const rows = members.map((m, i) => {
     const pk = picks[i];
     if(!pk) return null;
 
-    let gw = 0, playing = 0, done = 0;
-    for(const p of pk.picks){
-      if(p.multiplier === 0) continue;
-      const st = pts.get(p.element);
-      if(!st) continue;
-      gw += st.total_points * p.multiplier;
-      if(st.minutes > 0) done++;
-    }
-    // kolik hráčů ze základní jedenáctky ještě vůbec nenastoupilo
-    playing = pk.picks.filter(p => p.multiplier > 0).length - done;
-
-    const cost = (pk.entry_history && pk.entry_history.event_transfers_cost) || 0;
+    // Autosuby i kapitánská páska řeší resolveLineup — tabulka jinak
+    // ukazovala nižší čísla, než jaká mají manažeři doopravdy.
+    const L = resolveLineup(pk, pts, cur.id);
     const before = m.total - (m.event_total || 0);   // body před tímhle kolem
-
-    const capId = (pk.picks.find(p => p.is_captain) || {}).element;
 
     return {
       name: m.player_name, team: m.entry_name, entry: m.entry,
-      gw: gw - cost, total: before + gw - cost, cost, toPlay: playing,
-      cap: capId ? els[capId].web_name : '—',
+      gw: L.total, total: before + L.total, cost: L.cost, toPlay: L.toPlay,
+      subs: L.subs.length,
+      cap: L.capId && els[L.capId] ? els[L.capId].web_name : '—',
     };
   }).filter(Boolean);
 
@@ -1665,7 +1796,7 @@ async function renderLive(members, picks, cur, myId){
   const body = rows.map((r, i) => `<tr${r.entry === myId ? ' class="me"' : ''}>
       <td>${i + 1}</td>
       <td>${squadBtn(r.entry, cur.id, r.team, r.name)}<span class="sub">${esc(r.name)}</span></td>
-      <td>${esc(r.cap)}</td>
+      <td>${esc(r.cap)}${r.subs ? `<span class="sub">${r.subs}× střídání</span>` : ''}</td>
       <td>${r.toPlay ? r.toPlay : '–'}</td>
       <td><b>${r.gw}</b>${r.cost ? `<span class="sub">−${r.cost} za přestupy</span>` : ''}</td>
       <td>${r.total}</td>
@@ -1678,7 +1809,8 @@ async function renderLive(members, picks, cur, myId){
     </table>
     <p class="note">Průběžné pořadí podle bodů, které hráči mají právě teď. Bonusy jsou
     předběžné — FPL je dopočítává z BPS a po skončení zápasu se ještě mohou změnit.
-    Sloupec „Nehrálo“ říká, kolik hráčů ze sestavy ještě nenastoupilo.</p>`;
+    Sloupec „Nehrálo“ říká, kolik hráčů ze sestavy ještě nenastoupilo. Automatická
+    střídání z lavičky i přesun kapitánské pásky na vicekapitána jsou započítané.</p>`;
 }
 
 /* ============ HRÁČI + PROJEKCE ============ */

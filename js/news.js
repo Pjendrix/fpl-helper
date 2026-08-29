@@ -66,8 +66,21 @@ function newsTime(iso){
     {day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit'});
 }
 
+/* Bezpečná adresa článku.
+
+   esc() ošetří uvozovky, ale ne schéma: `javascript:…` z cizího RSS by
+   prošlo a klik na kartu by spustil skript. Zdroje jsou cizí weby, takže
+   se na jejich obsah nedá spoléhat ani u odkazu. Propouštíme jen http
+   a https; cokoli jiného skončí jako mrtvý odkaz, ne jako spuštěný kód. */
+function newsHref(url){
+  try{
+    const u = new URL(String(url), location.origin);
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
+  }catch(e){ return ''; }
+}
+
 function newsCard(it){
-  return `<a class="ncard ${NEWS_CLS[it.source] || ''}" href="${esc(it.link)}"
+  return `<a class="ncard ${NEWS_CLS[it.source] || ''}" href="${esc(newsHref(it.link))}"
      target="_blank" rel="noopener noreferrer">
     <div class="nmeta">
       <span class="nsrc">${esc(it.sourceName)}</span>
@@ -171,7 +184,7 @@ function homeNews(){
   if(!top.length) return box('<p class="note">Zdroje teď neodpovídají.</p>');
 
   return box(`<div class="nmini">${top.map(it => `
-    <a class="${NEWS_CLS[it.source] || ''}" href="${esc(it.link)}"
+    <a class="${NEWS_CLS[it.source] || ''}" href="${esc(newsHref(it.link))}"
        target="_blank" rel="noopener noreferrer">
       <span class="nsrc">${esc(it.sourceName)} · ${newsTime(it.date)}</span>
       <b>${esc(it.title)}</b>
