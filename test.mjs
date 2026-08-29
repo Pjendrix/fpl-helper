@@ -3694,8 +3694,25 @@ check('pruh se stavem dat říká fázi kola i čas dat', () => {
   if(el.hidden) throw new Error('pruh se neukázal');
   if(!/GW2/.test(el.textContent)) throw new Error('chybí číslo kola');
   if(!/data /.test(el.textContent)) throw new Error('chybí čas dat');
-  if(!el.querySelector('#sbreload')) throw new Error('chybí Aktualizovat');
+  // Aktualizovat je ⟳ v liště; druhé tlačítko na totéž jen zabíralo místo.
+  if(el.querySelector('#sbreload')) throw new Error('tlačítko se vrátilo');
+  if(!w.document.getElementById('reload')) throw new Error('zmizelo ⟳ z lišty');
   return el.querySelector('.livetag').textContent.trim();
+});
+
+check('deadline je v pruhu pod lištou, ne v ní', () => {
+  // Nahoře překrýval stavový čip; tady má místo i na číslo kola.
+  w.eval(`BOOT.events.forEach(e => { e.is_current = e.id === 2; e.is_next = e.id === 3;
+    if(e.id === 3) e.deadline_time = new Date(Date.now() + 200000000).toISOString(); });
+    drawStatus();`);
+  const el = w.document.getElementById('statusbar');
+  if(!el.querySelector('.sbdl')) throw new Error('deadline v pruhu chybí');
+  if(!/GW3/.test(el.querySelector('.sbdl').textContent))
+    throw new Error('deadline neříká, ke kterému kolu patří');
+  const css = fs.readFileSync('css/app.css', 'utf8');
+  if(!css.includes('.bar .cd{display:none}'))
+    throw new Error('odpočet zůstal i v liště');
+  return el.querySelector('.sbdl').textContent.trim();
 });
 
 check('dvojitý deadline se ohlásí, jednoduchý ne', () => {
@@ -3900,17 +3917,19 @@ check('Víc nese jméno otevřené sekce', () => {
 });
 
 check('lišta se nemá čím zalomit', () => {
+  /* Jeden řádek, který se nikdy nezalomí: ustupuje značka a hledání,
+     segment ani stavový čip nikdy — kvůli nim se sem člověk dívá. */
   const css = fs.readFileSync('css/app.css', 'utf8');
-  if(!/\.bar \.wrap\{flex-wrap:nowrap/.test(css))
+  if(!/\.bar \.wrap\{[^}]*flex-wrap:nowrap/.test(css))
     throw new Error('řádek lišty se smí zalomit');
-  const cmd = css.slice(css.indexOf('.bar .cmd{'), css.indexOf('.bar .cmd{') + 400);
-  if(!/min-width:0/.test(cmd)) throw new Error('hledání nejde zúžit pod obsah');
-  if(!/text-overflow:ellipsis/.test(css.slice(css.indexOf('.bar .cmd .txt'),
-      css.indexOf('.bar .cmd .txt') + 160)))
-    throw new Error('popisek hledání se neořízne');
-  if(!/max-width:1240px/.test(css))
-    throw new Error('na úzkém okně se z hledání nestane ikona');
-  return 'nowrap + ellipsis + ikona pod 1240 px';
+  if(!/\.bar \.brand\{flex:0 1 auto;min-width:0;overflow:hidden/.test(css))
+    throw new Error('značka se neumí zúžit a podleze segment');
+  if(!/text-overflow:ellipsis/.test(css.slice(css.indexOf('.bar .brand .tx{'),
+      css.indexOf('.bar .brand .tx{') + 200)))
+    throw new Error('název appky se neořízne');
+  for(const bod of ['max-width:1200px', 'max-width:1080px', 'max-width:960px'])
+    if(!css.includes(bod)) throw new Error('chybí ústupový krok ' + bod);
+  return 'nowrap, tři ústupové kroky';
 });
 
 check('hledání nabízí sekce a manažery, ne prázdno', () => {
@@ -3962,6 +3981,33 @@ check('stavový čip ukazuje kolo i deadline', () => {
     drawChip();`);
   if(!/Deadline/.test(chip.textContent)) throw new Error('mimo kolo chybí odpočet');
   return 'kolo → body, jinak deadline';
+});
+
+check('v liště není nic dvakrát', () => {
+  /* Odpočet, pruh se stavem a čip říkaly totéž vedle sebe; přepínače
+     byly v liště i v nabídce. Na desktopu zůstává vždycky jedna kopie. */
+  const css = fs.readFileSync('css/app.css', 'utf8');
+  if(!css.includes('.bar .cd{display:none}'))
+    throw new Error('odpočet i čip říkají v liště totéž');
+  if(!/#viewmode,#theme,#logout,#gauth\{display:none\}/.test(css))
+    throw new Error('přepínače jsou v liště i v nabídce');
+
+  // Skryté stylem, ne smazané — nabídka na ně klikà a čte z nich stav.
+  for(const id of ['countdown', 'viewmode', 'theme', 'logout', 'statusbar'])
+    if(!w.document.getElementById(id)) throw new Error('zmizel prvek ' + id);
+
+  return 'jedna kopie';
+});
+
+check('kolejnice sezóny je pryč, ne zmenšená do šumu', () => {
+  /* Ve výšce vlásku byla nečitelná a popisek kola z ní lezl do lišty.
+     Číslo kola i postup sezónou říká pruh se stavem celou větou. */
+  const css = fs.readFileSync('css/app.css', 'utf8');
+  if(!/\.rail,\.railkey\{display:none\}/.test(css))
+    throw new Error('kolejnice se pořád kreslí');
+  if(!w.document.getElementById('rail'))
+    throw new Error('prvek se smazal — drawRail by spadl');
+  return 'skrytá, ne smazaná';
 });
 
 check('okno se sestavou má mobilní podobu', () => {
