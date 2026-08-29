@@ -3871,6 +3871,20 @@ check('sestavu jde otevřít i z pořadí ligy a ze síně slávy', () => {
 
 /* ---- horní lišta: pět sekcí, nabídka, hledání ---- */
 
+check('v hlavičce je název ligy, ne jméno nástroje', () => {
+  const bt = w.document.getElementById('brandTop');
+  if(!bt) throw new Error('značka zmizela');
+  if(bt.querySelector('small')) throw new Error('zůstal podtitul nad názvem');
+  w.eval(`CONFIG.leagueName = 'O pohár Ládi Stropnického';
+          const bt = $('brandTop');
+          bt.textContent = CONFIG.leagueName;
+          bt.classList.toggle('long', CONFIG.leagueName.length > 18);`);
+  if(/SQUAD CHECK/i.test(bt.textContent)) throw new Error('název nástroje zůstal');
+  if(!bt.classList.contains('long'))
+    throw new Error('dlouhý název se nesází menším písmem');
+  return bt.textContent;
+});
+
 check('v liště je pět sekcí a Víc hned za nimi', () => {
   const seg = w.document.querySelector('#topnav .seg');
   if(!seg) throw new Error('segment se nepostavil');
@@ -3924,9 +3938,10 @@ check('lišta se nemá čím zalomit', () => {
     throw new Error('řádek lišty se smí zalomit');
   if(!/\.bar \.brand\{flex:0 1 auto;min-width:0;overflow:hidden/.test(css))
     throw new Error('značka se neumí zúžit a podleze segment');
-  if(!/text-overflow:ellipsis/.test(css.slice(css.indexOf('.bar .brand .tx{'),
-      css.indexOf('.bar .brand .tx{') + 200)))
-    throw new Error('název appky se neořízne');
+  const tx = css.slice(css.indexOf('.bar .brand .tx{'),
+                       css.indexOf('.bar .brand .tx{') + 320);
+  if(!/-webkit-line-clamp:2/.test(tx) || !/max-width:/.test(tx))
+    throw new Error('název ligy se neomezí na dva řádky');
   for(const bod of ['max-width:1200px', 'max-width:1080px', 'max-width:960px'])
     if(!css.includes(bod)) throw new Error('chybí ústupový krok ' + bod);
   return 'nowrap, tři ústupové kroky';
