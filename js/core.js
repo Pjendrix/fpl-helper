@@ -1352,18 +1352,9 @@ function drawHome(){
     return;
   }
 
-  const nxt = BOOT.events.find(e => e.is_next);
-  const dl = nxt ? new Date(nxt.deadline_time) : null;
-
+  /* Žádná hlavička panelu. Že jsem na Přehledu, říká navigace, a deadline
+     stojí v liště nad obsahem — dvakrát totéž jen odsouvalo čísla pod ohyb. */
   out.innerHTML = `
-    <div class="hhead">
-      <div>
-        <h2>Přehled</h2>
-        <p class="note">Co potřebuješ vědět, než otevřeš sestavu.</p>
-      </div>
-      ${dl ? `<span class="hdl">GW${nxt.id} · deadline ${
-        untilText(dl - new Date())}</span>` : ''}
-    </div>
     ${homeMetrics()}
     ${homeAttention()}
     ${homePrices()}

@@ -721,9 +721,7 @@ function h2hPanel(){
          ${H2H_LIVE && H2H_LIVE.gw === sel
            ? `<span class="sbtime" id="h2htime">aktualizováno ${
                new Date(H2H_LIVE.ts).toLocaleTimeString('cs-CZ',
-                 {hour: '2-digit', minute: '2-digit'})}</span>` : ''}
-         <button type="button" class="small" data-sharetitle="H2H"
-           data-share="${esc(h2hShareText(muj, sel))}">Sdílet</button></div>
+                 {hour: '2-digit', minute: '2-digit'})}</span>` : ''}</div>
        ${h2hCard(muj, sel, true)}`
     : `<p class="note">V tomhle kole tvůj tým v lize není.</p>`;
 

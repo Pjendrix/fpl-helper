@@ -88,6 +88,19 @@ function drawStatus(){
       : ''}
     <span class="sbtime" id="sbtime">data ${esc(stavCas(API_LAST))}</span>
   </div>`;
+
+  /* Tentýž obsah zkrácený na jeden řádek do hlavičky. Na telefonu je
+     stavový pruh schovaný (zabíral dva řádky nad obsahem), takže tohle
+     je jediné místo, kde se stav kola a odpočet dají přečíst. */
+  const sub = $('brandSub');
+  if(sub){
+    const casti = [];
+    if(cur) casti.push(`GW${cur.id} ${txt}`);
+    if(nxt) casti.push(`GW${nxt.id} ${untilText(
+      new Date(nxt.deadline_time).getTime() - Date.now())}`);
+    sub.textContent = casti.join(' · ');
+    sub.hidden = !casti.length;
+  }
 }
 
 /* Čas i odpočet se posouvají samy, i když se nic nenačítá — od toho
