@@ -138,7 +138,35 @@ async function fetchUpstream(path) {
   if (upstream.status !== 403) return upstream;
 
   await new Promise((r) => setTimeout(r, 700));
-  return pokus(await getCookies(true));
+  upstream = await pokus(await getCookies(true));
+  if (upstream.status !== 403) return upstream;
+
+  // Ani třetí pokus neprošel - blok tedy není náhodný a je na IP, ne na
+  // chování. Cookies ani hlavičky s tím nehnou, protože nás FPL odmítá
+  // dřív, než se na ně podívá. Poslední možnost je jít odjinud.
+  const pres = await presWorker(path);
+  return pres || upstream;
+}
+
+// Objížďka přes Cloudflare Worker (worker.js). Vrací null, když není
+// nastavená - appka pak běží jako dřív a spadne na původní chybu.
+async function presWorker(path) {
+  const url = process.env.FPL_WORKER_URL;
+  const token = process.env.FPL_WORKER_TOKEN;
+  if (!url || !token) return null;
+
+  try {
+    const r = await fetch(
+      `${url.replace(/\/$/, "")}/?path=${encodeURIComponent(path)}`,
+      { headers: { "x-proxy-token": token }, cache: "no-store" }
+    );
+    // 401 znamená rozejité tokeny mezi Vercelem a Workerem. Vracet to
+    // dál by vypadalo jako chyba FPL a hledalo by se to na špatném
+    // místě, takže radši původní 403.
+    return r.status === 401 ? null : r;
+  } catch (e) {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------
