@@ -83,7 +83,20 @@
              decoding="async">
         <span class="tx"><small id="brandTop">MINILEAGUE</small>SQUAD CHECK</span>
       </span>
+      <!-- Segment s pěti sekcemi a nabídkou „Víc“; skládá ho js/topbar.js
+           z týchž tlačítek, která jsou v .nav, aby existoval jeden zdroj
+           pravdy o otevřené záložce. -->
+      <div id="topnav"></div>
+
+      <button type="button" class="cmd" id="palopen"
+              aria-label="Hledat sekci nebo manažera">
+        <span aria-hidden="true">⌕</span>
+        <span class="txt">Skoč na sekci nebo manažera</span>
+        <kbd aria-hidden="true">Ctrl K</kbd>
+      </button>
+
       <span class="cd" id="countdown" hidden></span>
+      <span class="state" id="topstate" hidden></span>
       <span class="who">
         <button class="small icon" id="viewmode" title="Zobrazení: automatické"
                 aria-label="Přepnout zobrazení desktop/mobil">⇔</button>
@@ -114,6 +127,17 @@
   <!-- Stav dat: jedna odpověď na otázku „je tohle už konečné?“, která
        během kola nezmizí, ať je člověk na kterékoli záložce. -->
   <div class="statusbar" id="statusbar" role="status" aria-live="polite" hidden></div>
+
+  <!-- Hledání. Otevírá se z lišty nebo Ctrl+K; skáče na sekci a na
+       manažera ligy (tomu rovnou otevře sestavu). -->
+  <div id="palette" hidden>
+    <div class="scrim"></div>
+    <div class="card" role="dialog" aria-modal="true" aria-label="Hledat">
+      <input id="palinput" type="text" autocomplete="off"
+             placeholder="Sekce nebo jméno manažera…">
+      <div id="palout"></div>
+    </div>
+  </div>
 
   <div class="rail" id="rail" hidden>
     <div class="wrap" id="railTrack" role="img" aria-label="Průběh sezóny"></div>
@@ -298,6 +322,7 @@
 <script src="/js/ui.js"></script>
 <script src="/js/planner.js"></script>
 <script src="/js/sync.js"></script>
+<script src="/js/topbar.js"></script>
 <script src="/js/mobile.js"></script>
 <script src="/js/boot.js"></script>
 </body>

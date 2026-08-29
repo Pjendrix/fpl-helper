@@ -110,7 +110,7 @@ const CSS_TAGS = [
 ];
 const SRC = [fs.readFileSync('index.html', 'utf8')]
   .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
-  .concat(['js/core.js','js/tabs.js','js/status.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js','js/ui.js','js/planner.js','js/sync.js',
+  .concat(['js/core.js','js/tabs.js','js/status.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js','js/ui.js','js/planner.js','js/sync.js','js/topbar.js',
            'js/mobile.js','js/boot.js','js/firebase.js']
     .map(f => fs.readFileSync(f, 'utf8')))
   .join('\n');
@@ -3850,6 +3850,118 @@ check('sestavu jde otevřít i z pořadí ligy a ze síně slávy', () => {
   if((tabs.match(/squadBtn\(/g) || []).length < 3)
     throw new Error('v Hubu zůstala jména jen jako text');
   return 'pořadí, síň slávy, ceny kola';
+});
+
+/* ---- horní lišta: pět sekcí, nabídka, hledání ---- */
+
+check('v liště je pět sekcí a Víc hned za nimi', () => {
+  const seg = w.document.querySelector('#topnav .seg');
+  if(!seg) throw new Error('segment se nepostavil');
+  const tabs = [...seg.querySelectorAll('[data-top]')].map(b => b.dataset.top);
+  if(tabs.join(',') !== 't-home,t-hub,t-h2h,t-prices,t-adv')
+    throw new Error('jiné sekce: ' + tabs.join(','));
+
+  // „Víc“ musí být posledním prvkem segmentu, ne až u tlačítek vpravo.
+  const posl = seg.lastElementChild;
+  if(!posl.querySelector('#topmore') && posl.id !== 'topmore')
+    throw new Error('Víc není na konci segmentu');
+  return tabs.map(t => t.replace('t-', '')).join(' · ') + ' · Víc';
+});
+
+check('sekce ze zbytku se přenesly do nabídky', () => {
+  w.document.getElementById('topmore').click();
+  const sheet = w.document.getElementById('topsheet');
+  if(sheet.hidden) throw new Error('nabídka se neotevřela');
+  const v = [...sheet.querySelectorAll('[data-top]')].map(b => b.dataset.top);
+  for(const t of ['t-squad', 't-league', 't-news', 't-inj', 't-players'])
+    if(!v.includes(t)) throw new Error('v nabídce chybí ' + t);
+  if(v.some(t => ['t-home', 't-hub', 't-h2h'].includes(t)))
+    throw new Error('sekce je v liště i v nabídce');
+  if(!sheet.querySelector('[data-topclick="reload"]'))
+    throw new Error('chybí ovládání appky');
+  w.document.getElementById('topmore').click();
+  return v.length + ' sekcí pod Víc';
+});
+
+check('Víc nese jméno otevřené sekce', () => {
+  // Bez toho by u šesti schovaných sekcí nebylo poznat, kde člověk je.
+  w.eval("selectTab('t-inj')");
+  const more = w.document.getElementById('topmore');
+  if(!/Zranění/.test(more.textContent)) throw new Error('Víc: ' + more.textContent.trim());
+  if(!more.classList.contains('active')) throw new Error('Víc se nerozsvítilo');
+
+  w.eval("selectTab('t-home')");
+  if(!/Víc/.test(more.textContent)) throw new Error('jméno se nevrátilo');
+  if(more.classList.contains('active')) throw new Error('Víc svítí i mimo nabídku');
+  const home = w.document.querySelector('[data-top="t-home"]');
+  if(home.getAttribute('aria-selected') !== 'true')
+    throw new Error('vybraná sekce se nezvýraznila');
+  return 'Zranění → Víc';
+});
+
+check('lišta se nemá čím zalomit', () => {
+  const css = fs.readFileSync('css/app.css', 'utf8');
+  if(!/\.bar \.wrap\{flex-wrap:nowrap/.test(css))
+    throw new Error('řádek lišty se smí zalomit');
+  const cmd = css.slice(css.indexOf('.bar .cmd{'), css.indexOf('.bar .cmd{') + 400);
+  if(!/min-width:0/.test(cmd)) throw new Error('hledání nejde zúžit pod obsah');
+  if(!/text-overflow:ellipsis/.test(css.slice(css.indexOf('.bar .cmd .txt'),
+      css.indexOf('.bar .cmd .txt') + 160)))
+    throw new Error('popisek hledání se neořízne');
+  if(!/max-width:1240px/.test(css))
+    throw new Error('na úzkém okně se z hledání nestane ikona');
+  return 'nowrap + ellipsis + ikona pod 1240 px';
+});
+
+check('hledání nabízí sekce a manažery, ne prázdno', () => {
+  h2hSetup(8);
+  const pin = w.document.getElementById('palinput');
+  w.document.getElementById('palopen').click();
+  if(w.document.getElementById('palette').hidden) throw new Error('paleta se neotevřela');
+
+  pin.value = 'h2h';
+  pin.dispatchEvent(new w.Event('input'));
+  let html = w.document.getElementById('palout').innerHTML;
+  if(!/H2H/.test(html)) throw new Error('sekce se nenašla');
+
+  pin.value = 'M1';
+  pin.dispatchEvent(new w.Event('input'));
+  html = w.document.getElementById('palout').innerHTML;
+  if(!/Manažer/.test(html)) throw new Error('manažer se nenašel');
+
+  pin.value = 'xyzzy';
+  pin.dispatchEvent(new w.Event('input'));
+  if(!/Nic takového/.test(w.document.getElementById('palout').innerHTML))
+    throw new Error('prázdný výsledek mlčí');
+  w.document.querySelector('#palette .scrim').click();
+  return 'sekce + manažeři';
+});
+
+check('starý pruh záložek zůstal jako zdroj pravdy, jen není vidět', () => {
+  // Segment i spodní lišta na něj klikají; kdyby zmizel z DOM, rozpadne
+  // se přepínání i odkazy typu #h2h/gw7.
+  if(!w.document.querySelector('.nav [role="tab"]'))
+    throw new Error('.nav se smazala');
+  const css = fs.readFileSync('css/app.css', 'utf8');
+  if(!/\.navbar\{display:none\}/.test(css))
+    throw new Error('pruh se záložkami je pořád vidět');
+  return 'skrytý, ne smazaný';
+});
+
+check('stavový čip ukazuje kolo i deadline', () => {
+  nastavFaze({1: 'final', 2: 'running'});
+  w.eval(`BOOT.events.forEach(e => { e.is_current = e.id === 2; e.is_next = false; });
+          LAST_LIVE_TOTAL = 42; drawChip();`);
+  const chip = w.document.getElementById('topstate');
+  if(!/GW2/.test(chip.textContent)) throw new Error('chybí kolo');
+  if(!/42/.test(chip.textContent)) throw new Error('chybí průběžné body');
+  if(!chip.classList.contains('live')) throw new Error('běžící kolo netepe');
+
+  w.eval(`BOOT.events.forEach(e => { e.is_current = false; e.is_next = e.id === 3;
+    if(e.id === 3) e.deadline_time = new Date(Date.now() + 90000000).toISOString(); });
+    drawChip();`);
+  if(!/Deadline/.test(chip.textContent)) throw new Error('mimo kolo chybí odpočet');
+  return 'kolo → body, jinak deadline';
 });
 
 check('okno se sestavou má mobilní podobu', () => {
