@@ -167,11 +167,25 @@ function h2hParticipants(gw){
   const posledni = h2hLastPlayed();
   const ref = gw > posledni ? posledni : gw;
 
+  /* Rozlišujeme dvě různé věci, které vypadaly stejně:
+
+       1. historie se načetla a říká, že v tom kole nehrál  → nehraje
+       2. historie se vůbec nenačetla                       → hraje
+
+     Dřív obojí znamenalo „vyřadit“. Jenže `entry/{id}/history/` se plní
+     pomalu a při výpadku FPL nemusí dorazit vůbec — a když jeden člen
+     takhle tiše vypadl, zbyl lichý počet, objevil se Duch kola a CELÉ
+     rozlosování se posunulo. Los se tím měnil od kola ke kolu podle
+     toho, komu se zrovna stáhla data.
+
+     Kdo je v tabulce ligy, ten v lize je. Chybějící historie je mezera
+     v datech, ne informace o tom, že nehrál. */
   const podleHistorie = members
     .map((m, i) => ({m, i}))
     .filter(x => {
       const h = hists[x.i];
-      return h && h.current && h.current.some(e => h2hRound(e) === ref);
+      if(!h || !h.current) return true;      // data chybí — nevyřazujeme
+      return h.current.some(e => h2hRound(e) === ref);
     });
 
   /* Před prvním odehraným kolem sezóny žádná historie není. Hrají tedy
