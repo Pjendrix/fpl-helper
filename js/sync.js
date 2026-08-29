@@ -202,11 +202,32 @@ function renderAuth(){
   }
 }
 
+/* Slib, který se splní, jakmile Firebase dořeší, kdo je přihlášený.
+
+   Obnovení session je asynchronní: chvíli po startu stránky je FB_USER
+   ještě null, i když se člověk přihlásil minule. Kdokoli, kdo se ptá
+   „jsem přihlášen?“ dřív, dostane falešné ne — a v případě archivu to
+   znamenalo, že se kolo tiše neuložilo do sdíleného úložiště, protože
+   pravidla nepřihlášeného odmítnou.
+
+   `onUser` se zavolá i pro nepřihlášeného, jen s null. Je to tedy
+   spolehlivý signál „už se ví“, ne „někdo je přihlášen“. */
+let AUTH_HOTOVO = null;
+
+function authReady(){
+  if(!window.FB) return Promise.resolve(null);
+  return AUTH_HOTOVO || Promise.resolve(FB_USER);
+}
+
 function initAuth(){
   renderAuth();
   if(!window.FB) return;
 
+  let hotovo;
+  AUTH_HOTOVO = new Promise(res => { hotovo = res; });
+
   window.FB.onUser(user => {
+    if(hotovo){ hotovo(user || null); hotovo = null; }
     FB_USER = user || null;
     SYNC_READY = false;
     /* Archiv kol je pro nepřihlášeného nečitelný, takže po přihlášení

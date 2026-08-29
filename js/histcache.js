@@ -165,6 +165,7 @@ async function snapCloudAll(){
   const lid = snapLid();
   if(!lid || !window.FB || !window.FB.gwRead) return {};
   if(SNAP_CLOUD) return SNAP_CLOUD;
+  if(typeof authReady === 'function') await authReady();
   try{
     SNAP_CLOUD = await window.FB.gwRead(lid);
   }catch(e){
@@ -190,6 +191,16 @@ async function snapCloudWrite(g, snap){
   const lid = snapLid();
   if(!lid){ SNAP_LAST = 'není ID ligy'; return; }
   if(!window.FB || !window.FB.gwWrite){ SNAP_LAST = 'Firebase není načtený'; return; }
+
+  /* Počkat, až Firebase dořeší session. Bez toho se zápis odehraje
+     dřív, než se obnoví přihlášení, pravidla ho odmítnou a archiv se
+     do sdíleného úložiště nedostane — přestože je člověk přihlášený a
+     v hlavičce to tak vypadá. */
+  if(typeof authReady === 'function') await authReady();
+  if(!window.FB_USER && typeof FB_USER !== 'undefined' && !FB_USER){
+    SNAP_LAST = 'nepřihlášen — kolo zůstalo jen lokálně';
+    return;
+  }
 
   try{
     await window.FB.gwWrite(lid, g, snap);
@@ -230,8 +241,21 @@ async function snapLoad(g, members){
   const u = snap && unpackSnap(snap, members);
   if(!u || !u.live.elements.length) return false;
 
-  // Co cloud věděl, ať ví i tenhle prohlížeč — příště bez dotazu.
-  if(zCloudu) snapLocalWrite(g, snap);
+  /* Data mezi lokálem a cloudem musí téct oběma směry.
+
+     Dřív tekla jen jedním: co bylo v cloudu, doplnilo se do lokálu.
+     Opačně nic — a protože `nactiKolo` se po úspěšném `snapLoad` hned
+     vrací, `snapSave` už se nezavolal. Kolo, které se jednou uložilo
+     lokálně, se tak do cloudu nedostalo nikdy. Zvenku to vypadalo, že
+     zápis do Firestore selhává, ale on se prostě nespouštěl. */
+  if(zCloudu){
+    snapLocalWrite(g, snap);
+  } else {
+    // Snímek je z lokálu. Když ho cloud nemá, patří tam — ostatní v
+    // lize si ho pak nestáhnou z FPL vůbec.
+    const vCloudu = await snapCloudAll();
+    if(!vCloudu || !vCloudu[String(g)]) await snapCloudWrite(g, snap);
+  }
 
   NEWS_LIVE.set(g, u.live);
 
