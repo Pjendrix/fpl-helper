@@ -4671,6 +4671,34 @@ check('trojnásobný kapitán se počítá krát tři', () => {
   return 'TC 4 × 3 = 12 b';
 });
 
+check('starší kolo bez historie se dopočítá ze sestav', () => {
+  /* Na začátku sezóny nemá FPL řádek v historii ani pro dohrané GW1
+     a pořadí ligy zná jen kolo aktuální. Archiv pak hlásil „za tohle
+     kolo zatím nejsou data“, přestože sestavy i body appka stahuje. */
+  nastavFaze({1: 'final', 2: 'running'});
+  hubStub(2, {1: [100, 90, 80], 2: [200, 180, 160]});
+  // Historie zná jen GW2 — řádek pro GW1 z ní vymažeme.
+  w.eval('HUB.hists.forEach(h => { h.current = h.current.filter(x => x.round !== 1); })');
+  w.eval('NEWS_PICKS.clear(); NEWS_LIVE.clear()');
+  cenyStub(1, [1, 2, 3], {1: 6, 2: 4, 3: 2, 900: 1, 901: 1, 902: 1});
+
+  const rows = w.eval('gwRows(1)');
+  if(!rows.length) throw new Error('kolo zůstalo prázdné');
+  if(!rows.every(r => r.ev.zeSestav)) throw new Error('řádky nejsou ze sestav');
+  const awards = w.eval('buildAwards(1, NEWS_PICKS.get(1), NEWS_LIVE.get(1))');
+  if(!awards.length) throw new Error('ceny se pořád nespočítaly');
+  return rows.length + ' manažerů, ceny: ' + awards.map(a => a.key).join(', ');
+});
+
+check('síň slávy nemizí spolu s prázdným kolem', () => {
+  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const blok = src.slice(src.indexOf('if(!awards.length && !news.length)'),
+                         src.indexOf('if(!awards.length && !news.length)') + 700);
+  if(!/hallPanel\(\)/.test(blok))
+    throw new Error('při prázdném kole zmizí i tabulka cen za sezónu');
+  return 'tabulka zůstává';
+});
+
 check('ceny se u prázdné kategorie vynechají místo pomlčky', () => {
   // Když v kole nikdo nenechal body na lavičce, karta zmizí —
   // mřížka se zúží, ale nezůstane v ní díra.
