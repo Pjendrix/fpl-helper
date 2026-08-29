@@ -9,6 +9,8 @@ const BASE = "https://fantasy.premierleague.com/api";
 const ALLOWED = [
   /^bootstrap-static\/$/,
   /^fixtures\/$/,
+  /^fixtures\/\?event=\d+$/,
+  /^fixtures\/\?future=1$/,
   /^entry\/\d+\/$/,
   /^entry\/\d+\/history\/$/,
   /^entry\/\d+\/transfers\/$/,
@@ -139,6 +141,41 @@ async function fetchUpstream(path) {
   return pokus(await getCookies(true));
 }
 
+// ---------------------------------------------------------------------
+// FPL odmita `fixtures/` bez parametru castěji nez ostatni endpointy -
+// je to nejvetsi odpoved v celem API (vsech 380 zapasu sezony) a z IP
+// datacentra ji casto vrati 403, i kdyz `bootstrap-static/` projde.
+//
+// Appka ale cely rozpis potrebuje (ticker, FDR, gwPhaseFromFixtures).
+// Slozime ho proto z dotazu po jednotlivych kolech, ktere blokovane
+// nejsou. Deje se to jen kdyz plna cesta selze, a vysledek se drzi na
+// edge cache, takze 38 dotazu padne nanejvys jednou za nekolik minut.
+// ---------------------------------------------------------------------
+async function fixturesByEvent() {
+  const cisla = Array.from({ length: 38 }, (_, i) => i + 1);
+  const out = [];
+
+  // Po peti najednou. Vic paralelnich dotazu je presne to chovani,
+  // ktere si u FPL vyslouzi rate limit.
+  for (let i = 0; i < cisla.length; i += 5) {
+    const davka = cisla.slice(i, i + 5);
+    const casti = await Promise.all(
+      davka.map(async (ev) => {
+        const r = await fetchUpstream(`fixtures/?event=${ev}`);
+        if (!r.ok) return null;
+        const ctype = r.headers.get("content-type") || "";
+        if (!ctype.includes("json")) return null;
+        return r.json().catch(() => null);
+      })
+    );
+    for (const c of casti) if (Array.isArray(c)) out.push(...c);
+  }
+
+  // Prazdny vysledek znamena, ze selhalo i tohle - at to zavolajici
+  // pozna a vrati puvodni chybu misto prazdneho rozpisu.
+  return out.length ? out : null;
+}
+
 export default async function handler(req, res) {
   const path = String(req.query.path || "");
 
@@ -157,6 +194,18 @@ export default async function handler(req, res) {
     }
 
     if (!upstream.ok) {
+      // Plny rozpis ma zalozni cestu - viz fixturesByEvent().
+      if (upstream.status === 403 && path === "fixtures/") {
+        const slozeno = await fixturesByEvent();
+        if (slozeno) {
+          res.setHeader(
+            "Cache-Control",
+            "public, s-maxage=600, stale-while-revalidate=1800"
+          );
+          return res.status(200).json(slozeno);
+        }
+      }
+
       // U 403 se hodi vedet, co presne Cloudflare rekl - cf-ray se da
       // dohledat a prvni radky tela prozradi, jestli slo o challenge
       // stranku, nebo o tvrdy blok. Bez toho se hada.
