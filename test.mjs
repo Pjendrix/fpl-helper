@@ -5707,18 +5707,57 @@ check('blok od Cloudflare se pozná podle tvaru, ne podle čísla', () => {
   return 'podle obsahu';
 });
 
-check('náhodná chyba shodí kolo až po opakování', () => {
+check('opakování se v klientovi a v proxy nenásobí', () => {
   const src = fs.readFileSync('js/core.js', 'utf8');
   const fn = src.slice(src.indexOf('async function api(p'), src.indexOf('let API_LAST'));
 
-  /* Ceny i zprávy potřebují všech jedenáct dotazů najednou, takže jeden
-     zákmit shodí celé kolo. Opakovat se musí i 403 a 404 — pod nimi
-     Cloudflare odmítá — ale ne odmítnutí od naší vlastní proxy. */
-  if(!/r\.status === 404/.test(fn)) throw new Error('404 se nezkouší znovu');
-  if(!/r\.status >= 500/.test(fn)) throw new Error('chyby serveru se nezkouší znovu');
-  if(!/naseOdmitnuti/.test(fn))
-    throw new Error('nepovolená cesta by se zkoušela dokola');
-  return 'opakuje se';
+  /* Předchozí verze tohohle testu trvala na opakování 403 a 404 v
+     klientovi. Znělo to rozumně — blok je přechodný — jenže proxy si
+     na něj sahá třemi stupni s cookies už sama. Tři krát tři je devět
+     dotazů na jednu cestu a jedenáct cest na kolo; výsledkem byl 403
+     úplně na všem, včetně toho, co předtím procházelo.
+
+     Blok se tedy nechává padnout a chytá ho staleLoad. Opakuje se jen
+     to, co proxy neřeší. */
+  if(/r\.status === 403/.test(fn))
+    throw new Error('403 se opakuje i v klientovi — násobí se to s proxy');
+  if(/r\.status === 404/.test(fn))
+    throw new Error('404 se opakuje i v klientovi — násobí se to s proxy');
+  if(!/r\.status === 429/.test(fn)) throw new Error('429 se musí opakovat');
+  if(!/r\.status >= 500/.test(fn)) throw new Error('chyby serveru se musí opakovat');
+
+  // A záložní data musí zůstat poslední záchranou, když se to vzdá.
+  if(!/staleLoad\(p\)/.test(fn)) throw new Error('chybí pád na uložená data');
+  return 'jen 429 a 5xx';
+});
+
+check('dotazy nechodí na FPL v pěti naráz', () => {
+  const src = fs.readFileSync('js/core.js', 'utf8');
+  if(!/async function pooled\(items, fn, limit = 2/.test(src))
+    throw new Error('souběžnost je zpátky nahoře — koleduje si o blok');
+  return 'dva naráz';
+});
+
+
+check('objížďka přes Worker existuje a brání se sama', () => {
+  /* api/fpl.js se na worker.js odkazoval, ale soubor v repu nebyl —
+     presWorker tak vždycky vrátil null a poslední záchrana neexistovala.
+     Nikdo si toho nevšiml, protože se na ni při 404 stejně nešlo. */
+  if(!fs.existsSync('worker.js'))
+    throw new Error('worker.js chybí — presWorker nemá kam jít');
+  const w = fs.readFileSync('worker.js', 'utf8');
+
+  if(!/x-proxy-token/.test(w))
+    throw new Error('Worker nekontroluje token — je to otevřená proxy');
+  if(!/ALLOWED/.test(w) || !/bootstrap-static/.test(w))
+    throw new Error('Worker nemá vlastní whitelist cest');
+
+  // Whitelist musí sedět s proxy, jinak jedna cesta projde jen někdy.
+  const api = fs.readFileSync('api/fpl.js', 'utf8');
+  const cesty = t => (t.match(/\/\^[^\/]+\\\/\$\//g) || []).length;
+  if(cesty(w) !== cesty(api))
+    throw new Error('whitelisty Workeru a proxy se rozešly');
+  return 'token + whitelist';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
