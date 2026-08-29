@@ -453,9 +453,16 @@ tr.click:hover td{background:var(--haze)}
 .news .body b{color:var(--charcoal);font-weight:600}
 
 /* ---------- ceny kola ----------
-   Čtyři hlavní ceny mají vlastní kartu s emoji, jménem a velkým číslem.
+   Čtyři ceny jako řádky pod sebou, ne sloupce vedle sebe. Sloupce
+   vypadaly trofejněji, ale u ceny udělené několika lidem najednou
+   („Adam Marko, Artur Šedivý, Tomas Vostrovsky“) se jméno zalomilo do
+   úzkého proužku a karta vyrostla do dvojnásobku. V řádku je na jména
+   místo a čísla stojí zarovnaná na jedné lince, takže se dají porovnat
+   pohledem shora dolů.
+
    Barvu nese --accent, kterou nastavuje třída konkrétní ceny; zbytek
-   pravidel je pro všechny stejný, ať se nový award přidává jedním řádkem. */
+   pravidel je pro všechny stejný, ať se nový award přidává jedním
+   řádkem. */
 .secline{display:flex;align-items:center;gap:10px;margin:22px 0 11px}
 .secline:first-child{margin-top:0}
 .secline h4{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;
@@ -465,18 +472,27 @@ tr.click:hover td{background:var(--haze)}
   font-weight:700;color:var(--warn);background:var(--warn-bg);
   border-radius:20px;padding:2px 9px;white-space:nowrap}
 
-.awards{display:grid;grid-template-columns:repeat(4,1fr);gap:11px;margin-bottom:4px}
-.award{position:relative;border:1px solid var(--line);border-radius:12px;
-  padding:14px 13px 13px;background:var(--haze);overflow:hidden}
-.award::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;
+/* Jeden rámeček kolem všech cen, uvnitř vlásková linka mezi řádky —
+   sada trofejí, ne čtyři nesouvisející kartičky. */
+.awards{border:1px solid var(--line);border-radius:12px;overflow:hidden;
+  margin-bottom:4px;background:var(--white)}
+.award{position:relative;display:flex;align-items:center;gap:11px;
+  padding:11px 13px;border-bottom:1px solid var(--line-soft)}
+.award:last-child{border-bottom:0}
+/* Barevný pruh na hraně řádku. Nese ho ::before, aby nezabíral místo
+   v flexu a nehýbal s odsazením textu. */
+.award::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
   background:var(--accent)}
-.award .emoji{font-size:25px;line-height:1;margin-bottom:6px}
-.award .title{font-size:10px;letter-spacing:.13em;text-transform:uppercase;
+.award .medal{flex:none;width:32px;height:32px;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;font-size:16px;
+  background:color-mix(in srgb,var(--accent) 12%,var(--white))}
+.award .txt{flex:1;min-width:0}
+.award .title{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
   color:var(--accent);font-weight:700}
-.award .who{font-size:15.5px;font-weight:600;line-height:1.2;margin:5px 0 2px}
-.award .val{font-family:var(--f-mono);font-size:21px;font-weight:700;
+.award .who{font-size:14px;font-weight:600;line-height:1.25}
+.award .val{flex:none;font-family:var(--f-mono);font-size:19px;font-weight:700;
   color:var(--accent);line-height:1.1}
-.award .sub{font-size:11.5px;color:var(--mute);line-height:1.4;margin-top:5px}
+.award .sub{font-size:11.5px;color:var(--mute);line-height:1.4;margin-top:3px}
 .award .sub b{color:var(--charcoal);font-weight:600}
 .award.a-win{--accent:var(--ok)}
 .award.a-bench{--accent:var(--alert)}
@@ -484,10 +500,10 @@ tr.click:hover td{background:var(--haze)}
 .award.a-flop{--accent:var(--flop)}
 /* Neudělená cena nesmí vypadat jako výhra — zůstane jí jen ikona
    a vysvětlení, barva i velké číslo zšednou. */
-.award.bezceny{--accent:var(--mute)}
-.award.bezceny .emoji{filter:grayscale(1);opacity:.5}
+.award.bezceny{--accent:var(--mute);background:var(--haze)}
+.award.bezceny .medal{filter:grayscale(1);opacity:.5}
 .award.bezceny .who{color:var(--mute);font-weight:500}
-.award.bezceny .val{font-size:17px;opacity:.6}
+.award.bezceny .val{font-size:15px;opacity:.6}
 
 /* ---------- síň slávy ---------- */
 .hall{border:1px solid var(--line);border-radius:12px;overflow:hidden;
@@ -1276,10 +1292,8 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
   font-size:10px;letter-spacing:.09em;text-transform:uppercase;
   font-weight:700;color:var(--warn);background:var(--warn-bg);
   border-radius:20px;padding:2px 9px;white-space:nowrap}
-.awards.mini{grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-.awards.mini .award{padding:11px 12px 12px}
-.awards.mini .emoji{font-size:19px}
-.awards.mini .title{font-size:9.5px}
+.awards.mini .award{padding:9px 11px}
+.awards.mini .medal{width:28px;height:28px;font-size:14px}
 .awards.mini .who{font-size:13px}
 .awards.mini .val{font-size:17px}
 
