@@ -2093,11 +2093,13 @@ function newsPanel(){
          const meta = AWARD_META[a.key];
          const bez = a.val === '—' ? ' bezceny' : '';
          return `<div class="award ${meta.cls}${bez}">
-           <div class="emoji" aria-hidden="true">${meta.emoji}</div>
-           <div class="title">${meta.title}</div>
-           <div class="who">${a.whoHtml || a.who}</div>
+           <div class="medal" aria-hidden="true">${meta.emoji}</div>
+           <div class="txt">
+             <div class="title">${meta.title}</div>
+             <div class="who">${a.whoHtml || a.who}</div>
+             ${a.sub ? `<div class="sub">${a.sub}</div>` : ''}
+           </div>
            <div class="val">${a.val}</div>
-           ${a.sub ? `<div class="sub">${a.sub}</div>` : ''}
          </div>`;
        }).join('')}</div>`
     : '';
