@@ -1624,9 +1624,16 @@ body.sq-lock{overflow:hidden}
    i název; pohár vlevo appku pozná i tak. */
 .bar .brand{flex:0 1 auto;min-width:0;overflow:hidden;text-decoration:none}
 .bar .brand img{width:30px;height:30px}
-.bar .brand .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  min-width:0;font-size:14px}
-.bar .brand .tx small{letter-spacing:2.2px;font-size:8px}
+/* Název ligy místo jména nástroje. Dvě řádky jsou schválně: „O pohár
+   Ládi Stropnického“ na jednom řádku je 25 znaků a buď by segment
+   odtlačil, nebo by se ořízl v půlce jména. Zalomený se vejde do stejné
+   výšky jako pohár vedle. */
+.bar .brand .tx{min-width:0;font-family:var(--f-disp);font-weight:600;
+  font-size:14px;line-height:1.05;letter-spacing:.02em;color:#fff;
+  text-transform:uppercase;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;max-width:190px;white-space:normal}
+.bar .brand .tx.long{font-size:11.5px;letter-spacing:.04em;max-width:150px}
 
 /* Starý pruh se záložkami zůstává v DOM jako zdroj pravdy o otevřené
    sekci — jen ho není vidět. */
@@ -1747,7 +1754,7 @@ body.sq-lock{overflow:hidden}
   .bar .cmd{padding:0 9px}
 }
 @media(max-width:1080px){
-  .bar .brand .tx small{display:none}
+  .bar .brand .tx{max-width:120px;font-size:11px}
   .seg button{padding:7px 10px;font-size:12px}
 }
 @media(max-width:960px){

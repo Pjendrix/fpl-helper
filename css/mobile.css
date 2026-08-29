@@ -21,9 +21,10 @@
   .bar .wrap{height:54px;gap:8px;padding:0 12px}
   .brand{flex:0 1 auto;min-width:0;overflow:hidden}
   .brand img{width:26px;height:26px}
-  .brand .tx{font-size:12.5px;letter-spacing:0;overflow:hidden;
-    text-overflow:ellipsis}
-  .brand .tx small{display:none}
+  /* Na telefonu jeden řádek: dva by v 54px liště nechaly jméno týmu
+     bez místa. Ořízne se tedy koncem názvu, ne jeho polovinou. */
+  .brand .tx{font-size:12px;letter-spacing:.02em;-webkit-line-clamp:1;
+    max-width:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .bar .cd{margin-left:auto;padding:3px 9px;border-radius:9px}
   .bar .cd .lbl{font-size:7px;letter-spacing:.12em}
   .bar .cd .val{font-size:12.5px}
