@@ -204,8 +204,9 @@
 
   /* Čtyři ceny vedle sebe se na telefonu zmenší na nečitelné sloupečky.
      Dvě a dvě: jméno výherce se pak vejde celé. */
-  .awards.mini{grid-template-columns:1fr 1fr;gap:6px}
-  .awards.mini .award{padding:9px 10px 10px}
+  /* Řádky se na mobilu nikam nelámou, jen se stáhnou. */
+  .awards.mini .award{padding:8px 10px;gap:9px}
+  .awards.mini .medal{width:26px;height:26px;font-size:13px}
   .awards.mini .who{font-size:12px}
   .awards.mini .val{font-size:15px}
 
