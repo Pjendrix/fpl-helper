@@ -250,7 +250,6 @@
   table.advcmp td,table.advcmp th{padding:5px 2px;font-size:11.5px}
   table.advcmp th{width:42%;font-size:10.5px}
 
-@media (max-width:720px){
   /* ---------- sestava jako spodní plachta ----------
      Totéž okno jako na desktopu, jen přilepené dolů: palec je dole a
      modální okno uprostřed obrazovky se na telefonu zavírá hůř, než
@@ -268,9 +267,7 @@
   .sqsum .big{font-size:22px}
   .sqp{grid-template-columns:30px 1fr auto auto;gap:6px;padding:7px 6px}
   .sqp b{font-size:13.5px}
-}
 
-@media (max-width:720px){
   /* Stav dat na úzkém displeji: dva řádky místo jednoho, ať se
      vysvětlivka nemusí zkracovat do nesrozumitelna. */
   .statusbar .wrap{padding:6px 0;gap:6px;font-size:11.5px}
@@ -282,4 +279,13 @@
   .sqcol + .sqcol{border-top:1px solid var(--line);padding-top:10px}
   .h2hm .bilance{position:static;transform:none;display:block;
     text-align:center;margin-top:4px}
-}
+
+  /* Na telefonu navigaci obstarává spodní lišta — segment i hledání
+     v hlavičce by jen ubíraly místo názvu ligy. Stav kola zůstává
+     v samostatném pruhu pod hlavičkou, kde se vejde celý.
+
+     Bez @media schválně: přepínač zobrazení přepisuje media atribut
+     na <link>, takže „mobilní verze na širokém monitoru“ musí platit
+     taky — a vnořený dotaz by ji vypnul. */
+  #topnav,.bar .cmd,.bar .state{display:none}
+  .rail{display:none}
