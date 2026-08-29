@@ -1595,3 +1595,11 @@ body.sq-lock{overflow:hidden}
 /* Kdo ještě nenastoupil, není nula — je to nedopsaný řádek. */
 .sqp.idle b,.sqp.idle .pts{opacity:.5}
 .sqp.bench{opacity:.72}
+
+/* Šipka u jména v okně se sestavou: kdo přišel autosubem a kdo šel ven.
+   Bez ní by u vystřídaného hráče seděla nula a body by se objevily
+   u někoho, kdo je „na lavičce“ — a nedalo by se poznat proč. */
+.sqp .sub{font-style:normal;margin-left:5px;font-size:11px;
+  color:var(--ok);font-weight:700}
+.sqp .sub.out{color:var(--mute)}
+.sqp.bench{opacity:.72}
