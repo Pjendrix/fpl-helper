@@ -209,6 +209,9 @@ function initAuth(){
   window.FB.onUser(user => {
     FB_USER = user || null;
     SYNC_READY = false;
+    /* Archiv kol je pro nepřihlášeného nečitelný, takže po přihlášení
+       musí jít dotaz znovu — jinak by v paměti zůstalo prázdno. */
+    SNAP_CLOUD = null;
     renderAuth();
     if(FB_USER) pullSync();
     else setSyncStatus('');
@@ -266,6 +269,7 @@ function resetState(){
   NEWS_PICKS.clear();
   NEWS_LIVE.clear();
   HALL_ALL = false;
+  SNAP_CLOUD = null;     // archiv kol se čte podle ligy, ne podle týmu
   LEAGUE_OWN = null;
   PLAYERS = null;
   CMP_A = CMP_B = null;
@@ -460,6 +464,8 @@ $('logout').addEventListener('click', () => {
      odešel, a ze vstupní obrazovky by nešlo odejít. */
   lsDel(ENTRY_KEY);
   lsDel(LEAGUE_KEY);
+  // Archiv patří lize, ze které člověk právě odešel.
+  snapClear();
 
   stopCountdown();
 

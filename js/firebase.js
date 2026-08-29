@@ -53,6 +53,23 @@ if(FIREBASE_CONFIG.projectId){
       h2hFreeze: (lid, gw, data) =>
         store.setDoc(store.doc(db, "leagues", String(lid), "h2h", String(gw)),
                      data),
+
+      /* Archiv dohraných kol — sestavy a body, ze kterých se počítají
+         ceny a síň slávy. Stejný model jako H2H: sdílené v rámci ligy
+         a zapsatelné právě jednou, protože dohrané kolo je fakt.
+
+         Čte se celá kolekce najednou. Kol je za sezónu 38, dokument má
+         pár kilobajtů — jeden dotaz je levnější než dotaz za kolo. */
+      gwRead: async lid => {
+        const snap = await store.getDocs(
+          store.collection(db, "leagues", String(lid), "gw"));
+        const out = {};
+        snap.forEach(d => { out[d.id] = d.data(); });
+        return out;
+      },
+      gwWrite: (lid, gw, data) =>
+        store.setDoc(store.doc(db, "leagues", String(lid), "gw", String(gw)),
+                     data),
     };
   }catch(e){
     // Bez sync appka funguje dál. Hlásit to na stránce nemá cenu —

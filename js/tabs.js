@@ -2181,6 +2181,15 @@ async function loadNewsGw(g){
 /* Sestavy a body jednoho kola. `live` je jeden dotaz na kolo, sestavy
    jeden na člena — proto se tohle nedělá při otevření hubu. */
 async function nactiKolo(g){
+  /* Dohrané kolo se nemění, takže ho stačí načíst jednou za život
+     ligy — archiv ho vrátí bez jediného dotazu na FPL API. Rozehrané
+     kolo se archivem nikdy nezdržuje. */
+  const konecne = gwPhase(g) === 'final';
+  if(konecne && !(NEWS_PICKS.has(g) && NEWS_LIVE.get(g))){
+    try{ if(await snapLoad(g, HUB.members)) return; }
+    catch(e){ /* archiv je pohodlí, ne podmínka — jde se na API */ }
+  }
+
   if(!NEWS_PICKS.has(g)){
     try{
       NEWS_PICKS.set(g, await pooled(HUB.members,
@@ -2199,6 +2208,10 @@ async function nactiKolo(g){
     try{ NEWS_LIVE.set(g, await cached('event/' + g + '/live/')); }
     catch(e){ NEWS_LIVE.set(g, null); }
   }
+
+  /* Kolo je dohrané a povedlo se celé — ať se příště nestahuje znovu.
+     Ukládá se až tady, protože dřív není jisté, že máme obojí. */
+  if(konecne) snapSave(g, HUB.members, NEWS_PICKS.get(g), NEWS_LIVE.get(g));
 }
 
 /* Dotáhne sestavy všech dohraných kol, aby síň slávy měla i kapitány.
