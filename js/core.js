@@ -89,7 +89,7 @@ async function api(p, tries = 3){
     }
 
     const data = await r.json();
-    if(r.ok) return data;
+    if(r.ok){ API_LAST = Date.now(); return data; }
 
     // 429 není chyba, je to žádost o strpení. Čekáme déle po každém pokusu.
     if(r.status === 429 && attempt < tries - 1){
@@ -101,6 +101,11 @@ async function api(p, tries = 3){
     throw new Error((data.error || 'Chyba') + ' — ' + p + ' (' + r.status + ')');
   }
 }
+
+/* Kdy se naposled něco doopravdy stáhlo. Pruh se stavem dat z toho
+   dělá čas „data před 3 min“ — bez něj se nedá poznat rozdíl mezi
+   „nic se nezměnilo“ a „appka se od rána nezeptala“. */
+let API_LAST = null;
 
 let API_CACHE = new Map();
 
@@ -177,6 +182,7 @@ async function load(id){
     if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
     startCountdown();
     drawRail();
+    drawStatus();
 
     const cur = BOOT.events.find(e => e.is_current);
     const nxt = BOOT.events.find(e => e.is_next);
@@ -215,7 +221,7 @@ async function load(id){
         + 'GW' + startGw + '. Zatím ukazuju stav hráčů v celé lize.';
     }
   }catch(e){
-    $('msg').textContent = e.message;
+    $('msg').innerHTML = errBox(e.message, null, () => load(ENTRY_ID));
   }
 }
 
@@ -1321,6 +1327,12 @@ function selectTab(tid){
   const pid = (TABS.find(([t]) => t === tid) || [])[1];
   if(pid && $(pid)) $(pid).setAttribute('aria-busy', 'false');
 
+  // Adresní řádek drží krok s tím, co je vidět — odkaz na kolo se pak
+  // dá poslat dál. Kolo doplňuje záložka H2H sama, když ho přepne.
+  if(typeof setHash === 'function'){
+    setHash(tid, tid === 't-h2h' && typeof H2H_GW !== 'undefined' ? H2H_GW : null);
+  }
+
   if(TAB_INIT[tid] && !TAB_DONE.has(tid)){ TAB_DONE.add(tid); TAB_INIT[tid](); }
 }
 
@@ -1492,7 +1504,7 @@ async function loadLeague(lid){
     renderLeague({league}, members, hist, picks, cur, truncated);
     $('lmsg').textContent = '';
   }catch(e){
-    $('lmsg').textContent = e.message;
+    $('lmsg').innerHTML = errBox(e.message, 't-league');
   }
 }
 
@@ -1605,7 +1617,8 @@ function renderLeague(st, members, hist, picks, cur, truncated){
       const move = m.last_rank ? m.last_rank - m.rank : 0;
       return `<tr${m.entry === myId ? ' class="me"' : ''}>
         <td class="n">${m.rank}${deltaChip(m.rank, rankDelta(m.entry, cur ? cur.id : 0))}</td>
-        <td><b>${esc(m.player_name)}</b></td>
+        <td><b>${cur ? squadBtn(m.entry, cur.id, m.player_name, m.entry_name)
+          : esc(m.player_name)}</b></td>
         <td class="hide-s" style="color:var(--mute)">${esc(m.entry_name)}</td>
         <td class="n">${m.event_total}</td>
         <td class="n">${m.total}</td>

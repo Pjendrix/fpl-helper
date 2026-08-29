@@ -326,7 +326,9 @@ function enterApp(entryId, leagueId){
   });
 
   loadClubMarks();
-  load(entryId);
+  /* Odkaz typu `#h2h/gw7` otevře rovnou to, na co míří — ale až po
+     načtení sestavy, protože dřív nemá záložka co zobrazit. */
+  load(entryId).then(() => { if(typeof applyHash === 'function') applyHash(); });
   window.scrollTo(0, 0);
 }
 

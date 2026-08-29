@@ -404,7 +404,7 @@ async function loadPlayers(){
     }
     drawTopPlayers();
   }catch(e){
-    $('pmsg').textContent = e.message;
+    $('pmsg').innerHTML = errBox(e.message, 't-players');
     $('pout').innerHTML = '';
   }
 }
@@ -605,7 +605,7 @@ async function analyzeTransfers(){
     renderTransfers();
     $('trmsg').textContent = '';
   }catch(e){
-    $('trmsg').textContent = e.message;
+    $('trmsg').innerHTML = errBox(e.message, null, () => analyzeTransfers());
   }
 }
 
@@ -1137,7 +1137,7 @@ async function loadHub(){
     renderHub();
     $('hubmsg').textContent = '';
   }catch(e){
-    $('hubmsg').textContent = e.message;
+    $('hubmsg').innerHTML = errBox(e.message, 't-hub');
   }
 }
 
@@ -1547,7 +1547,9 @@ function buildHealth(){
     <thead><tr><th>Manažer</th><th class="n">Nehraje</th><th class="n">Pod otazníkem</th>
       <th class="n">FDR kádru</th><th class="hide-s">Kdo</th></tr></thead>
     <tbody>${rows.map(r => `<tr>
-      <td><b>${esc(r.m.player_name)}</b></td>
+      <td><b>${HUB && HUB.cur
+        ? squadBtn(r.m.entry, HUB.cur.id, r.m.player_name, r.m.entry_name)
+        : esc(r.m.player_name)}</b></td>
       <td class="n ${r.out.length >= 3 ? 'al' : r.out.length ? 'wn' : ''}">${r.out.length}</td>
       <td class="n ${r.doubt.length ? 'wn' : ''}">${r.doubt.length}</td>
       <td class="n ${r.avgFdr >= 3.6 ? 'al' : r.avgFdr <= 2.6 ? 'ok' : ''}">${r.avgFdr.toFixed(2)}</td>
@@ -1810,6 +1812,8 @@ function buildAwards(gwId, picksFor, liveFor){
     who: delici.length > 1
       ? delici.map(x => esc(x.m.player_name)).join(' & ')
       : esc(top.m.player_name),
+    whoHtml: (delici.length > 1 ? delici : [top])
+      .map(x => squadBtn(x.m.entry, id, x.m.player_name, x.m.entry_name)).join(' & '),
     val: top.ev.points + ' b',
     sub: delici.length > 1
       ? 'O první místo se dělí na stejných bodech.'
@@ -1827,6 +1831,9 @@ function buildAwards(gwId, picksFor, liveFor){
   if(lavNej.length){
     const vsichniStejne = lavNej.length === lavVsichni.length;
     const vetsinaLav = lavNej.length * 2 >= lavVsichni.length;
+    /* `who` zůstává prostým textem — čte ho síň slávy i testy. Klikatelná
+       varianta jde vedle jako `whoHtml`, takže karta může odkazovat na
+       sestavu, aniž by se text ceny stal HTML. */
     const jmenaLav = list => list.length <= 3
       ? list.map(c => esc(c.m.player_name)).join(', ')
       : esc(list[0].m.player_name) + ' a další ' + (list.length - 1);
@@ -1848,6 +1855,9 @@ function buildAwards(gwId, picksFor, liveFor){
       out.push({
         key: 'bench',
         who: jmenaLav(lavNej),
+        whoHtml: lavNej.length <= 3
+          ? lavNej.map(c => squadBtn(c.m.entry, id, c.m.player_name, c.m.entry_name)).join(', ')
+          : null,
         val: kdo.lav + ' b',
         sub: lavNej.length > 1
           ? 'Na lavičce nechali stejně — o cenu se dělí.'
@@ -1909,6 +1919,8 @@ function buildAwards(gwId, picksFor, liveFor){
         ? {key: 'cap', who: 'Bez ceny', val: '—',
            sub: `${duvod(vitezove)} — cena se za tohle kolo neuděluje.`}
         : {key: 'cap', who: jmena(vitezove), val: nej.pts + ' b',
+           whoHtml: vitezove.length <= 3 ? vitezove.map(c =>
+             squadBtn(c.m.entry, id, c.m.player_name, c.m.entry_name)).join(', ') : null,
            sub: `${jmeno(nej.pid)} (${nej.raw} × ${nej.mult})`
              + (vitezove.length > 1 ? ' — o cenu se dělí.'
                : caps.filter(c => c.pid === nej.pid).length === 1
@@ -1918,6 +1930,8 @@ function buildAwards(gwId, picksFor, liveFor){
         ? {key: 'flop', who: 'Bez ceny', val: '—',
            sub: `${duvod(posledni)} — cena se za tohle kolo neuděluje.`}
         : {key: 'flop', who: jmena(posledni), val: nic.pts + ' b',
+           whoHtml: posledni.length <= 3 ? posledni.map(c =>
+             squadBtn(c.m.entry, id, c.m.player_name, c.m.entry_name)).join(', ') : null,
            sub: `${jmeno(nic.pid)} (${nic.raw} × ${nic.mult})`
              + (posledni.length > 1 ? ' — a nebyl v tom sám.' : '.')});
     }
@@ -2055,7 +2069,7 @@ function newsPanel(){
          return `<div class="award ${meta.cls}${bez}">
            <div class="emoji" aria-hidden="true">${meta.emoji}</div>
            <div class="title">${meta.title}</div>
-           <div class="who">${a.who}</div>
+           <div class="who">${a.whoHtml || a.who}</div>
            <div class="val">${a.val}</div>
            ${a.sub ? `<div class="sub">${a.sub}</div>` : ''}
          </div>`;
@@ -2100,7 +2114,9 @@ function hallPanel(){
     `<th class="c"><span aria-hidden="true">${e}</span>${t}</th>`).join('');
 
   const telo = rows.map(r => `<tr>
-      <td class="name">${esc(r.m.player_name)}</td>
+      <td class="name">${HUB && HUB.cur
+        ? squadBtn(r.m.entry, HUB.cur.id, r.m.player_name, r.m.entry_name)
+        : esc(r.m.player_name)}</td>
       ${SLOUPCE.map(([k]) => {
         const v = r[k];
         const tridy = ['c', v > 0 ? 'has' : '', v > 0 && v === max[k] ? 'lead' : ''];
@@ -2597,7 +2613,7 @@ async function loadPlan(){
 
     $('plmsg').textContent = '';
   }catch(e){
-    $('plmsg').textContent = e.message;
+    $('plmsg').innerHTML = errBox(e.message, 't-plan');
   }
 }
 
@@ -3412,7 +3428,7 @@ async function loadPrices(){
     wireWatch();
     $('prmsg').textContent = '';
   }catch(e){
-    $('prmsg').textContent = e.message;
+    $('prmsg').innerHTML = errBox(e.message, 't-prices');
     $('prout').innerHTML = '';
   }
 }

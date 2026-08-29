@@ -676,7 +676,7 @@ async function loadAdvisor(){
     await advEnsureLeague();
     renderAdvisor();
   }catch(e){
-    $('advmsg').textContent = e.message;
+    $('advmsg').innerHTML = errBox(e.message, 't-adv');
   }
 }
 

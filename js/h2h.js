@@ -536,21 +536,132 @@ function h2hTym(x){
   return x ? esc(x.m.entry_name) : 'průměr ostatních';
 }
 
+/* ------------------------------------------------------------
+   Vzájemná bilance dvou manažerů
+
+   „S tebou mám 3:1“ je věta, která u H2H padne pokaždé — a appka na ni
+   dosud neuměla odpovědět, přestože všechna data k tomu měla. Počítají
+   se jen dopočítaná kola a jen kola před tím právě zobrazeným, aby
+   bilance neobsahovala zápas, na který se člověk zrovna dívá.
+   ------------------------------------------------------------ */
+function h2hBilance(entryA, entryB, doKola){
+  if(entryA == null || entryB == null) return null;
+  let v = 0, r = 0, p = 0;
+
+  for(const round of h2hSeason()){
+    if(round.gw >= doKola || gwPhase(round.gw) !== 'final') continue;
+    const f = h2hFixtures(round).find(x =>
+      (x.a.m.entry === entryA && x.b && x.b.m.entry === entryB) ||
+      (x.b && x.b.m.entry === entryA && x.a.m.entry === entryB));
+    if(!f || f.sa === null || f.sb === null) continue;
+
+    const [mine, jeho] = f.a.m.entry === entryA ? [f.sa, f.sb] : [f.sb, f.sa];
+    if(mine > jeho) v++; else if(mine < jeho) p++; else r++;
+  }
+  return (v + r + p) ? {v, r, p} : null;
+}
+
+/* Forma posledních pěti dopočítaných kol jako značky, ne jen barvy.
+   Barva sama o sobě je pro část lidí prázdné místo. */
+function h2hForma(entry, doKola){
+  const out = [];
+  for(const round of h2hSeason()){
+    if(round.gw >= doKola || gwPhase(round.gw) !== 'final') continue;
+    const f = h2hFixtures(round).find(x =>
+      x.a.m.entry === entry || (x.b && x.b.m.entry === entry));
+    if(!f || f.sa === null || f.sb === null) continue;
+    const [mine, jeho] = f.a.m.entry === entry ? [f.sa, f.sb] : [f.sb, f.sa];
+    out.push(mine > jeho ? ['w', 'V'] : mine < jeho ? ['l', 'P'] : ['d', 'R']);
+  }
+  return out.slice(-5);
+}
+
+function h2hFormaHtml(entry, doKola){
+  const f = h2hForma(entry, doKola);
+  if(!f.length) return '<span class="forma" aria-label="Forma: zatím žádné kolo">'
+    + '<i class="none" aria-hidden="true">–</i></span>';
+  return `<span class="forma" aria-label="Forma: ${f.map(x => x[1]).join(', ')}">
+    ${f.map(([c, t]) => `<i class="${c}" aria-hidden="true">${t}</i>`).join('')}</span>`;
+}
+
+/* ------------------------------------------------------------
+   Průběh kola
+
+   Skóre samo o sobě nestačí: pět bodů náskoku znamená něco jiného, když
+   soupeři zbývá pět hráčů, a něco jiného, když už dohrál. Počítá se
+   z rozpisu a ze sestav, tedy z dat, která panel stejně má.
+   ------------------------------------------------------------ */
+function h2hZbyva(i, gw){
+  if(!H2H_LIVE || H2H_LIVE.gw !== gw) return null;
+  const pk = HUB.picks && HUB.picks[i];
+  if(!pk || !pk.picks) return null;
+
+  const L = resolveLineup(pk, H2H_LIVE.stats, gw);
+  let ceka = 0, hraje = 0;
+  for(const r of L.rows){
+    if(r.mult <= 0) continue;
+    if(r.played) continue;
+    // Rozehraný zápas znamená „je na hřišti“, nerozehraný „přijde na řadu“.
+    const el = (BOOT.elements || []).find(p => p.id === r.element);
+    const fx = el ? FIX.filter(f => f.event === gw &&
+      (f.team_h === el.team || f.team_a === el.team)) : [];
+    if(fx.some(f => f.started && !f.finished)) hraje++; else ceka++;
+  }
+  return {ceka, hraje};
+}
+
+function h2hPrubeh(x, gw){
+  if(!x) return '';
+  const z = h2hZbyva(x.i, gw);
+  if(!z || (!z.ceka && !z.hraje)) return '';
+  const casti = [];
+  if(z.hraje) casti.push(z.hraje + ' na hřišti');
+  if(z.ceka) casti.push(z.ceka + ' čeká');
+  return `<span class="zbyva">${casti.join(' · ')}</span>`;
+}
+
 function h2hCard(f, gw, velka){
   const v = h2hVysledek(f);
   const zacalo = h2hZacalo(gw);
-  return `<div class="h2hm${velka ? ' big' : ''} ${v.cls}">
+
+  /* Výsledek nesmí být jen barva rámečku — pro část lidí je to prázdné
+     místo. Slovo je v aria-labelu, značka i ve viditelném textu. */
+  const znak = v.cls === 'w' ? '▲' : v.cls === 'l' ? '▼' : v.cls === 'd' ? '=' : '';
+
+  const bil = velka && f.b ? h2hBilance(f.a.m.entry, f.b.m.entry, gw) : null;
+  const bilTxt = bil
+    ? `<span class="bilance" title="Dosavadní vzájemné zápasy">Vzájemně
+        ${bil.v}–${bil.r}–${bil.p}</span>` : '';
+
+  return `<div class="h2hm${velka ? ' big' : ''} ${v.cls}"${
+      velka ? ' aria-live="polite"' : ''}>
     <div class="side">
       <b>${h2hJmeno(f.a, gw)}</b><em>${h2hTym(f.a)}</em>
+      ${velka ? h2hPrubeh(f.a, gw) : ''}
     </div>
-    <div class="sc">${zacalo
-      ? `<span>${f.sa ?? '–'}</span><i>:</i><span>${f.sb ?? '–'}</span>`
+    <div class="sc" aria-label="${zacalo
+      ? `${f.sa ?? '–'} ku ${f.sb ?? '–'}, ${v.txt}` : 'zatím nezačalo'}">${zacalo
+      ? `<span>${f.sa ?? '–'}</span><i>:</i><span>${f.sb ?? '–'}</span>
+         ${znak ? `<em class="vysl" aria-hidden="true">${znak}</em>` : ''}`
       : '<u>vs</u>'}</div>
     <div class="side r">
       <b>${h2hJmeno(f.b, gw)}${f.ghost ? '<span class="badge">duch</span>' : ''}</b>
       <em>${h2hTym(f.b)}</em>
+      ${velka ? h2hPrubeh(f.b, gw) : ''}
     </div>
+    ${bilTxt}
   </div>`;
+}
+
+/* Text karty kola do chatu. Prostý text schválně: obrázek se v mobilních
+   klientech zmenší tak, že se skóre nepřečte, kdežto tohle se dá i citovat. */
+function h2hShareText(f, gw){
+  const jm = x => x ? x.m.player_name : 'Duch kola';
+  const lig = CONFIG.leagueName || 'Miniliga';
+  const stav = gwPhase(gw) === 'final' ? '' : ' (průběžně)';
+  return `${lig} · GW${gw}${stav}\n`
+    + `${jm(f.a)} ${f.sa ?? '–'} : ${f.sb ?? '–'} ${jm(f.b)}\n`
+    + location.origin + '/#h2h/gw' + gw;
 }
 
 /* Informace, ne ovládání. Kdo tabulku otevře v listopadu, musí vědět,
@@ -592,7 +703,13 @@ function h2hPanel(){
   const muj = h2hOrient(h2hMyFixture(sel, ENTRY_ID), ENTRY_ID);
   const mujBox = muj
     ? `<div class="secline"><h4>Tvůj zápas</h4>
-         <span class="livetag ${cls}">${stav}</span>${zamek}</div>
+         <span class="livetag ${cls}">${stav}</span>${zamek}
+         ${H2H_LIVE && H2H_LIVE.gw === sel
+           ? `<span class="sbtime" id="h2htime">aktualizováno ${
+               new Date(H2H_LIVE.ts).toLocaleTimeString('cs-CZ',
+                 {hour: '2-digit', minute: '2-digit'})}</span>` : ''}
+         <button type="button" class="small" data-sharetitle="H2H"
+           data-share="${esc(h2hShareText(muj, sel))}">Sdílet</button></div>
        ${h2hCard(muj, sel, true)}`
     : `<p class="note">V tomhle kole tvůj tým v lize není.</p>`;
 
@@ -622,7 +739,7 @@ function h2hPanel(){
     ${`<table class="h2ht">
       <thead><tr><th>#</th><th>Tým</th><th class="n">Z</th><th class="n">V</th>
         <th class="n">R</th><th class="n">P</th><th class="n">Skóre</th>
-        <th class="n">Body</th></tr></thead>
+        <th class="n">Body</th><th class="hide-s">Forma</th></tr></thead>
       <tbody>${t.map((r, i) => `<tr class="${r.m.entry === ENTRY_ID ? 'me' : ''}">
         <td class="n">${i + 1}</td>
         <td><b>${squadBtn(r.m.entry, sel, r.m.entry_name, r.m.player_name)}</b>
@@ -631,6 +748,7 @@ function h2hPanel(){
         <td class="n">${r.r}</td><td class="n">${r.p}</td>
         <td class="n">${r.pro}:${r.proti}</td>
         <td class="n"><b>${r.body}</b></td>
+        <td class="hide-s">${h2hFormaHtml(r.m.entry, sel)}</td>
       </tr>`).join('')}</tbody>
     </table>`}
     ${odehrano ? '' : `<p class="note">Zatím není dopočítané žádné kolo, takže
@@ -676,9 +794,9 @@ async function loadH2H(){
     $('h2hmsg').textContent = 'Načítám ligu…';
     $('h2hout').innerHTML = '<div class="skel"><i></i><i></i><i></i></div>';
     try{ await loadHub(); }
-    catch(e){ $('h2hmsg').textContent = e.message; return; }
+    catch(e){ $('h2hmsg').innerHTML = errBox(e.message, 't-h2h'); return; }
   }
-  if(!HUB){ $('h2hmsg').textContent = 'Ligu se nepodařilo načíst.'; return; }
+  if(!HUB){ $('h2hmsg').innerHTML = errBox('Ligu se nepodařilo načíst.', 't-h2h'); return; }
 
   $('h2hmsg').textContent = '';
 
@@ -691,7 +809,7 @@ async function loadH2H(){
      nic“ se pak hledá půl hodiny. Radši ať je vidět, co se stalo. */
   try{ renderH2H(); }
   catch(e){
-    $('h2hmsg').textContent = 'H2H se nepodařilo vykreslit: ' + e.message;
+    $('h2hmsg').innerHTML = errBox('H2H se nepodařilo vykreslit: ' + e.message, 't-h2h');
     console.error('H2H:', e);
     return;
   }
@@ -713,14 +831,28 @@ function h2hAutoRefresh(){
     if(!HUB || !HUB.cur || gwPhase(HUB.cur.id) === 'final'){
       clearInterval(H2H_TIMER); H2H_TIMER = null; return;
     }
+    const pred = JSON.stringify(H2H_LIVE ? [...H2H_LIVE.stats.keys()].length : 0);
     await h2hEnsureLive();
-    try{ renderH2H(); }catch(e){ console.error('H2H:', e); }
+    try{
+      renderH2H();
+      /* Tiché přepsání čísel vypadá jako by se nic nedělo. Záblesk u
+         vlastního zápasu a čas poslední obnovy říkají, že appka žije. */
+      const karta = document.querySelector('#h2hout .h2hm.big');
+      if(karta && typeof flash === 'function') flash(karta);
+      if(typeof drawStatus === 'function') drawStatus();
+      void pred;
+    }catch(e){ console.error('H2H:', e); }
   }, 60000);
 }
 
 document.addEventListener('click', ev => {
   const btn = ev.target.closest('button[data-h2hgw]');
-  if(btn){ H2H_GW = Number(btn.dataset.h2hgw); renderH2H(); }
+  if(btn){
+    H2H_GW = Number(btn.dataset.h2hgw);
+    renderH2H();
+    // Adresa drží krok s tím, co je vidět — odkaz na kolo se dá poslat dál.
+    if(typeof setHash === 'function') setHash('t-h2h', H2H_GW);
+  }
 });
 
 /* ------------------------------------------------------------

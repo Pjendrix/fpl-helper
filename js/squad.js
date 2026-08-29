@@ -124,10 +124,71 @@ function sqBody(pk, live, gw){
     </div>
     ${rady}
     <div class="sqline"><h5>Lavička</h5>${lav.map(x => sqRow(x, live, true, ef.get(x.element))).join('')}</div>
+    ${sqDiff(picks, live, ef)}
     <p class="note">Body jsou průběžné, dokud FPL nedopočítá bonusy. Součet
       počítá automatická střídání (šipka u jména) i přesun kapitánské pásky
       na vicekapitána. Čísla u lavičky se do součtu nepočítají — leda
       s čipem Bench Boost, kde hraje celý kádr.</p>`;
+}
+
+/* Rozdíl proti mému kádru.
+
+   U H2H je tohle ta hlavní otázka: koho má soupeř navíc a koho nemám
+   já. Bez ní se musí obě sestavy porovnávat očima, což u patnácti jmen
+   nikdo nedělá. Vlastní kádr známe z `MY_SQUAD`, který se plní při
+   načtení sestavy; bez něj se sekce prostě nevykreslí.
+
+   Do rozdílu se počítá celý kádr, ne jen základ: hráč na lavičce je
+   pořád rozdíl mezi dvěma týmy, jen se zrovna nepočítá. */
+function sqDiff(picks, live, ef){
+  if(!MY_SQUAD || !MY_SQUAD.size) return '';
+
+  const jeho = picks.map(x => x.element);
+  const navic = jeho.filter(id => !MY_SQUAD.has(id));
+  const chybi = [...MY_SQUAD].filter(id => !jeho.includes(id));
+  if(!navic.length && !chybi.length){
+    return '<div class="sqline"><h5>Rozdíl proti tvému kádru</h5>' +
+      '<p class="note">Máte úplně stejných patnáct hráčů.</p></div>';
+  }
+
+  const chip = (id, znak) => {
+    const p = sqPlayer(id);
+    const b = live.pts.get(id);
+    const r = ef && ef.get(id);
+    return `<span class="sqdiff ${znak}">${znak === 'plus' ? '+' : '−'}
+      ${esc(p ? p.web_name : '?')}<u>${b == null ? '–' : (r ? r.pts : b)}</u></span>`;
+  };
+
+  return `<div class="sqline"><h5>Rozdíl proti tvému kádru</h5>
+    <div class="sqdiffs">
+      ${navic.map(id => chip(id, 'plus')).join('')}
+      ${chibiChips(chybi, live)}
+    </div>
+    <p class="note">Vlevo hráči, které má on a ty ne; vpravo naopak.
+      U jména jsou body za tohle kolo.</p>
+  </div>`;
+}
+
+function chibiChips(ids, live){
+  return ids.map(id => {
+    const p = sqPlayer(id);
+    const b = live.pts.get(id);
+    return `<span class="sqdiff minus">−${esc(p ? p.web_name : '?')}<u>${
+      b == null ? '–' : b}</u></span>`;
+  }).join('');
+}
+
+function sqShow(m){
+  const bylo = !m.hidden;
+  m.hidden = false;
+  m.classList.add('on');
+  document.body.classList.add('sq-lock');
+  if(!bylo && !SQ_HIST){
+    // Jeden záznam na jedno otevření; přepnutí na porovnání ho nepřidává.
+    try{ history.pushState({sq: 1}, ''); SQ_HIST = true; }catch(e){}
+  }
+  const zavri = m.querySelector('.x');
+  if(zavri) zavri.focus();
 }
 
 function sqClose(){
@@ -136,6 +197,7 @@ function sqClose(){
   m.hidden = true;
   m.classList.remove('on');
   document.body.classList.remove('sq-lock');
+  if(SQ_HIST){ SQ_HIST = false; try{ history.back(); }catch(e){} }
   if(SQ_FOCUS && document.contains(SQ_FOCUS)) SQ_FOCUS.focus();
   SQ_FOCUS = null;
 }
@@ -147,13 +209,14 @@ async function openSquad(entry, gw, jmeno, tym){
 
   SQ_FOCUS = document.activeElement;
   $('sqmTitle').innerHTML = `${esc(jmeno || 'Sestava')}
-    <span>${esc(tym || '')}${tym ? ' · ' : ''}GW${gw}</span>`;
+    <span>${esc(tym || '')}${tym ? ' · ' : ''}GW${gw}
+      · <a href="https://fantasy.premierleague.com/entry/${entry}/event/${gw}"
+           target="_blank" rel="noopener noreferrer">tým na FPL ↗</a>
+      ${ENTRY_ID && entry !== ENTRY_ID
+        ? `· <button type="button" class="linklike" data-compare="${entry}"
+             data-cmpgw="${gw}">porovnat s mým kádrem</button>` : ''}</span>`;
   $('sqmBody').innerHTML = '<div class="skel"><i></i><i></i><i></i></div>';
-  m.hidden = false;
-  m.classList.add('on');
-  document.body.classList.add('sq-lock');
-  const zavri = m.querySelector('.x');
-  if(zavri) zavri.focus();
+  sqShow(m);
 
   try{
     const [pk, live] = await Promise.all([
@@ -172,6 +235,95 @@ async function openSquad(entry, gw, jmeno, tym){
   }
 }
 
+/* ------------------------------------------------------------
+   Porovnání dvou kádrů vedle sebe
+
+   Rozdílové odrážky řeknou, kdo je jiný. Tohle řekne, jak se ta jinakost
+   projevila na bodech — dva sloupce, stejné pořadí řad, součty dole.
+   ------------------------------------------------------------ */
+function sqSloupec(pk, live, gw, popis){
+  const L = resolveLineup(pk, live.stats, gw);
+  const ef = new Map(L.rows.map(r => [r.element, r]));
+  const picks = (pk.picks || []).slice().sort((a, b) => a.position - b.position);
+  const hraje = x => (ef.get(x.element) || {}).mult > 0;
+
+  const rady = [1, 2, 3, 4].map(t => {
+    const v = picks.filter(x => hraje(x) && sqPlayer(x.element)
+      && sqPlayer(x.element).element_type === t);
+    return v.map(x => sqRow(x, live, false, ef.get(x.element))).join('');
+  }).join('');
+
+  return `<div class="sqcol">
+    <h5>${esc(popis)}</h5>
+    <div class="big">${L.total}<span>bodů</span></div>
+    ${rady}
+    <div class="sqline"><h5>Lavička</h5>
+      ${picks.filter(x => !hraje(x)).map(x => sqRow(x, live, true, ef.get(x.element))).join('')}
+    </div>
+  </div>`;
+}
+
+async function openCompare(entry, gw, jmeno){
+  const m = $('sqmodal');
+  if(!m || !ENTRY_ID) return;
+  const mine = ++SQ_SEQ;
+
+  $('sqmTitle').innerHTML = `Porovnání kádrů
+    <span>ty vs ${esc(jmeno || 'soupeř')} · GW${gw}</span>`;
+  $('sqmBody').innerHTML = '<div class="skel"><i></i><i></i><i></i></div>';
+
+  try{
+    const [ja, on, live] = await Promise.all([
+      cached('entry/' + ENTRY_ID + '/event/' + gw + '/picks/'),
+      cached('entry/' + entry + '/event/' + gw + '/picks/'),
+      sqLive(gw),
+    ]);
+    if(mine !== SQ_SEQ) return;
+    $('sqmBody').innerHTML = `<div class="sqcmp">
+        ${sqSloupec(ja, live, gw, 'Tvůj kádr')}
+        ${sqSloupec(on, live, gw, jmeno || 'Soupeř')}
+      </div>
+      <p class="note">Vlevo ty, vpravo soupeř. Součty jsou po autosubech
+        a po případném přesunu kapitánské pásky, takže sedí s FPL.</p>`;
+  }catch(e){
+    if(mine !== SQ_SEQ) return;
+    $('sqmBody').innerHTML = '<p class="note">Sestavy se nepodařilo načíst.</p>';
+  }
+}
+
+/* ------------------------------------------------------------
+   Fokus a tlačítko Zpět
+
+   Modální okno bez pasti na fokus je modální jen opticky: tabulátorem
+   se z něj dá odejít pod scrim, kde na nic nejde kliknout. A na Androidu
+   je Zpět první, po čem člověk u spodní plachty sáhne — bez ošetření to
+   zavře celou PWA.
+   ------------------------------------------------------------ */
+let SQ_HIST = false;   // přidali jsme kvůli oknu záznam do historie?
+
+function sqTrap(ev){
+  const m = $('sqmodal');
+  if(!m || m.hidden || ev.key !== 'Tab') return;
+  const prvky = [...m.querySelectorAll(
+    'button, a[href], input, [tabindex]:not([tabindex="-1"])')]
+    .filter(el => el.offsetParent !== null);
+  if(!prvky.length) return;
+  const prvni = prvky[0], posledni = prvky[prvky.length - 1];
+
+  if(ev.shiftKey && document.activeElement === prvni){
+    ev.preventDefault(); posledni.focus();
+  }else if(!ev.shiftKey && document.activeElement === posledni){
+    ev.preventDefault(); prvni.focus();
+  }
+}
+document.addEventListener('keydown', sqTrap);
+
+window.addEventListener('popstate', () => {
+  // Zpět zavírá okno, ne appku. Vlastní zavření si záznam odebere samo.
+  const m = $('sqmodal');
+  if(m && !m.hidden){ SQ_HIST = false; sqClose(); }
+});
+
 /* Jediný posluchač pro celou appku. Tlačítko stačí označit atributy:
    data-squad = entry ID, data-sqgw = kolo, data-sqname / data-sqteam
    pro hlavičku okna. */
@@ -181,6 +333,14 @@ document.addEventListener('click', ev => {
     ev.preventDefault();
     openSquad(Number(btn.dataset.squad), Number(btn.dataset.sqgw),
               btn.dataset.sqname || btn.textContent.trim(), btn.dataset.sqteam);
+    return;
+  }
+  const cmp = ev.target.closest('[data-compare]');
+  if(cmp){
+    ev.preventDefault();
+    const karta = $('sqmTitle');
+    openCompare(Number(cmp.dataset.compare), Number(cmp.dataset.cmpgw),
+                (karta.textContent || '').trim().split('\n')[0]);
     return;
   }
   if(ev.target.closest('[data-sqclose]')) sqClose();

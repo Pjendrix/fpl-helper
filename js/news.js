@@ -143,7 +143,7 @@ async function loadNews(force){
     await fetchNews(force);
     renderNews();
   }catch(e){
-    msg.textContent = e.message;
+    msg.innerHTML = errBox(e.message, 't-news');
     $('newsout').innerHTML = '';
   }
 }

@@ -422,7 +422,7 @@ async function loadPlanner(){
     $('plnmsg').textContent = '';
     renderPlanner();
   }catch(e){
-    $('plnmsg').textContent = e.message;
+    $('plnmsg').innerHTML = errBox(e.message, null, () => loadPlanner());
     $('plnout').innerHTML = '';
   }
 }
