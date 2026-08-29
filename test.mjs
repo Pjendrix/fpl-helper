@@ -3927,7 +3927,9 @@ check('průběh kola počítá, kolik hráčů ještě přijde na řadu', () => 
   return z.hraje + ' na hřišti, ' + z.ceka + ' čeká';
 });
 
-check('karta kola jde sdílet jako text s odkazem', () => {
+/* Tlačítko „Sdílet“ v panelu bylo zrušené — text se skládá dál (používá
+   ho sdílení z okna sestavy), takže se testuje jen funkce, ne markup. */
+check('text ke sdílení kola nese skóre i odkaz', () => {
   h2hSetup(8);
   const gws = w.eval('h2hGws()');
   const gw = gws[0];
@@ -3935,8 +3937,6 @@ check('karta kola jde sdílet jako text s odkazem', () => {
   const txt = w.eval(`h2hShareText(window.__f, ${gw})`);
   if(!/#h2h\/gw\d+/.test(txt)) throw new Error('chybí odkaz na kolo');
   if(!/ : /.test(txt)) throw new Error('chybí skóre');
-  const src = fs.readFileSync('js/h2h.js', 'utf8');
-  if(!/data-share="/.test(src)) throw new Error('panel nemá tlačítko Sdílet');
   return txt.split('\\n')[1];
 });
 

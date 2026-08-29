@@ -85,7 +85,13 @@
              je jméno nástroje, ale člověk chodí do svojí ligy. Dlouhý název
              se láme na dva řádky, aby se vešel vedle segmentu a nemusel se
              schovávat pod něj. -->
-        <span class="tx" id="brandTop">SQUAD CHECK</span>
+        <span class="btxt">
+          <span class="tx" id="brandTop">SQUAD CHECK</span>
+          <!-- Stav kola a odpočet. Na desktopu je pro obojí místo v pruhu
+               pod lištou; na telefonu ten pruh zabíral dva řádky, které
+               říkaly totéž. Píše ho drawStatus() v js/status.js. -->
+          <span class="brandsub" id="brandSub" hidden></span>
+        </span>
       </a>
 
       <!-- Segment s pěti sekcemi a nabídkou „Víc“; skládá ho js/topbar.js

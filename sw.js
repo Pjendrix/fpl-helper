@@ -9,7 +9,7 @@
 // (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
 // nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v23';
+const SHELL = 'squadcheck-shell-v24';
 const BADGES = 'squadcheck-badges-v1';
 const FILES = ['/', '/index.html', '/manifest.webmanifest',
                '/icon.svg', '/favicon.svg', '/club-marks.svg',
