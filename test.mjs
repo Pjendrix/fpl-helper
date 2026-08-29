@@ -110,7 +110,7 @@ const CSS_TAGS = [
 ];
 const SRC = [fs.readFileSync('index.html', 'utf8')]
   .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
-  .concat(['js/core.js','js/tabs.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js','js/ui.js','js/planner.js','js/sync.js',
+  .concat(['js/core.js','js/tabs.js','js/status.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js','js/ui.js','js/planner.js','js/sync.js',
            'js/mobile.js','js/boot.js','js/firebase.js']
     .map(f => fs.readFileSync(f, 'utf8')))
   .join('\n');
@@ -3682,6 +3682,174 @@ check('mrtvý duplikát service workeru je pryč', () => {
   const boot = fs.readFileSync('js/boot.js', 'utf8');
   if(!/register\('\/sw\.js'\)/.test(boot)) throw new Error('SW se neregistruje');
   return 'jeden service worker';
+});
+
+/* ---- stav dat, odkazy, přístupnost ---- */
+
+check('pruh se stavem dat říká fázi kola i čas dat', () => {
+  nastavFaze({1: 'final', 2: 'running'});
+  w.eval(`BOOT.events.forEach(e => { e.is_current = e.id === 2; });
+          API_LAST = Date.now(); drawStatus();`);
+  const el = w.document.getElementById('statusbar');
+  if(el.hidden) throw new Error('pruh se neukázal');
+  if(!/GW2/.test(el.textContent)) throw new Error('chybí číslo kola');
+  if(!/data /.test(el.textContent)) throw new Error('chybí čas dat');
+  if(!el.querySelector('#sbreload')) throw new Error('chybí Aktualizovat');
+  return el.querySelector('.livetag').textContent.trim();
+});
+
+check('dvojitý deadline se ohlásí, jednoduchý ne', () => {
+  // Dvě kola do tří dnů po sobě: odpočet v hlavičce ukazuje jen to první.
+  const den = 86400000;
+  w.__ev = [{id: 30, deadline_time: new Date(Date.now() + den).toISOString()},
+            {id: 31, deadline_time: new Date(Date.now() + 2 * den).toISOString()}];
+  const puv = w.eval('BOOT.events');
+  w.eval('BOOT.events = window.__ev');
+  const dvoj = w.eval('dvojityDeadline()');
+  w.__ev = [{id: 30, deadline_time: new Date(Date.now() + den).toISOString()},
+            {id: 31, deadline_time: new Date(Date.now() + 8 * den).toISOString()}];
+  w.eval('BOOT.events = window.__ev');
+  const sam = w.eval('dvojityDeadline()');
+  w.__ev = puv; w.eval('BOOT.events = window.__ev');
+  if(!dvoj) throw new Error('dvojitý deadline se neohlásil');
+  if(sam) throw new Error('normální rozestup se hlásí jako dvojitý');
+  return 'GW30 + GW31';
+});
+
+check('odkaz na kolo se čte i zapisuje', () => {
+  w.location.hash = '#h2h/gw7';
+  const h = w.eval('readHash()');
+  if(!h || h.tab !== 't-h2h' || h.gw !== 7) throw new Error('nepřečteno: ' + JSON.stringify(h));
+  w.eval("setHash('t-league', null)");
+  if(w.location.hash !== '#league') throw new Error('nezapsáno: ' + w.location.hash);
+  if(w.eval('readHash("#nesmysl")') && w.eval('readHash()') === null)
+    throw new Error('nesmyslný odkaz projde');
+  w.location.hash = '';
+  return '#h2h/gw7 → t-h2h, GW7';
+});
+
+check('chyba nabízí zkusit znovu, ne reload stránky', () => {
+  const html = w.eval("errBox('FPL API vrátilo 403.', 't-h2h')");
+  if(!/data-retry=/.test(html)) throw new Error('chybí tlačítko');
+  if(!/role="alert"/.test(html)) throw new Error('odečítač se o chybě nedozví');
+  const src = ['js/core.js', 'js/tabs.js', 'js/news.js', 'js/advisor.js']
+    .map(f => fs.readFileSync(f, 'utf8')).join('');
+  if(/msg'\)\.textContent = e\.message/.test(src))
+    throw new Error('někde zůstala hláška bez tlačítka');
+  return 'errBox všude';
+});
+
+/* ---- H2H: bilance, forma, průběh ---- */
+
+check('vzájemná bilance počítá jen dohraná kola před tím zobrazeným', () => {
+  h2hSetup(8);
+  const e = w.eval('HUB.members.map(m => m.entry)');
+  const b = w.eval(`h2hBilance(${e[0]}, ${e[1]}, 8)`);
+  // Konkrétní čísla závisí na losu; podstatné je, že se nesčítá nic navíc.
+  if(b && b.v + b.r + b.p > 6) throw new Error('bilance obsahuje i nedohraná kola');
+  const zadna = w.eval(`h2hBilance(${e[0]}, ${e[0]}, 8)`);
+  if(zadna) throw new Error('manažer má bilanci sám se sebou');
+  return b ? `${b.v}–${b.r}–${b.p}` : 'zatím nehráli';
+});
+
+check('forma je nejvýš pět kol a nese i písmena, ne jen barvu', () => {
+  h2hSetup(8);
+  const e = w.eval('HUB.members[0].entry');
+  const f = w.eval(`h2hForma(${e}, 8)`);
+  if(f.length > 5) throw new Error('kol ve formě: ' + f.length);
+  const html = w.eval(`h2hFormaHtml(${e}, 8)`);
+  if(!/aria-label="Forma/.test(html)) throw new Error('chybí popis pro odečítač');
+  if(f.length && !/>[VRP]</.test(html)) throw new Error('výsledek nese jen barvu');
+  return f.map(x => x[1]).join('') || 'zatím nic';
+});
+
+check('karta zápasu nese výsledek i jinak než barvou', () => {
+  h2hSetup(8);
+  const html = w.eval('h2hPanel()');
+  if(!/aria-label="[^"]*(výhra|prohra|remíza|nezačalo)/.test(html))
+    throw new Error('skóre nemá slovní popis');
+  return 'popis u skóre';
+});
+
+check('průběh kola počítá, kolik hráčů ještě přijde na řadu', () => {
+  h2hSetup(8);
+  const els = w.eval('BOOT.elements').slice(0, 15);
+  w.eval(`HUB.cur = {id: 9};
+    HUB.picks = HUB.members.map(() => ({
+      picks: window.__pk15, entry_history: {event_transfers_cost: 0}}));`);
+  w.__pk15 = els.map((p, i) => ({element: p.id, position: i + 1,
+    multiplier: i < 11 ? 1 : 0, is_captain: i === 0, is_vice_captain: i === 1}));
+  w.eval('HUB.picks = HUB.members.map(() => ({picks: window.__pk15, entry_history: {event_transfers_cost: 0}}))');
+  w.eval(`H2H_LIVE = {gw: 9, ts: Date.now(), stats: new Map(
+    window.__pk15.map((x, i) => [x.element, {minutes: i < 5 ? 90 : 0, total_points: 2}]))};`);
+  const z = w.eval('h2hZbyva(0, 9)');
+  w.eval('H2H_LIVE = null');
+  if(!z) throw new Error('průběh se nespočítal');
+  if(z.ceka + z.hraje !== 6) throw new Error('nehrajících: ' + (z.ceka + z.hraje));
+  return z.hraje + ' na hřišti, ' + z.ceka + ' čeká';
+});
+
+check('karta kola jde sdílet jako text s odkazem', () => {
+  h2hSetup(8);
+  const gws = w.eval('h2hGws()');
+  const gw = gws[0];
+  w.eval(`window.__f = h2hFixtures(h2hSeason().find(r => r.gw === ${gw}))[0]`);
+  const txt = w.eval(`h2hShareText(window.__f, ${gw})`);
+  if(!/#h2h\/gw\d+/.test(txt)) throw new Error('chybí odkaz na kolo');
+  if(!/ : /.test(txt)) throw new Error('chybí skóre');
+  const src = fs.readFileSync('js/h2h.js', 'utf8');
+  if(!/data-share="/.test(src)) throw new Error('panel nemá tlačítko Sdílet');
+  return txt.split('\\n')[1];
+});
+
+/* ---- okno se sestavou: rozdíly, porovnání, ovládání ---- */
+
+check('okno ukáže rozdíl proti mému kádru', () => {
+  const pk = sestava();
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  // Můj kádr se v jednom hráči liší.
+  const cizi = w.eval('BOOT.elements').find(p => !pk.picks.some(x => x.element === p.id));
+  w.__moje = pk.picks.slice(1).map(x => x.element).concat([cizi.id]);
+  w.eval('MY_SQUAD = new Set(window.__moje)');
+
+  w.__pk = pk;
+  w.__live = {gw: 7, stats: st,
+    pts: new Map([...st].map(([id, x]) => [id, x.total_points])),
+    mins: new Map([...st].map(([id, x]) => [id, x.minutes]))};
+  const html = w.eval('sqBody(window.__pk, window.__live, 7)');
+  w.eval('MY_SQUAD = null');
+  if(!/Rozdíl proti tvému kádru/.test(html)) throw new Error('sekce chybí');
+  if(!/sqdiff plus/.test(html)) throw new Error('chybí hráči navíc');
+  if(!/sqdiff minus/.test(html)) throw new Error('chybí hráči, které nemá');
+  return 'rozdíl vykreslen';
+});
+
+check('okno nabízí porovnání kádrů a odkaz na FPL', () => {
+  const src = fs.readFileSync('js/squad.js', 'utf8');
+  if(!/data-compare=/.test(src)) throw new Error('chybí tlačítko Porovnat');
+  if(!/fantasy\.premierleague\.com\/entry\//.test(src))
+    throw new Error('chybí odkaz na tým na FPL');
+  if(!/function sqSloupec/.test(src)) throw new Error('porovnání nemá sloupce');
+  return 'porovnání + odkaz';
+});
+
+check('okno drží fokus a zavírá se tlačítkem Zpět', () => {
+  const src = fs.readFileSync('js/squad.js', 'utf8');
+  if(!/function sqTrap/.test(src)) throw new Error('fokus se dá vytabovat ven');
+  if(!/history\.pushState/.test(src) || !/popstate/.test(src))
+    throw new Error('Zpět na Androidu zavře celou appku');
+  return 'past na fokus + Zpět';
+});
+
+check('sestavu jde otevřít i z pořadí ligy a ze síně slávy', () => {
+  const core = fs.readFileSync('js/core.js', 'utf8');
+  const tabs = fs.readFileSync('js/tabs.js', 'utf8');
+  if(!/squadBtn\(m\.entry, cur\.id/.test(core))
+    throw new Error('v pořadí ligy nejsou jména klikatelná');
+  if((tabs.match(/squadBtn\(/g) || []).length < 3)
+    throw new Error('v Hubu zůstala jména jen jako text');
+  return 'pořadí, síň slávy, ceny kola';
 });
 
 check('okno se sestavou má mobilní podobu', () => {

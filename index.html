@@ -111,6 +111,10 @@
     </div>
   </div>
 
+  <!-- Stav dat: jedna odpověď na otázku „je tohle už konečné?“, která
+       během kola nezmizí, ať je člověk na kterékoli záložce. -->
+  <div class="statusbar" id="statusbar" role="status" aria-live="polite" hidden></div>
+
   <div class="rail" id="rail" hidden>
     <div class="wrap" id="railTrack" role="img" aria-label="Průběh sezóny"></div>
   </div>
@@ -286,6 +290,7 @@
      selectTab a čte TABS. -->
 <script src="/js/core.js"></script>
 <script src="/js/tabs.js"></script>
+<script src="/js/status.js"></script>
 <script src="/js/squad.js"></script>
 <script src="/js/h2h.js"></script>
 <script src="/js/advisor.js"></script>
