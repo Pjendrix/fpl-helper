@@ -3396,8 +3396,10 @@ check('živé kolo se počítá ze sestav, ne z historie', () => {
               {element: 3, multiplier: 0}],
       entry_history: {event_transfers_cost: i === 1 ? 4 : 0},
     }));
-    H2H_LIVE = {gw: 9, ts: Date.now(),
-      pts: new Map([[1, 6], [2, 3], [3, 20]])};`);
+    H2H_LIVE = {gw: 9, ts: Date.now(), stats: new Map([
+      [1, {total_points: 6, minutes: 90}],
+      [2, {total_points: 3, minutes: 90}],
+      [3, {total_points: 20, minutes: 90}]])};`);
 
   const a = w.eval('h2hScore(0, 9)');   // 6×2 + 3 = 15
   const b = w.eval('h2hScore(1, 9)');   // 6 + 3 − 4 = 5
@@ -3416,7 +3418,9 @@ check('lavička se do živého skóre nepočítá', () => {
       picks: [{element: 1, multiplier: 1}, {element: 3, multiplier: 0}],
       entry_history: {event_transfers_cost: 0},
     }));
-    H2H_LIVE = {gw: 9, ts: Date.now(), pts: new Map([[1, 6], [3, 20]])};`);
+    H2H_LIVE = {gw: 9, ts: Date.now(), stats: new Map([
+      [1, {total_points: 6, minutes: 90}],
+      [3, {total_points: 20, minutes: 90}]])};`);
   const v = w.eval('h2hScore(0, 9)');
   w.eval('H2H_LIVE = null');
   if(v !== 6) throw new Error('do součtu se dostala lavička: ' + v);
@@ -3475,29 +3479,209 @@ check('okno se sestavou je v DOM a má jeden zavírací mechanismus', () => {
   return 'skryté, modální, zavíratelné';
 });
 
-check('sestava se skládá ze základu, lavičky a součtu', () => {
-  w.eval(`SQ_SEQ = 0`);
-  const pk = {
-    active_chip: 'bboost',
-    entry_history: {event_transfers_cost: 4},
+/* ---- autosuby a kapitánská páska ---- */
+
+/* Rozpis ve fixtuře nemá příznaky dohraných zápasů, takže by autosub
+   nikdy nenastal. Testy si proto na chvíli podstrčí vlastní kolo. */
+function sAutosuby(gw, fn){
+  const puv = w.eval('FIX');
+  w.__fx = w.eval('BOOT.teams').map((t, i) => ({
+    event: gw, team_h: t.id, team_a: (t.id % 20) + 1,
+    finished: true, finished_provisional: true, stats: [],
+  }));
+  w.eval('FIX = window.__fx');
+  try{ return fn(); }
+  finally{ w.__fx = puv; w.eval('FIX = window.__fx'); }
+}
+
+/* Sestava ve tvaru, jaký vrací FPL: 11 v základu podle formace,
+   4 na lavičce v pořadí 12–15. */
+function sestava(){
+  const els = w.eval('BOOT.elements');
+  const dle = t => els.filter(p => p.element_type === t);
+  const xi = [dle(1)[0], ...dle(2).slice(0, 4), ...dle(3).slice(0, 4), ...dle(4).slice(0, 2)];
+  const bench = [dle(1)[1], dle(2)[4], dle(3)[4], dle(4)[2]];
+  return {
+    entry_history: {event_transfers_cost: 0},
     picks: [
-      {element: 1, position: 1, multiplier: 1},
-      {element: 2, position: 2, multiplier: 2, is_captain: true},
-      {element: 3, position: 12, multiplier: 1},
+      ...xi.map((p, i) => ({element: p.id, position: i + 1, multiplier: 1,
+        is_captain: i === 5, is_vice_captain: i === 6})),
+      ...bench.map((p, i) => ({element: p.id, position: 12 + i, multiplier: 0,
+        is_captain: false, is_vice_captain: false})),
     ],
   };
+}
+
+const statsMapa = zaznamy => new Map(zaznamy);
+
+check('nehrající hráč ze základu se vystřídá lavičkou', () => {
+  /* Tohle appka dřív nedělala nikde: sečetla hráče s multiplier > 0
+     a hotovo. Po dohraném kole tím ukazovala míň bodů, než manažer
+     doopravdy měl — a v H2H mohl zápas skončit obráceně. */
+  const pk = sestava();
+  const zaklad = pk.picks.filter(x => x.position <= 11);
+  const lavice = pk.picks.filter(x => x.position > 11);
+
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  // Poslední útočník v základu nenastoupil; první polař na lavičce ano.
+  st.set(zaklad[10].element, {minutes: 0, total_points: 0});
+  st.set(lavice[1].element, {minutes: 90, total_points: 7});
+
+  return sAutosuby(30, () => {
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    if(L.subs.length !== 1) throw new Error('střídání: ' + L.subs.length);
+    if(L.subs[0].in !== lavice[1].element)
+      throw new Error('nastoupil někdo jiný než první způsobilý z lavičky');
+    const nahradnik = L.rows.find(r => r.element === lavice[1].element);
+    if(nahradnik.mult !== 1) throw new Error('náhradník se nepočítá');
+    return L.total + ' bodů, 1 střídání';
+  });
+});
+
+check('brankář se střídá jen za brankáře a formace se nerozbije', () => {
+  const pk = sestava();
+  const gk = pk.picks[0];
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  st.set(gk.element, {minutes: 0, total_points: 0});
+
+  return sAutosuby(30, () => {
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    const els = w.eval('BOOT.elements');
+    const typ = id => els.find(p => p.id === id).element_type;
+    const hraje = L.rows.filter(r => r.mult > 0).map(r => typ(r.element));
+    if(hraje.filter(t => t === 1).length !== 1)
+      throw new Error('brankářů v sestavě: ' + hraje.filter(t => t === 1).length);
+    if(hraje.filter(t => t === 2).length < 3) throw new Error('míň než tři obránci');
+    if(hraje.length !== 11) throw new Error('sestava má ' + hraje.length);
+    return 'formace drží';
+  });
+});
+
+check('dokud tým hraje, nestřídá se', () => {
+  // FPL substituuje až po posledním zápase kola. Kdyby to appka dělala
+  // dřív, střídalo by se během soboty tam a zpátky.
+  const pk = sestava();
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  st.set(pk.picks[10].element, {minutes: 0, total_points: 0});
+
+  w.__pk = pk; w.__st = st;
+  const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+  if(L.subs.length) throw new Error('vystřídalo se před koncem zápasů');
+  return 'čeká na konec kola';
+});
+
+check('páska přechází na vicekapitána, když kapitán nehrál', () => {
+  const pk = sestava();
+  const cap = pk.picks.find(x => x.is_captain);
+  const vice = pk.picks.find(x => x.is_vice_captain);
+  cap.multiplier = 2;
+
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 3}));
+  st.set(cap.element, {minutes: 0, total_points: 0});
+  st.set(vice.element, {minutes: 90, total_points: 8});
+
+  return sAutosuby(30, () => {
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    if(L.capId !== vice.element) throw new Error('pásku má pořád nehrající kapitán');
+    const v = L.rows.find(r => r.element === vice.element);
+    if(v.mult !== 2) throw new Error('vicekapitán se nezdvojnásobil: ' + v.mult);
+    return 'vicekapitán za ' + v.pts + ' bodů';
+  });
+});
+
+check('Triple Captain přenese trojnásobek, ne dvojku', () => {
+  const pk = sestava();
+  const cap = pk.picks.find(x => x.is_captain);
+  const vice = pk.picks.find(x => x.is_vice_captain);
+  cap.multiplier = 3;
+  pk.active_chip = '3xc';
+
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 1}));
+  st.set(cap.element, {minutes: 0, total_points: 0});
+  st.set(vice.element, {minutes: 90, total_points: 10});
+
+  return sAutosuby(30, () => {
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    const v = L.rows.find(r => r.element === vice.element);
+    if(v.mult !== 3) throw new Error('násobička: ' + v.mult);
+    return '×3 na vicekapitánovi';
+  });
+});
+
+check('s Bench Boostem se nestřídá, hraje celý kádr', () => {
+  const pk = sestava();
+  pk.active_chip = 'bboost';
+  pk.picks.filter(x => x.position > 11).forEach(x => { x.multiplier = 1; });
+
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  st.set(pk.picks[3].element, {minutes: 0, total_points: 0});
+
+  return sAutosuby(30, () => {
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    if(L.subs.length) throw new Error('střídalo se i s Bench Boostem');
+    if(L.rows.filter(r => r.mult > 0).length !== 15)
+      throw new Error('nehraje celý kádr');
+    return '15 hráčů, 0 střídání';
+  });
+});
+
+check('pokuta za přestupy se od součtu odečte právě jednou', () => {
+  const pk = sestava();
+  pk.entry_history.event_transfers_cost = 8;
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+
+  w.__pk = pk; w.__st = st;
+  const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+  if(L.total !== 11 * 2 - 8) throw new Error('součet: ' + L.total);
+  return L.total + ' bodů';
+});
+
+check('okno se sestavou počítá totéž co resolveLineup', () => {
+  const pk = sestava();
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+
   w.__pk = pk;
-  w.eval(`window.__live = {gw: 7,
-    pts: new Map([[1, 2], [2, 9], [3, 30]]),
-    mins: new Map([[1, 90], [2, 90], [3, 0]])}`);
+  w.__live = {gw: 7, stats: st,
+    pts: new Map([...st].map(([id, x]) => [id, x.total_points])),
+    mins: new Map([...st].map(([id, x]) => [id, x.minutes]))};
   const html = w.eval('sqBody(window.__pk, window.__live, 7)');
-  // 2 + 9×2 − 4 = 16; lavička (30) mimo součet
-  if(!/>16<\/?/.test(html.replace(/\s+/g, '')) && !/16<span>bodů v GW7/.test(html.replace(/\s+/g, '')))
-    throw new Error('součet kola nesedí');
-  if(!/Bench Boost/.test(html)) throw new Error('čip se neukázal');
+  const L = w.eval('resolveLineup(window.__pk, window.__live.stats, 7)');
+  if(!html.includes('>' + L.total + '<')) throw new Error('součet v okně nesedí');
   if(!/Lavička/.test(html)) throw new Error('chybí lavička');
-  if(!/−4 za přestupy/.test(html)) throw new Error('chybí pokuta');
-  return 'základ + lavička + součet';
+  return L.total + ' bodů';
+});
+
+check('zdroje Zpravodaje pouštějí jen http odkazy', () => {
+  // Cizí RSS je cizí vstup. esc() ošetří uvozovky, ne schéma.
+  if(w.eval('newsHref("javascript:alert(1)")') !== '')
+    throw new Error('javascript: prošlo');
+  if(!/^https:/.test(w.eval('newsHref("https://example.com/a")')))
+    throw new Error('https se zahodilo');
+  const src = fs.readFileSync('js/news.js', 'utf8');
+  if(/href="\$\{esc\(it\.link\)\}"/.test(src))
+    throw new Error('někde se pořád vkládá surový odkaz');
+  return 'jen http a https';
+});
+
+check('mrtvý duplikát service workeru je pryč', () => {
+  if(fs.existsSync('js/sw.js'))
+    throw new Error('js/sw.js žije dál a rozchází se s /sw.js');
+  const boot = fs.readFileSync('js/boot.js', 'utf8');
+  if(!/register\('\/sw\.js'\)/.test(boot)) throw new Error('SW se neregistruje');
+  return 'jeden service worker';
 });
 
 check('okno se sestavou má mobilní podobu', () => {
