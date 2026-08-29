@@ -183,6 +183,7 @@ async function load(id){
     startCountdown();
     drawRail();
     drawStatus();
+    if(typeof drawChip === 'function') drawChip();
 
     const cur = BOOT.events.find(e => e.is_current);
     const nxt = BOOT.events.find(e => e.is_next);
@@ -496,6 +497,7 @@ function render(entry, picks, startGw, liveCtx){
   // Součet za kolo — to je číslo, kvůli kterému se člověk během soboty dívá.
   const liveTotal = lineup ? lineup.total : null;
   LAST_LIVE_TOTAL = liveTotal;
+  if(typeof drawChip === 'function') drawChip();
 
   const benchTotal = lineup ? lineup.benchTotal : null;
   const toPlay = lineup ? lineup.toPlay : null;
