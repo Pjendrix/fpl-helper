@@ -5760,6 +5760,25 @@ check('objížďka přes Worker existuje a brání se sama', () => {
   return 'token + whitelist';
 });
 
+
+check('archiv umí říct, proč se do cloudu nezapsalo', () => {
+  /* snapCloudWrite původně polykala každou chybu. Nerozeznatelné pak
+     bylo "už tam je" od chybějícího pravidla i od prázdného ID ligy —
+     a jediná cesta ke stavu vedla přes hádání. */
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  const fn = src.slice(src.indexOf('async function snapCloudWrite'),
+                       src.indexOf('function debugArchiv'));
+  if(!/SNAP_LAST = /.test(fn))
+    throw new Error('důvod selhání se nikam nezaznamenává');
+  if((fn.match(/SNAP_LAST = /g) || []).length < 4)
+    throw new Error('některá cesta ven pořád mlčí');
+
+  const d = w.eval('typeof debugArchiv === "function" && debugArchiv()');
+  if(!d || !('posledniZapis' in d) || !('lokalneUlozeno' in d))
+    throw new Error('debugArchiv() nevrací stav');
+  return Object.keys(d).length + ' polí';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);
