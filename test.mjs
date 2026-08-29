@@ -1305,6 +1305,60 @@ check('plánovač vysvětlí, k čemu je', () => {
   return 'ok';
 });
 
+/* ================= záloha dat při výpadku ================= */
+
+check('živá data kola se neukládají jako záloha', () => {
+  // Stará čísla běžícího kola vydávaná za aktuální jsou horší než
+  // poctivá chyba — na rozdíl od tabulky, která se mezi koly nemění.
+  const js = fs.readFileSync('js/core.js', 'utf8');
+  const blok = js.slice(js.indexOf('const STALE_OK'), js.indexOf('function staleSave'));
+  if(/event\\\/\\d\+\\\/live/.test(blok))
+    throw new Error('živá data kola se ukládají — zastarají za minuty');
+  if(!blok.includes('leagues-classic'))
+    throw new Error('tabulka ligy se neukládá, přitom mezi koly stojí');
+  return 'jen data, co mezi koly stojí';
+});
+
+check('výpadek sáhne po poslední známé odpovědi', () => {
+  const js = fs.readFileSync('js/core.js', 'utf8');
+  if(!js.includes('staleLoad'))
+    throw new Error('chybí záloha — výpadek znamená prázdnou stránku');
+  // Musí to platit i pro spadlou síť, ne jen pro chybový status.
+  const api = js.slice(js.indexOf('async function api('), js.indexOf('let API_LAST'));
+  if((api.match(/staleLoad/g) || []).length < 3)
+    throw new Error('záloha nepokrývá všechny cesty selhání');
+  return 'síť, non-JSON i chybový status';
+});
+
+check('záloha stárne a nepřetéká', () => {
+  const js = fs.readFileSync('js/core.js', 'utf8');
+  if(!js.includes('STALE_TTL')) throw new Error('záloha nemá expiraci');
+  if(!js.includes('staleClear'))
+    throw new Error('plná kvóta localStorage shodí ukládání natrvalo');
+  return 'TTL i úklid';
+});
+
+check('stará data se přiznají v pruhu', () => {
+  // Tichá záloha je horší než chyba: člověk se dívá na včerejší tabulku
+  // a neví o tom.
+  const js = fs.readFileSync('js/status.js', 'utf8');
+  if(!js.includes('STALE_USED'))
+    throw new Error('pruh o záložních datech mlčí');
+  return 'štítek záložní data';
+});
+
+check('vstupní obrazovka nabídne Zkusit znovu', () => {
+  // Bez tlačítka zbyde nabídka, která nic nedělá, a jediné řešení je
+  // refresh — což nikdo neuhodne.
+  const js = fs.readFileSync('js/sync.js', 'utf8');
+  const blok = js.slice(js.indexOf('async function bootstrapGate'));
+  if(!blok.includes('gateRetry'))
+    throw new Error('při selhání seznamu chybí tlačítko');
+  if(!/dropCached/.test(blok))
+    throw new Error('opakování nezahodí cache — vrátí se stejná chyba');
+  return 'tlačítko i zahození cache';
+});
+
 /* ================= proxy: 403 od Cloudflare ================= */
 
 check('proxy se nehlásí botím User-Agentem', () => {
@@ -1321,6 +1375,18 @@ check('proxy zkusí 403 ještě jednou', () => {
   if(!js.includes('fetchUpstream')) throw new Error('chybí opakování');
   if(!/status !== 403/.test(js)) throw new Error('403 se neopakuje');
   return 'dva pokusy';
+});
+
+check('při chybě smí edge pustit stará data', () => {
+  // Bez stale-if-error znamená každý výpadek FPL prázdnou stránku,
+  // i když je na edge odpověď z před deseti minut.
+  const js = fs.readFileSync('api/fpl.js', 'utf8');
+  if(!js.includes('stale-if-error'))
+    throw new Error('chybí stale-if-error — výpadek shodí stránku');
+  // Živá čísla kola se tím krotit nesmí.
+  if(!/event\\\/\\d\+\\\/live/.test(js))
+    throw new Error('živá data kola nejsou z stale-if-error vyjmutá');
+  return 'stará data místo prázdna';
 });
 
 check('fixtures/ zůstává na whitelistu', () => {
@@ -4343,14 +4409,22 @@ check('sync se nepokouší zapisovat bez přihlášení', () => {
   return 'bez uživatele se nic neplánuje';
 });
 
+/* Hlavicky z vercel.json jako plocha mapa, at testy CSP nemusi resit
+   jeho vnorenou strukturu. */
+function headersSoubor(){
+  const v = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
+  const out = {};
+  for(const blok of v.headers)
+    for(const h of blok.headers) out[h.key] = out[h.key] || h.value;
+  return out;
+}
+
 check('CSP pouští to, co Firebase potřebuje', () => {
   // Tohle je přesně ta chyba, na které přihlášení tiše spadlo: config
   // i kód byly správně, ale CSP nepustila import z gstatic, takže se
   // modul nenačetl a tlačítko se schovalo jako „bez configu“.
-  const vercel = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
-  const csp = vercel.headers
-    .flatMap(b => b.headers)
-    .find(h => h.key === 'Content-Security-Policy');
+  const hlavicky = headersSoubor();
+  const csp = hlavicky['Content-Security-Policy'];
   if(!csp) throw new Error('chybí CSP úplně');
 
   const html = SRC;
@@ -4363,7 +4437,7 @@ check('CSP pouští to, co Firebase potřebuje', () => {
     ['frame-src', 'accounts.google.com', 'přihlašovací popup se neotevře'],
   ];
   for(const [smernice, host, dusledek] of musi){
-    const blok = csp.value.split(';').map(x => x.trim())
+    const blok = csp.split(';').map(x => x.trim())
       .find(x => x.startsWith(smernice));
     if(!blok) throw new Error('chybí ' + smernice + ' — ' + dusledek);
     if(!blok.includes(host))
@@ -4371,22 +4445,19 @@ check('CSP pouští to, co Firebase potřebuje', () => {
   }
 
   // no-referrer rozbíjí Google OAuth: popup nepozná, odkud přišel.
-  const ref = vercel.headers.flatMap(b => b.headers)
-    .find(h => h.key === 'Referrer-Policy');
-  if(ref && ref.value === 'no-referrer')
+  const ref = hlavicky['Referrer-Policy'];
+  if(ref === 'no-referrer')
     throw new Error('no-referrer rozbije přihlášení přes Google');
   return 'gstatic, googleapis i popup projdou';
 });
 
 check('popup má povolené otevření', () => {
-  const vercel = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
-  const coop = vercel.headers.flatMap(b => b.headers)
-    .find(h => h.key === 'Cross-Origin-Opener-Policy');
+  const coop = headersSoubor()['Cross-Origin-Opener-Policy'];
   // same-origin by popupu zabránil mluvit zpátky na appku a přihlášení
   // by skončilo tím, že se okno zavře a nic se nestane.
-  if(coop && coop.value === 'same-origin')
+  if(coop === 'same-origin')
     throw new Error('COOP same-origin umlčí přihlašovací popup');
-  return coop ? coop.value : 'nenastaveno';
+  return coop || 'nenastaveno';
 });
 
 /* ================= poznámka o ukládání ================= */
