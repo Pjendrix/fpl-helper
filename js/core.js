@@ -1603,8 +1603,15 @@ async function loadLeague(lid){
       $('lmsg').textContent = `${label} ${done}/${total}`;
     };
 
-    const hist = await pooled(members, m => cached('entry/' + m.entry + '/history/'),
-      5, prog('Načítám historii…'));
+    // Táž úspora jako v Hubu: archiv dohraných kol nahradí dotaz na
+    // každého člena. Když nestačí, jde se na API jako dřív.
+    let hist = null;
+    if(cur){ try{ hist = await snapHists(members, cur.id); }catch(e){} }
+
+    if(!hist){
+      hist = await pooled(members, m => cached('entry/' + m.entry + '/history/'),
+        5, prog('Načítám historii…'));
+    }
 
     let picks = [];
     if(cur){

@@ -35,7 +35,12 @@
    přepsat.
    ============================================================ */
 
-const ARCH_V = 1;
+/* Verze 2 přidala do snímku řádek historie (`h`). Verze se zvyšuje
+   proto, že `create` bez `update` znamená nevratnost: kdyby se ve
+   snímcích našla chyba, jediná cesta ven je nechat appku starou verzi
+   ignorovat. Snímky v1 se pro sestavy pořád použijí, jen z nich nejde
+   poskládat historie. */
+const ARCH_V = 2;
 const ARCH_KEY = 'sc:gwsnap:';
 
 /* ID ligy, pod kterým archiv leží. Sestavy jsou sice per manažer, ale
@@ -49,12 +54,44 @@ function snapKey(g){ return ARCH_KEY + snapLid() + ':' + g; }
 
 /* ---------- komprese ---------- */
 
+/* Řádek historie kola. Pochází z `entry_history` uvnitř sestav, které
+   stahujeme tak jako tak — takže archiv historie nestojí ani jeden
+   dotaz navíc, jen pár set bajtů na kolo.
+
+   Pořadí polí je dané a nesmí se měnit; nová se smějí přidávat jen na
+   konec, jinak by starší snímky četly čísla posunutá o jedno místo. */
+function packHist(eh){
+  return [
+    eh.points || 0,
+    eh.total_points || 0,
+    eh.rank || 0,
+    eh.overall_rank || 0,
+    eh.event_transfers || 0,
+    eh.event_transfers_cost || 0,
+    eh.points_on_bench || 0,
+    eh.value || 0,
+    eh.bank || 0,
+  ].join(':');
+}
+
+function unpackHist(str, gw){
+  const n = String(str || '').split(':').map(Number);
+  if(n.length < 9) return null;
+  return {
+    round: gw, event: gw,
+    points: n[0], total_points: n[1], rank: n[2], overall_rank: n[3],
+    event_transfers: n[4], event_transfers_cost: n[5],
+    points_on_bench: n[6], value: n[7], bank: n[8],
+  };
+}
+
 function packPicks(pk){
   const eh = pk.entry_history || {};
   return {
     c: pk.active_chip || '',
     k: eh.event_transfers_cost || 0,
     b: eh.points || 0,
+    h: packHist(eh),
     p: (pk.picks || []).map(x => [
       x.element, x.position, x.multiplier,
       (x.is_captain ? 1 : 0) | (x.is_vice_captain ? 2 : 0),
@@ -113,8 +150,11 @@ function packSnap(g, members, picks, live){
 /* Vrací sestavy zarovnané na aktuální členy ligy a seznam těch, které
    snímek nezná — ty se doberou z API. Kdo do ligy přibyl až po zápisu
    snímku, v něm být nemůže, a to není důvod zahodit zbytek. */
+/* Starší snímek se pro sestavy použije dál — jen z něj nejde poskládat
+   historie, protože řádek `h` ve v1 chybí. Odmítnout ho úplně by
+   znamenalo znovu stahovat kola, která už archivované máme. */
 function unpackSnap(snap, members){
-  if(!snap || snap.v !== ARCH_V || !snap.picks) return null;
+  if(!snap || !(snap.v <= ARCH_V) || !snap.picks) return null;
   const byEntry = new Map(Object.entries(snap.picks)
     .map(([e, v]) => [Number(e), unpackPicks(v)]));
   const picks = members.map(m => byEntry.get(m.entry) || null);
@@ -254,7 +294,18 @@ async function snapLoad(g, members){
     // Snímek je z lokálu. Když ho cloud nemá, patří tam — ostatní v
     // lize si ho pak nestáhnou z FPL vůbec.
     const vCloudu = await snapCloudAll();
-    if(!vCloudu || !vCloudu[String(g)]) await snapCloudWrite(g, snap);
+    const tam = vCloudu && vCloudu[String(g)];
+    if(!tam) await snapCloudWrite(g, snap);
+  }
+
+  /* Starý snímek se povýší na aktuální verzi. Data pro to jsou po ruce
+     — sestavy nesou `entry_history`, ze kterého se řádek historie
+     skládá — takže povýšení nestojí ani jeden dotaz navíc. Bez něj by
+     kolo archivované starší verzí appky zůstalo bez historie napořád. */
+  if(snap.v < ARCH_V && u.picks.every(Boolean)){
+    const novy = packSnap(g, members, u.picks, u.live);
+    snapLocalWrite(g, novy);
+    await snapCloudWrite(g, novy);
   }
 
   NEWS_LIVE.set(g, u.live);
@@ -275,6 +326,63 @@ async function snapLoad(g, members){
 
   NEWS_PICKS.set(g, u.picks);
   return true;
+}
+
+/* Historie ligy poskládaná z archivu.
+
+   Tohle je tam, kde se archiv vyplatí nejvíc. `entry/{id}/history/` je
+   dotaz NA ČLENA — deset členů znamená deset dotazů při každém otevření
+   Hubu i Miniligy, u stočlenné ligy sto. Přitom všechna dohraná kola
+   jsou v archivu a to běžící umí dodat pořadí ligy, které je stažené
+   tak jako tak.
+
+   Vrací null, když archiv nestačí. Raději poctivě sáhnout na API než
+   vykreslit tabulku s dírami — chybějící kolo v historii totiž není
+   vidět jako chyba, jen jako jiná čísla.
+
+   Nedodává `past` (minulé sezóny). Ty archiv nezná a ani znát nemůže,
+   takže tabulka sezónní historie si o svoje data musí říct sama. */
+async function snapHists(members, curId){
+  if(!members || !members.length || !curId) return null;
+
+  const cloud = await snapCloudAll();
+  const snapy = new Map();
+
+  for(let g = 1; g < curId; g++){
+    if(gwPhase(g) !== 'final') continue;      // rozehrané kolo archiv nemá
+    const snap = snapLocalRead(g) || (cloud && cloud[String(g)]);
+    // Jedno chybějící nebo staré kolo shodí celou úsporu. Je to tvrdé,
+    // ale míchat archiv s API po kolech by znamenalo stejně tolik dotazů.
+    if(!snap || snap.v !== ARCH_V || !snap.picks) return null;
+    snapy.set(g, snap);
+  }
+  if(!snapy.size) return null;
+
+  return members.map(m => {
+    const current = [], chips = [];
+
+    for(const [g, snap] of snapy){
+      const v = snap.picks[String(m.entry)];
+      if(!v) continue;                        // do ligy přibyl později
+      const row = unpackHist(v.h, g);
+      if(!row) return null;                   // snímek bez historie
+      current.push(row);
+      if(v.c) chips.push({name: v.c, event: g});
+    }
+
+    /* Běžící kolo v archivu není a být nesmí. Pořadí ligy ale jeho body
+       zná — je to tentýž údaj, který používá gwRows, když historie od
+       FPL ještě nedoběhla. */
+    if(Number.isFinite(m.event_total))
+      current.push({round: curId, event: curId, points: m.event_total,
+                    total_points: m.total, rank: 0, overall_rank: 0,
+                    event_transfers: 0, event_transfers_cost: 0,
+                    points_on_bench: 0, value: 0, bank: 0,
+                    zeStandings: true});
+
+    current.sort((a, b) => a.round - b.round);
+    return {current, chips, past: []};
+  });
 }
 
 /* Uloží kolo do archivu. Volá se až po úspěšném načtení z API a jen

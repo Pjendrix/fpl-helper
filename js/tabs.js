@@ -1125,10 +1125,18 @@ async function loadHub(){
       n => { $('hubmsg').textContent = 'Načítám pořadí… ' + n + ' týmů'; });
     if(!members.length){ $('hubmsg').textContent = 'Liga nemá členy.'; return; }
 
-    // cached() znamená, že po načtení Miniligy je tohle skoro zadarmo —
-    // jsou to přesně tytéž adresy.
-    const hists = await pooled(members, m => cached('entry/' + m.entry + '/history/'),
-      5, (d, t) => { $('hubmsg').textContent = `Načítám historii… ${d}/${t}`; });
+    /* Historie je dotaz na člena, takže je to nejdražší část načtení
+       Hubu. Archiv ji umí poskládat z dohraných kol — když je má celá,
+       ušetří se tolik dotazů, kolik má liga členů. */
+    let hists = null;
+    try{ hists = await snapHists(members, cur.id); }catch(e){}
+
+    if(!hists){
+      // cached() znamená, že po načtení Miniligy je tohle skoro zadarmo —
+      // jsou to přesně tytéž adresy.
+      hists = await pooled(members, m => cached('entry/' + m.entry + '/history/'),
+        5, (d, t) => { $('hubmsg').textContent = `Načítám historii… ${d}/${t}`; });
+    }
 
     const picks = await pooled(members, m => cached('entry/' + m.entry + '/event/' + cur.id + '/picks/'),
       5, (d, t) => { $('hubmsg').textContent = `Načítám sestavy… ${d}/${t}`; });
