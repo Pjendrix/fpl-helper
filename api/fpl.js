@@ -252,19 +252,26 @@ export default async function handler(req, res) {
       // U 403 se hodi vedet, co presne Cloudflare rekl - cf-ray se da
       // dohledat a prvni radky tela prozradi, jestli slo o challenge
       // stranku, nebo o tvrdy blok. Bez toho se hada.
-      const detail =
-        upstream.status === 403
-          ? {
-              cfRay: upstream.headers.get("cf-ray") || null,
-              cfMitigated: upstream.headers.get("cf-mitigated") || null,
-              server: upstream.headers.get("server") || null,
-              snippet: (await upstream.text().catch(() => "")).slice(0, 300),
-            }
-          : undefined;
+      //
+      // Puvodne se posilalo jen u 403, protoze blok od Cloudflare se
+      // cekal pod timhle statusem. Jenze Cloudflare umi odmitnout i pod
+      // 404 - a to uz je k nerozeznani od "ten endpoint neexistuje",
+      // coz posle hledani uplne jinam. Rozhodne hlavicka `server` a
+      // zacatek tela: FPL vraci JSON, Cloudflare HTML stranku.
+      //
+      // Plati proto pro kazdou chybu. Diagnostika, ktera se zapina jen
+      // u statusu, o kterem uz predem vim, ze nastane, nepomuze prave
+      // tehdy, kdyz nastane neco jineho.
+      const detail = {
+        cfRay: upstream.headers.get("cf-ray") || null,
+        cfMitigated: upstream.headers.get("cf-mitigated") || null,
+        server: upstream.headers.get("server") || null,
+        snippet: (await upstream.text().catch(() => "")).slice(0, 300),
+      };
 
       return res.status(upstream.status).json({
         error: `FPL API vrátilo ${upstream.status} pro ${path}.`,
-        ...(detail ? { detail } : {}),
+        detail,
       });
     }
 
