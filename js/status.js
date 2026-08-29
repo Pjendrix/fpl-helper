@@ -83,6 +83,9 @@ function drawStatus(){
       do tří dnů</span>` : ''}
     <span class="sbspace"></span>
     ${deadline}
+    ${STALE_USED ? `<span class="livetag wn" title="FPL API neodpovědělo,
+      ukazujeme poslední známá data">záložní data ${esc(stavCas(STALE_USED))}</span>`
+      : ''}
     <span class="sbtime" id="sbtime">data ${esc(stavCas(API_LAST))}</span>
   </div>`;
 }

@@ -78,18 +78,92 @@ const esc = s => String(s).replace(/[&<>"']/g,
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
+/* ------------------------------------------------------------
+   Poslední známá odpověď.
+
+   FPL API občas na hodiny zpřísní filtr a začne vracet 403. Appka
+   do té doby ukázala prázdno a chybu, přestože data z minulé hodiny
+   by posloužila skoro stejně dobře — tabulka miniligy se mezi koly
+   nezmění vůbec a soupiska taky ne.
+
+   Drží se to v localStorage, ne v paměti: výpadek nejčastěji potká
+   toho, kdo appku otevírá, ne toho, kdo ji má běžící.
+
+   Neukládá se všechno. Živé body kola zastarají za minuty a stará
+   čísla vydávaná za aktuální jsou horší než poctivá chyba; ukládají
+   se proto jen odpovědi, které mezi koly stojí.
+   ------------------------------------------------------------ */
+const STALE_KEY = 'sc:stale:';
+const STALE_TTL = 24 * 60 * 60 * 1000;   // starší než den se zahodí
+
+// event/N/live/ tu schází záměrně — viz komentář výše.
+const STALE_OK = [
+  /^bootstrap-static\/$/,
+  /^fixtures\//,
+  /^leagues-classic\//,
+  /^entry\/\d+\/$/,
+  /^entry\/\d+\/history\/$/,
+  /^entry\/\d+\/event\/\d+\/picks\/$/,
+];
+
+function staleSave(p, data){
+  if(!STALE_OK.some(re => re.test(p))) return;
+  try{
+    localStorage.setItem(STALE_KEY + p, JSON.stringify({ t: Date.now(), d: data }));
+  }catch(e){
+    // Plná kvóta není důvod shodit dotaz. Uklidíme, co jsme uložili
+    // dřív, a příště se to povede.
+    staleClear();
+  }
+}
+
+function staleLoad(p){
+  try{
+    const raw = localStorage.getItem(STALE_KEY + p);
+    if(!raw) return null;
+    const { t, d } = JSON.parse(raw);
+    if(!t || Date.now() - t > STALE_TTL){
+      localStorage.removeItem(STALE_KEY + p);
+      return null;
+    }
+    STALE_USED = Math.max(STALE_USED || 0, t);
+    return d;
+  }catch(e){ return null; }
+}
+
+function staleClear(){
+  try{
+    for(const k of Object.keys(localStorage))
+      if(k.startsWith(STALE_KEY)) localStorage.removeItem(k);
+  }catch(e){}
+}
+
+/* Kdy jsou nejstarší data, která se právě ukazují. null = všechno je
+   čerstvé. Pruh se stavem dat z toho dělá varování. */
+let STALE_USED = null;
+
 async function api(p, tries = 3){
   for(let attempt = 0; ; attempt++){
-    const r = await fetch('/api/fpl?path=' + encodeURIComponent(p));
-    const ct = r.headers.get('content-type') || '';
+    let r, ct, data;
+    try{
+      r = await fetch('/api/fpl?path=' + encodeURIComponent(p));
+      ct = r.headers.get('content-type') || '';
+    }catch(e){
+      // Spadlá síť. Uložená odpověď je pořád lepší než prázdná stránka.
+      const zaloha = staleLoad(p);
+      if(zaloha) return zaloha;
+      throw new Error('Síť neodpovídá — zkontroluj připojení.');
+    }
 
     if(!ct.includes('application/json')){
+      const zaloha = staleLoad(p);
+      if(zaloha) return zaloha;
       throw new Error('Serverová funkce /api/fpl neodpovídá (' + r.status + '). '
         + 'Zkontroluj, že je nasazený soubor api/fpl.js a package.json.');
     }
 
-    const data = await r.json();
-    if(r.ok){ API_LAST = Date.now(); return data; }
+    data = await r.json();
+    if(r.ok){ API_LAST = Date.now(); staleSave(p, data); return data; }
 
     // 429 není chyba, je to žádost o strpení. Čekáme déle po každém pokusu.
     if(r.status === 429 && attempt < tries - 1){
@@ -97,6 +171,11 @@ async function api(p, tries = 3){
       await sleep(Math.max(hinted * 1000, 700 * Math.pow(2, attempt)));
       continue;
     }
+
+    // Došly pokusy. Než to vzdáme, zkusíme poslední známou odpověď —
+    // tohle je ta situace, kvůli které celý staleLoad existuje.
+    const zaloha = staleLoad(p);
+    if(zaloha) return zaloha;
 
     throw new Error((data.error || 'Chyba') + ' — ' + p + ' (' + r.status + ')');
   }

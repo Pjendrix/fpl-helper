@@ -389,7 +389,22 @@ async function bootstrapGate(){
   }catch(e){
     // Když se soupiska nenačte, není důvod nikoho blokovat — jen přepneme
     // na ruční zadání a řekneme proč.
-    $('gatemsg').textContent = 'Soupisku ligy se nepodařilo načíst: ' + e.message;
+    //
+    // Tohle je obrazovka, na kterou člověk kouká jako první, takže se tu
+    // nesmí objevit jen technická hláška: bez tlačítka „Zkusit znovu“
+    // zbyde nabídka, která nic nedělá, a jediné řešení je refresh — což
+    // nikdo neuhodne.
+    $('gatemsg').innerHTML =
+      'Seznam členů ligy se teď nenačetl. FPL API občas chvíli neodpovídá. '
+      + '<button type="button" class="lnk" id="gateRetry">Zkusit znovu</button>';
+    const btn = $('gateRetry');
+    if(btn) btn.addEventListener('click', () => {
+      $('gatemsg').textContent = 'Zkouším to znovu…';
+      // Cache si drží i neúspěch, takže bez tohohle by se druhý pokus
+      // vrátil stejně rychle a stejně marně.
+      dropCached(/^leagues-classic\//);
+      bootstrapGate();
+    });
     setGateMode(true);
   }
 }
