@@ -175,16 +175,42 @@ async function snapCloudAll(){
   return SNAP_CLOUD;
 }
 
+/* Poslední výsledek zápisu do cloudu, k přečtení z konzole přes
+   `debugArchiv()`. Původně tahle funkce polykala každou chybu s
+   odůvodněním, že „už tam je“ ani „nepřihlášený“ nemá koho zajímat.
+   To byla chyba: tím se zahodily i chyby, které zajímají hodně —
+   chybějící pravidlo, špatné ID ligy, vadný tvar dokumentu — a zvenku
+   byly všechny k nerozeznání od úspěchu.
+
+   Uživatele to pořád neotravuje. Archiv je pohodlí, ne funkce, a když
+   selže, appka jede dál z API. Ale ten důvod se dá zjistit. */
+let SNAP_LAST = 'zatím se nezapisovalo';
+
 async function snapCloudWrite(g, snap){
   const lid = snapLid();
-  if(!lid || !window.FB || !window.FB.gwWrite) return;
+  if(!lid){ SNAP_LAST = 'není ID ligy'; return; }
+  if(!window.FB || !window.FB.gwWrite){ SNAP_LAST = 'Firebase není načtený'; return; }
+
   try{
     await window.FB.gwWrite(lid, g, snap);
     if(SNAP_CLOUD) SNAP_CLOUD[String(g)] = snap;
+    SNAP_LAST = 'GW' + g + ' zapsáno do ligy ' + lid;
   }catch(e){
-    /* Nejčastější důvod je „už tam je“ (create po druhé) nebo
-       nepřihlášený uživatel. Ani jedno není potřeba komukoli hlásit. */
+    SNAP_LAST = 'GW' + g + ' selhalo: ' + (e && e.code || e);
   }
+}
+
+/* Co archiv právě dělá. Bez tohohle se stav dá zjistit jen hádáním,
+   protože všechny cesty selhávají tiše. */
+function debugArchiv(){
+  const lokalni = Object.keys(localStorage).filter(k => k.startsWith(ARCH_KEY));
+  return {
+    liga: snapLid() || '(prázdné!)',
+    prihlasen: Boolean(window.FB_USER),
+    lokalneUlozeno: lokalni,
+    cloudVPameti: SNAP_CLOUD ? Object.keys(SNAP_CLOUD) : '(ještě nečteno)',
+    posledniZapis: SNAP_LAST,
+  };
 }
 
 /* ---------- veřejné rozhraní ---------- */
