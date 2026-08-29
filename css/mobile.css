@@ -18,16 +18,33 @@
      Zůstává jen to, co člověk potřebuje vidět bez klikání: značka a
      odpočet. Účet a přepínače se stěhují do plachty „Více“. */
   .bar{padding-top:env(safe-area-inset-top)}
-  .bar .wrap{height:54px;gap:8px;padding:0 12px}
-  .brand{flex:0 1 auto;min-width:0;overflow:hidden}
-  .brand img{width:26px;height:26px}
-  /* Na telefonu jeden řádek: dva by v 54px liště nechaly jméno týmu
-     bez místa. Ořízne se tedy koncem názvu, ne jeho polovinou. */
-  .brand .tx{font-size:12px;letter-spacing:.02em;-webkit-line-clamp:1;
-    max-width:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .bar .cd{margin-left:auto;padding:3px 9px;border-radius:9px}
-  .bar .cd .lbl{font-size:7px;letter-spacing:.12em}
-  .bar .cd .val{font-size:12.5px}
+  .bar .wrap{height:56px;gap:10px;padding:0 12px}
+  .bar .brand{flex:1 1 auto;min-width:0;overflow:hidden}
+  .bar .brand img{width:28px;height:28px}
+  .bar .btxt{min-width:0;flex:1;display:block}
+
+  /* Název ligy zpátky na telefon. Selektor musí být stejně silný jako
+     `.bar .brand .tx{display:none}` v app.css (pravidlo pro zúžený
+     desktop, kde názvu ustupuje segment) — jinak by ho přebilo a
+     v hlavičce by zůstal jen pohár.
+
+     Jeden řádek s oříznutím koncem: dvouřádkový název by v 56px liště
+     nenechal místo na stav kola pod ním. */
+  .bar .brand .tx{display:block;font-size:13px;line-height:1.15;
+    letter-spacing:.01em;-webkit-line-clamp:1;max-width:none;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+  /* Stav kola a odpočet na jednom řádku pod názvem. Nahrazuje celý
+     stavový pruh, který pod lištou zabíral dva řádky. */
+  .bar .brandsub{display:block;margin-top:2px;font-family:var(--f-mono);
+    font-size:10.5px;line-height:1.2;color:var(--gold-lift);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bar .brandsub[hidden]{display:none}
+
+  .bar .cd{display:none}
+
+  /* Stav dat má na telefonu místo v hlavičce, ne ve vlastním pruhu. */
+  .statusbar{display:none!important}
   .bar .who{margin-left:0;gap:5px;flex:none}
   /* Jméno týmu a správa účtu jdou do plachty „Více“. Přepínač
      zobrazení ne — je to jediná cesta, jak se z mobilní verze dostat
@@ -45,6 +62,16 @@
   /* ---------- obsah ----------
      28px odsazení panelu je na 360px displeji osmina šířky. */
   .panel{padding:18px 14px;margin:10px 0 14px;border-radius:18px}
+
+  /* Vysvětlující věta nad každým panelem („Pořadí, vývoj v tabulce…“)
+     zabírala dva až tři řádky nad prvním číslem. Na desktopu je pro ni
+     místo, na telefonu odsouvala obsah pod ohyb — a přečte se stejně
+     jen jednou. Tlačítko „Aktualizovat“ jde s ní: totéž dělá ⟳
+     v hlavičce, které je vidět odevšad.
+
+     Schválně jen přímí potomci panelu, ať to nevezme popisky uvnitř
+     tabulek a karet. */
+  .panel>.hint,.panel>.panelhead{display:none}
   h2{font-size:14px;margin:24px 0 8px}
   .panel table{font-size:12px}
   .tipbox{font-size:12px;padding:11px 13px}
@@ -57,6 +84,12 @@
 
   .subnav,.gwnav,.phasenav{overflow-x:auto;flex-wrap:nowrap;
     scrollbar-width:none;-webkit-overflow-scrolling:touch}
+
+  /* Záložky sahají k okrajům panelu, aby linka pod nimi vypadala jako
+     předěl obsahu, ne jako podtržený odstavec. Užší mezera než na
+     desktopu: na 360px displeji se tak vejdou čtyři místo dvou a půl. */
+  .subnav{gap:16px;margin:0 -14px 14px;padding:0 14px;font-size:12.5px}
+  .sub-btn{font-size:12.5px;padding:9px 0 10px}
   .subnav::-webkit-scrollbar,.gwnav::-webkit-scrollbar,
   .phasenav::-webkit-scrollbar{display:none}
 

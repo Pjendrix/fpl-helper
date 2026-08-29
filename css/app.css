@@ -274,12 +274,29 @@ h2:first-child{margin-top:0}
 .note{color:var(--mute);font-size:13px;margin:8px 0 0;line-height:1.5}
 #msg,#lmsg,#trmsg,#hubmsg,#plmsg{margin:16px 0;color:var(--warn);font-size:13px}
 
-/* ---------- podsekce ---------- */
-.subnav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 20px}
-.sub-btn{border-color:var(--line);color:var(--mute);font-size:12px;padding:6px 14px;
-  border-radius:9999px;background:var(--white)}
-.sub-btn:hover{color:var(--charcoal);background:var(--haze)}
-.sub-btn[aria-selected="true"]{background:var(--charcoal);border-color:var(--charcoal);color:var(--white)}
+/* ---------- podsekce ----------
+   Podtržené záložky místo řady pilulek. Pilulky vypadaly jako tlačítka
+   („co se stane, když kliknu?“), zabíraly dva řádky, jakmile jich bylo
+   šest, a soupeřily o pozornost se spodní navigací, která vypadá stejně.
+   Záložka s linkou je plochá, vejde se na jeden řádek a čte se jako to,
+   co to je: přepínač pohledu na tatáž data.
+
+   Linka pod celým pruhem drží záložky ukotvené, i když se jich část
+   odscrolluje mimo obraz. */
+.subnav{display:flex;gap:22px;flex-wrap:nowrap;margin:0 0 18px;
+  border-bottom:1px solid var(--line);overflow-x:auto;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.subnav::-webkit-scrollbar{display:none}
+.sub-btn{flex:0 0 auto;background:none;border:0;border-radius:0;
+  border-bottom:2px solid transparent;margin-bottom:-1px;
+  padding:8px 0 9px;font-family:var(--f);font-size:13px;font-weight:600;
+  color:var(--mute);white-space:nowrap;cursor:pointer;
+  transition:color .15s,border-color .15s}
+.sub-btn:hover{color:var(--charcoal);background:none}
+.sub-btn[aria-selected="true"]{background:none;color:var(--charcoal);
+  border-bottom-color:var(--gold)}
+.sub-btn:focus-visible{outline:2px solid var(--aubergine);outline-offset:3px;
+  border-radius:4px}
 .sec[hidden]{display:none}
 
 /* ---------- hřiště ----------
@@ -955,13 +972,10 @@ button.small.icon:disabled{opacity:.5;cursor:default}
 button.small.on{border-color:var(--mint-fill);color:var(--mint-fill);
   max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
-/* ---------- úvodní přehled ---------- */
-.hhead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
-  flex-wrap:wrap;margin-bottom:14px}
-.hhead h2{margin:0}
-.hhead .note{margin:2px 0 0}
-.hdl{font-family:var(--f-mono);font-size:12px;color:var(--mute);
-  background:var(--haze);border-radius:var(--r-btn);padding:6px 11px;white-space:nowrap}
+/* ---------- úvodní přehled ----------
+   Hlavička panelu (nadpis „Přehled“ + deadline) je pryč: sekci pojmenuje
+   navigace a deadline stojí v liště nad obsahem. Karta s čísly proto
+   začíná rovnou nahoře. */
 
 .hcards{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
   margin:0 0 14px}
@@ -1648,6 +1662,11 @@ body.sq-lock{overflow:hidden}
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;max-width:190px;white-space:normal}
 .bar .brand .tx.long{font-size:11.5px;letter-spacing:.04em;max-width:150px}
+
+/* Stav kola pod názvem je náhrada za stavový pruh a platí jen na telefonu
+   (zapíná ho css/mobile.css). Na desktopu je pruh pod lištou a druhý
+   opis téhož by jen zdvojoval. */
+.bar .brandsub{display:none}
 
 /* Starý pruh se záložkami zůstává v DOM jako zdroj pravdy o otevřené
    sekci — jen ho není vidět. */
