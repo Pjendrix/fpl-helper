@@ -1603,3 +1603,63 @@ body.sq-lock{overflow:hidden}
   color:var(--ok);font-weight:700}
 .sqp .sub.out{color:var(--mute)}
 .sqp.bench{opacity:.72}
+
+/* ============================================================
+   PRUH SE STAVEM DAT
+
+   Jedna odpověď na otázku „je tohle už konečné?“, která během kola
+   nezmizí, ať je člověk na kterékoli záložce.
+   ============================================================ */
+.statusbar{border-bottom:1px solid var(--line);background:var(--haze)}
+.statusbar .wrap{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:7px 0;font-size:12px}
+.statusbar .sbnote{color:var(--mute)}
+.statusbar .sbspace{flex:1}
+.sbtime{font-family:var(--f-mono);font-size:11px;color:var(--mute)}
+
+/* Záblesk po tichém přepsání čísel: bez něj se nedá poznat, jestli se
+   něco stalo, nebo jestli obnova nefunguje. */
+@keyframes flashbg{from{background:rgba(204,156,72,.28)}to{background:transparent}}
+.flash{animation:flashbg 1.2s ease-out}
+
+/* Chyba s možností zkusit to znovu. Bez tlačítka nezbývá než reload
+   celé stránky, který zahodí i to, co se načetlo v pořádku. */
+.errbox{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--haze);border:1px solid var(--line);border-radius:10px;
+  padding:9px 12px;font-size:13px;margin:8px 0}
+.errbox span{flex:1;min-width:180px}
+
+/* ---- H2H: forma, průběh kola, vzájemná bilance ---- */
+.forma{display:inline-flex;gap:3px}
+.forma i{font-style:normal;font-family:var(--f-mono);font-size:9.5px;
+  font-weight:700;width:15px;height:15px;line-height:15px;text-align:center;
+  border-radius:4px;color:var(--white)}
+.forma i.w{background:var(--ok)}
+.forma i.l{background:var(--alert)}
+.forma i.d{background:var(--mute)}
+.forma i.none{background:none;color:var(--mute)}
+
+.h2hm .zbyva{display:block;font-family:var(--f-mono);font-size:10px;
+  color:var(--mute);margin-top:3px}
+.h2hm.big{position:relative}
+.h2hm .bilance{position:absolute;left:50%;transform:translateX(-50%);
+  bottom:6px;font-size:10.5px;color:var(--mute);white-space:nowrap}
+/* Výsledek nesmí nést jen barva rámečku — značka to řekne i bez ní. */
+.h2hm .sc .vysl{font-style:normal;font-size:12px;margin-left:6px;color:var(--mute)}
+.h2hm.w .sc .vysl{color:var(--ok)}
+.h2hm.l .sc .vysl{color:var(--alert)}
+
+/* ---- okno se sestavou: rozdíly a porovnání ---- */
+.sqdiffs{display:flex;flex-wrap:wrap;gap:5px}
+.sqdiff{display:inline-flex;align-items:center;gap:4px;font-size:12px;
+  border:1px solid var(--line);border-radius:20px;padding:3px 9px}
+.sqdiff.plus{border-color:var(--ok)}
+.sqdiff.minus{color:var(--mute)}
+.sqdiff u{text-decoration:none;font-family:var(--f-mono);font-size:10.5px;
+  color:var(--mute)}
+.sqcmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.sqcol .big{font-family:var(--f-disp);font-size:22px;margin-bottom:6px}
+.sqcol .big span{font-family:var(--f);font-size:10.5px;color:var(--mute);
+  margin-left:4px}
+.linklike{border:0;background:none;padding:0;font:inherit;color:var(--blue);
+  text-decoration:underline;cursor:pointer}
