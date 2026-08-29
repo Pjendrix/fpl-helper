@@ -19,28 +19,6 @@ const EXCERPT = 200; // znaku uryvku; cely clanek nechceme reprodukovat
 const SOURCES = [
   { id: "ffs", name: "FFScout", type: "rss", url: "https://fantasyfootballscout.co.uk/feed/" },
   { id: "ff247", name: "FF247", type: "rss", url: "https://fantasyfootball247.co.uk/feed/" },
-  // Oficialni The Scout RSS nema. Web si obsah tahá z obsahoveho API
-  // Pulselive; je to nezdokumentovane rozhrani bez verejne dokumentace,
-  // takze presny tvar dotazu je odhad. Proto ne jedna adresa, ale rada
-  // kandidatu: zkousi se poporade a bere se prvni, ktera vrati clanky.
-  //
-  // Neni to elegantni, ale alternativa je hadat jednu adresu a pri
-  // kazde zmene API cekat, az si nekdo vsimne, ze sekce je prazdna.
-  {
-    id: "scout",
-    name: "The Scout",
-    type: "pulselive",
-    urls: [
-      "https://footballapi.pulselive.com/football/content/PremierLeague/text/EN?" +
-        "pageSize=15&page=0&tagNames=Fantasy&type=editorial",
-      "https://footballapi.pulselive.com/football/content/PremierLeague/text?" +
-        "pageSize=15&page=0&tagNames=Fantasy&references=PL_NEWS&type=editorial",
-      "https://footballapi.pulselive.com/content/PremierLeague/text/EN?" +
-        "pageSize=15&page=0&tagNames=Fantasy",
-      "https://footballapi.pulselive.com/football/content/PremierLeague/text/EN?" +
-        "pageSize=15&page=0&references=FANTASY_NEWS",
-    ],
-  },
 ];
 
 const BROWSER_HEADERS = {
@@ -50,14 +28,6 @@ const BROWSER_HEADERS = {
   "Accept-Language": "en-GB,en;q=0.9",
 };
 
-// Pulselive kontroluje Origin. Bez nej vraci 403 stejne jako Cloudflare u FPL.
-const PULSE_HEADERS = {
-  ...BROWSER_HEADERS,
-  Accept: "application/json",
-  Origin: "https://www.premierleague.com",
-  Referer: "https://www.premierleague.com/",
-  Account: "premierleague",
-};
 
 async function fetchWithTimeout(url, headers) {
   const ac = new AbortController();
@@ -146,39 +116,10 @@ function parseRss(xml) {
   }));
 }
 
-// Ruzne verze Pulselive vraci pole pod ruznymi klici. Bereme prvni,
-// ktery je pole objektu s titulkem — misto abychom trvali na jednom
-// tvaru, ktery se muze zmenit.
-function pulseList(json) {
-  if (!json || typeof json !== "object") return [];
-  for (const key of ["content", "data", "items", "results"]) {
-    const v = json[key];
-    if (Array.isArray(v) && v.length && typeof v[0] === "object") return v;
-  }
-  return Array.isArray(json) ? json : [];
-}
-
-function parsePulselive(json) {
-  return pulseList(json)
-    .slice(0, PER_SOURCE)
-    .map((c) => {
-      const slug = c.titleUrlSegment || c.slug || c.id;
-      return {
-        title: decode(c.title || c.headline),
-        link: slug
-          ? `https://www.premierleague.com/en/news/${slug}`
-          : "https://www.premierleague.com/en/fantasy-news",
-        date: new Date(
-          c.publishFrom || c.publishedDate || c.date || Date.now()
-        ).toISOString(),
-        excerpt: clip(decode(c.summary || c.subtitle || c.description)),
-      };
-    });
-}
 
 async function loadSource(src) {
   const urls = src.urls || [src.url];
-  const headers = src.type === "pulselive" ? PULSE_HEADERS : BROWSER_HEADERS;
+  const headers = BROWSER_HEADERS;
   const pokusy = [];
   let items = null;
 
@@ -189,10 +130,7 @@ async function loadSource(src) {
         pokusy.push(`${upstream.status} ${url.slice(0, 90)}`);
         continue;
       }
-      const parsed =
-        src.type === "pulselive"
-          ? parsePulselive(await upstream.json())
-          : parseRss(await upstream.text());
+      const parsed = parseRss(await upstream.text());
 
       // Status 200 s prazdnym polem znamena, ze adresa sice zije, ale
       // vraci neco jineho, nez cekame. Zkousime dal.
@@ -260,4 +198,4 @@ export default async function handler(req, res) {
 
 // Vnitrnosti pro test.mjs. Parsovani je jediny netrivialni kus tehle
 // funkce a jediny, ktery se da testovat bez site.
-export const __test = { parseRss, parsePulselive, decode, clip, stripBoilerplate, pulseList };
+export const __test = { parseRss, decode, clip, stripBoilerplate };
