@@ -288,6 +288,13 @@ export default async function handler(req, res) {
         cfRay: upstream.headers.get("cf-ray") || null,
         cfMitigated: upstream.headers.get("cf-mitigated") || null,
         server: upstream.headers.get("server") || null,
+        // Kudy se šlo. "worker" znamena, ze objizdka bezi a odmitnuti
+        // prislo az za ni; prazdno znamena, ze se na ni vubec nedoslo
+        // nebo neni nastavena. Bez toho jsou obe situace k nerozeznani.
+        via: upstream.headers.get("x-via") || "vercel",
+        upstreamServer: upstream.headers.get("x-upstream-server") || null,
+        workerUrl: process.env.FPL_WORKER_URL ? "nastaveno" : "chybi",
+        workerToken: process.env.FPL_WORKER_TOKEN ? "nastaveno" : "chybi",
         snippet: (await upstream.text().catch(() => "")).slice(0, 300),
       };
 
