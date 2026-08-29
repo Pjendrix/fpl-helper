@@ -5779,6 +5779,46 @@ check('archiv umí říct, proč se do cloudu nezapsalo', () => {
   return Object.keys(d).length + ' polí';
 });
 
+
+check('kolo uložené lokálně se doplní i do cloudu', () => {
+  /* nactiKolo se po úspěšném snapLoad hned vrací, takže snapSave už
+     nemá kdo zavolat. Bez doplnění tady by se kolo, které se jednou
+     uložilo lokálně, do sdíleného archivu nedostalo nikdy — a celý
+     smysl Firestore vrstvy (stáhne jeden, mají všichni) by padl. */
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  const fn = src.slice(src.indexOf('async function snapLoad'),
+                       src.indexOf('function snapSave'));
+  if(!/await snapCloudWrite\(g, snap\)/.test(fn))
+    throw new Error('lokální snímek se do cloudu nedoplňuje');
+  if(!/vCloudu\[String\(g\)\]/.test(fn))
+    throw new Error('zapisuje se bez ověření, že tam kolo už není');
+  return 'oběma směry';
+});
+
+
+check('archiv počká, až se dořeší přihlášení', () => {
+  /* Firebase obnovuje session asynchronně. Kliknutí na kolo hned po
+     načtení stránky trefilo okno, kdy je FB_USER ještě null — zápis
+     do Firestore pravidla odmítla a kolo zůstalo jen v localStorage,
+     přestože v hlavičce svítilo přihlášení. */
+  const sync = fs.readFileSync('js/sync.js', 'utf8');
+  if(!/function authReady/.test(sync))
+    throw new Error('chybí signál o dořešeném přihlášení');
+  if(!/AUTH_HOTOVO = new Promise/.test(sync))
+    throw new Error('slib se nikde nevytváří');
+
+  const hc = fs.readFileSync('js/histcache.js', 'utf8');
+  const zapis = hc.slice(hc.indexOf('async function snapCloudWrite'),
+                         hc.indexOf('function debugArchiv'));
+  if(!/await authReady\(\)/.test(zapis))
+    throw new Error('zápis do cloudu na přihlášení nečeká');
+  const cteni = hc.slice(hc.indexOf('async function snapCloudAll'),
+                         hc.indexOf('async function snapCloudWrite'));
+  if(!/await authReady\(\)/.test(cteni))
+    throw new Error('čtení z cloudu na přihlášení nečeká');
+  return 'čeká se';
+});
+
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
 w.close();
 process.exit(0);
