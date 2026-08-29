@@ -1305,6 +1305,49 @@ check('plánovač vysvětlí, k čemu je', () => {
   return 'ok';
 });
 
+/* ================= ceny kola: řádky ================= */
+
+check('obě místa s cenami mají stejnou značku', () => {
+  // Ceny se vykreslují dvakrát — v Hubu a na Přehledu. Když se jedno
+  // místo změní a druhé ne, rozpadne se rovnou to, které se zapomnělo.
+  const hub = fs.readFileSync('js/tabs.js', 'utf8');
+  const home = fs.readFileSync('js/core.js', 'utf8');
+  for(const [jm, src] of [['Hub', hub], ['Přehled', home]]){
+    if(!src.includes('<div class="medal"'))
+      throw new Error(jm + ' nemá medailon — zůstala stará značka');
+    if(!src.includes('<div class="txt">'))
+      throw new Error(jm + ' nemá obal .txt, řádek se rozsype');
+    if(/<div class="emoji"/.test(src))
+      throw new Error(jm + ' pořád používá .emoji, na které už není styl');
+  }
+  return 'medal + txt na obou místech';
+});
+
+check('ceny jsou řádky, ne mřížka', () => {
+  const css = fs.readFileSync('css/app.css', 'utf8');
+  const blok = css.slice(css.indexOf('.awards{'), css.indexOf('síň slávy'));
+  if(/grid-template-columns/.test(blok))
+    throw new Error('zbyla mřížka — dlouhá jména zase rozhodí výšku karet');
+  if(!/\.award\{[^}]*display:flex/.test(blok))
+    throw new Error('řádek není flex');
+  return 'řádkové rozvržení';
+});
+
+/* ================= H2H: stabilní los ================= */
+
+check('chybějící historie nevyhodí člena z losu', () => {
+  // Tohle měnilo rozlosování od kola ke kolu: komu se nestáhla
+  // historie, ten tiše vypadl, zbyl lichý počet a naskočil Duch kola.
+  const js = fs.readFileSync('js/h2h.js', 'utf8');
+  const fn = js.slice(js.indexOf('function h2hParticipants'),
+                      js.indexOf('Živé body kola'));
+  if(/return h && h\.current &&/.test(fn))
+    throw new Error('chybějící historie pořád vyřazuje člena z ligy');
+  if(!fn.includes('nevyřazujeme'))
+    throw new Error('chybí rozlišení mezi „nehrál“ a „data nedorazila“');
+  return 'kdo je v lize, ten hraje';
+});
+
 /* ================= záloha dat při výpadku ================= */
 
 check('živá data kola se neukládají jako záloha', () => {
