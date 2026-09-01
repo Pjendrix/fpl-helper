@@ -1746,11 +1746,24 @@ function nejLavicka(pk, live, gwId){
    když tam je. Vrací null, když se nedá zjistit vůbec — to je pořád
    lepší než tvrdit nulu. */
 function lavickaBody(row, pk, live, gwId){
+  /* Pořadí zdrojů je obrácené, než by člověk čekal, a je to schválně.
+
+     `points_on_bench` z historie vypadá jako ten správný zdroj, ale
+     když sestavy přijdou z archivu, nese archiv `entry_history` tak,
+     jak vypadalo ve chvíli zápisu — a to je někdy ještě před dopočtem,
+     takže je tam nula. Nula se pak tvářila jako pravda a cena pro
+     smolaře zmizela celá, protože maximum ligy vyšlo nula.
+
+     Sestavy a body hráčů jsou přitom u archivovaného kola vždycky po
+     ruce a spočítat se z nich dá totéž — a navíc správně, protože se
+     z lavičky vyřadí ti, kdo se dostali do hry autosubem. Historie
+     zůstává jako záloha pro kola, kde sestavy nemáme. */
+  const lav = lavickaRows(pk, live, gwId);
+  if(lav.length) return lav.reduce((a, x) => a + x.pts, 0);
   if(row.ev && !row.ev.zeStandings && Number.isFinite(row.ev.points_on_bench)){
     return row.ev.points_on_bench;
   }
-  const lav = lavickaRows(pk, live, gwId);
-  return lav.length ? lav.reduce((a, x) => a + x.pts, 0) : null;
+  return null;
 }
 
 /* Smolař kola: nejvíc bodů nechaných na lavičce. */
@@ -1808,6 +1821,20 @@ window.debugCeny = function(gw){
     return null;
   }).filter(Boolean);
   if(bezBodu.length) console.log('nespárováno:', bezBodu);
+
+  /* Lavička zvlášť: cena pro smolaře mizí tiše, když maximum ligy vyjde
+     nula. Tabulka ukáže, jestli je nula spočítaná ze sestav, nebo jen
+     opsaná z historie (kde bývá zamrzlá z doby před dopočtem kola). */
+  console.table(gwRows(g).map(r => ({
+    manazer: r.m.player_name,
+    ze_sestav: lavickaRows(picks && picks[r.i], live, g)
+      .reduce((a, x) => a + x.pts, 0),
+    z_historie: r.ev && Number.isFinite(r.ev.points_on_bench)
+      ? r.ev.points_on_bench : '—',
+    zdroj_radku: r.ev && r.ev.zeStandings ? 'pořadí ligy'
+      : r.ev && r.ev.zeSestav ? 'sestavy' : 'historie',
+    pouzito: lavickaBody(r, picks && picks[r.i], live, g),
+  })));
   console.log('ceny:', buildAwards(g, picks, live).map(a => a.key).join(', ') || '(žádné)');
 };
 
