@@ -4940,8 +4940,11 @@ check('smolař pojmenuje hráče z lavičky, když má sestavy', () => {
   nastavFaze({1: 'final', 2: 'final', 3: 'running'});
   hubStub(3, {1: [100, 90, 80], 2: [160, 190, 140]});
   const jm = elements[40].web_name;
-  cenyStub(2, [1, 2, 3], {1: 10, 2: 4, 3: 2, [elements[40].id]: 9},
-           [elements[40].id, elements[40].id, elements[40].id]);
+  /* Lavičky se musí lišit — jinak je to shoda celé ligy a cena se
+     (správně) neuděluje. Body se berou ze sestav, ne z historie. */
+  cenyStub(2, [1, 2, 3], {1: 10, 2: 4, 3: 2,
+             [elements[40].id]: 9, [elements[41].id]: 1, [elements[42].id]: 0},
+           [elements[41].id, elements[40].id, elements[42].id]);
   const b = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))')
     .find(x => x.key === 'bench');
   if(!new RegExp(jm).test(b.sub))
@@ -5330,6 +5333,24 @@ check('nulová lavička u všech není shoda, ale prostě žádná cena', () => 
   const k = w.eval('buildAwards(2, [], null)').map(x => x.key);
   if(k.includes('bench')) throw new Error('nulová lavička dostala kartu');
   return 'karta se vynechá';
+});
+
+check('zamrzlá nula v historii nepřebije body spočítané ze sestav', () => {
+  /* Archiv ukládá `entry_history` v tom stavu, v jakém bylo při zápisu.
+     Když tam sedí nula, dřív vyšlo maximum ligy nula a cena pro smolaře
+     zmizela celá — přestože sestavy i body hráčů kola říkaly něco jiného. */
+  nastavFaze({1: 'final', 2: 'final', 3: 'running'});
+  hubStub(3, {1: [100, 90, 80], 2: [110, 190, 90]});
+  nastavLavicku(2, [0, 0, 0]);
+  const lav = [elements[10].id, elements[11].id, elements[12].id];
+  cenyStub(2, [1, 2, 3], {1: 5, 2: 4, 3: 2,
+    [lav[0]]: 3, [lav[1]]: 12, [lav[2]]: 1}, lav);
+  const b = w.eval('buildAwards(2, NEWS_PICKS.get(2), NEWS_LIVE.get(2))')
+    .find(x => x.key === 'bench');
+  if(!b) throw new Error('cena zmizela kvůli nule z historie');
+  if(b.who !== 'M1') throw new Error('smolař je ' + b.who + ', čekal jsem M1');
+  if(!/12/.test(b.val)) throw new Error('špatné body: ' + b.val);
+  return b.who + ' — ' + b.val;
 });
 
 
