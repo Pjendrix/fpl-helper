@@ -10,7 +10,7 @@
 
 // Znacka verze. Bez ni se neda poznat rozdil mezi "nova verze nefunguje"
 // a "bezi porad ta stara" — a to jsou dve uplne jine chyby.
-const BUILD = "news-2026-08-26b";
+const BUILD = "news-2026-08-26c";
 
 const TIMEOUT_MS = 6000;
 const PER_SOURCE = 12; // kolik clanku brat z jednoho zdroje
@@ -21,13 +21,22 @@ const SOURCES = [
   { id: "ff247", name: "FF247", type: "rss", url: "https://fantasyfootball247.co.uk/feed/" },
 ];
 
+// Oficialni "The Scout" tady byl a je pryc. Premier League pro nej nema
+// RSS, takze se cetl pres nezdokumentovane obsahove API Pulselive —
+// rada adres, kterou bylo potreba hadat, s vlastnim parserem a s tim,
+// ze se muze kdykoli zmenit bez ohlaseni. Kdyz se rozjel, ukazalo se,
+// ze obsah stejne za tu udrzbu nestoji: FFScout a FF247 pisou o tomtez
+// driv a podrobneji.
+//
+// Zustava po nem tenhle komentar misto stovky radku, ktere by nikdo
+// nepouzival, ale kazdy by se je bal smazat.
+
 const BROWSER_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   "Accept-Language": "en-GB,en;q=0.9",
 };
-
 
 async function fetchWithTimeout(url, headers) {
   const ac = new AbortController();
@@ -116,16 +125,17 @@ function parseRss(xml) {
   }));
 }
 
-
 async function loadSource(src) {
+  // Rada adres misto jedne: kdyz zdroj presune feed, zkusi se dalsi
+  // kandidat driv, nez sekce zmizi. RSS adresy se stehuji zridka, ale
+  // stehuji.
   const urls = src.urls || [src.url];
-  const headers = BROWSER_HEADERS;
   const pokusy = [];
   let items = null;
 
   for (const url of urls) {
     try {
-      const upstream = await fetchWithTimeout(url, headers);
+      const upstream = await fetchWithTimeout(url, BROWSER_HEADERS);
       if (!upstream.ok) {
         pokusy.push(`${upstream.status} ${url.slice(0, 90)}`);
         continue;
