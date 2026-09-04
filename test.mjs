@@ -4526,8 +4526,8 @@ check('Přehled netahá data hubu opakovaně', () => {
   // drawHome() běží při každé změně watchlistu. Bez pojistky by každé
   // překreslení pustilo další várku dotazů na všechny členy ligy.
   const src = SRC;
-  const fn = src.slice(src.indexOf('function homeAwardsLoad()'),
-                       src.indexOf('function homeAwardsLoad()') + 700);
+  const fn = src.slice(src.indexOf('function homeAwardsLoad'),
+                       src.indexOf('function homeHubPending'));
   if(!/HUB_FOR_HOME/.test(fn)) throw new Error('chybí pojistka');
   if(!/TAB_DONE\.add\('t-hub'\)/.test(fn))
     throw new Error('Hub by se po otevření načetl podruhé');
@@ -4801,10 +4801,43 @@ check('úklid je jeden, ne dva rozejité seznamy', () => {
   if(!/resetVolatile\(\)/.test(reset))
     throw new Error('resetState() si úklid dělá po svém');
 
-  for(const v of ['HUB = null', 'HUB_FOR_HOME = false', 'NEWS_FOR_HOME = false',
+  for(const v of ['HUB = null', 'HUB_FOR_HOME = false', 'HUB_HOME_ERR = null', 'NEWS_FOR_HOME = false',
                   'STALE_USED = null', 'SQ_LIVE = null', 'H2H_FROZEN_LID = null'])
     if(!RESET_FN.includes(v)) throw new Error('chybí ' + v);
   return 'obě cesty jedním seznamem';
+});
+
+check('nepovedené načtení ligy skončí hláškou, ne věčnou kostrou', () => {
+  /* Tichá past: `loadHub()` si svou chybu ošetří sám a resolvne se
+     normálně, takže `.catch()` na Přehledu nikdy nespadl. Příznak
+     `HUB_FOR_HOME` zůstal nastavený, další pokus se nespustil a boxy
+     držely kostru donekonečna — zvenku k nerozeznání od načítání. */
+  const src = fs.readFileSync('js/core.js', 'utf8');
+  const fn = src.slice(src.indexOf('function homeAwardsLoad'),
+                       src.indexOf('function homeHubPending'));
+  if(!/if\(typeof HUB === 'undefined' \|\| !HUB\)/.test(fn))
+    throw new Error('nekontroluje se, jestli Hub opravdu je');
+  if(!/HUB_FOR_HOME = false/.test(fn))
+    throw new Error('příznak po nezdaru nespadne, další pokus nepřijde');
+  if(!/TAB_DONE\.delete\('t-hub'\)/.test(fn))
+    throw new Error('otevření Hubu by po nezdaru nic nenačetlo');
+
+  // Hláška nesmí sama spustit další pokus — z jedné nedostupné ligy by
+  // se stala smyčka dotazů.
+  w.eval("HUB = null; HUB_FOR_HOME = true; HUB_HOME_ERR = 'Ligu se teď nepodařilo načíst.'");
+  try{
+    const out = w.eval('homeHubPending()');
+    if(!out || !/errbox/.test(out)) throw new Error('nevrací hlášku s tlačítkem');
+    if(g.HUB_FOR_HOME !== true) throw new Error('hláška spustila další pokus');
+  } finally { w.eval("HUB_HOME_ERR = null; HUB_FOR_HOME = false"); }
+
+  // Bez chyby se vrací null, tedy „ještě se načítá“ → kostra.
+  w.eval('HUB_FOR_HOME = true');
+  try{
+    if(w.eval('homeHubPending()') !== null)
+      throw new Error('během načítání se má vrátit null');
+  } finally { w.eval('HUB_FOR_HOME = false'); }
+  return 'důvod a tlačítko';
 });
 
 check('štítek záložních dat po úspěšném načtení zmizí', () => {
@@ -6315,6 +6348,302 @@ check('archiv jde povýšit na novější verzi, ale ne přepsat', () => {
   if(!/snap\.v <= ARCH_V/.test(hc))
     throw new Error('starší snímek se zahazuje místo použití');
   return 'jen nahoru';
+});
+
+/* ============================================================
+   VYNULOVANÉ SEZÓNNÍ ŽEBŘÍČKY
+
+   Po třech kolech hlásily „Zmrzlá lavička 0“, „Nejaktivnější 0“
+   a „Efektivita kádru 0.0“ celé lize, zatímco rozptyl bodů seděl.
+   Byly to dvě chyby nad sebou a obě se projevily jako nula, tedy jako
+   platná hodnota — proto se na ně nedalo přijít z výstupu.
+   ============================================================ */
+
+check('rozbalený snímek se dá zabalit zpátky beze ztráty', () => {
+  /* Tady byla první polovina chyby. `unpackPicks` vracelo
+     `entry_history` jen se dvěma poli, ačkoli celý řádek historie ležel
+     vedle v `h`. Kdo snímek jen prohnal tam a zpátky — povýšení verze,
+     doplnění chybějícího člena — uložil místo historie devět nul. */
+  const eh = {points: 61, total_points: 124, rank: 3, overall_rank: 900123,
+              event_transfers: 2, event_transfers_cost: 4,
+              points_on_bench: 7, value: 1003, bank: 12};
+  w.__pk = {active_chip: 'bboost', entry_history: eh,
+            picks: [{element: 5, position: 1, multiplier: 1,
+                     is_captain: false, is_vice_captain: true}]};
+  const prvni = w.eval('packPicks(window.__pk)');
+  w.__v1 = prvni;
+  const znovu = w.eval('packPicks(unpackPicks(window.__v1, 5))');
+  if(znovu.h !== prvni.h)
+    throw new Error('řádek historie se přebalením změnil: ' + znovu.h);
+
+  w.__v2 = znovu;
+  const r = w.eval('unpackHist(window.__v2.h, 5)');
+  for(const k of Object.keys(eh))
+    if(r[k] !== eh[k]) throw new Error('pole ' + k + ' se ztratilo: ' + r[k]);
+  return 'idempotentní';
+});
+
+check('nemožný řádek historie se raději neuloží, než aby lhal', () => {
+  /* FPL nemá kolo s nulovou hodnotou kádru ani se součtem menším než
+     body toho kola. Takový řádek nevznikl v FPL, ale u nás — a devět
+     nul se od pravdy nedá rozeznat. Prázdné `h` je poctivé „nevím“. */
+  w.__zly = {points: 61, total_points: 0, value: 0};
+  if(w.eval('packHist(window.__zly)') !== '')
+    throw new Error('poškozený řádek se zabalil jako platný');
+  if(w.eval('unpackHist("61:0:0:0:0:8:0:0:0", 3)') !== null)
+    throw new Error('poškozený řádek se rozbalil jako platný');
+  // Zdravý řádek musí projít dál.
+  if(!w.eval('unpackHist("61:124:3:9:2:4:7:1003:12", 3)'))
+    throw new Error('zdravý řádek se zahodil');
+  return 'nula není odpověď';
+});
+
+check('archiv se nevrací s dírou po jednom členovi', () => {
+  /* `members.map` s `return null` uvnitř vracelo pole, ve kterém jeden
+     člen chyběl — volající viděl „archiv stačil“ a tomu jednomu se pak
+     sečetly nuly. Chybějící historie musí shodit celou cestu na API. */
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  const fn = src.slice(src.indexOf('async function snapHists'),
+                       src.indexOf('function snapPatchCurrent'));
+  if(/return members\.map/.test(fn))
+    throw new Error('pořád se skládá mapou, díra tedy projde');
+  if(!/if\(!row\) return null/.test(fn))
+    throw new Error('snímek bez historie projde jako platný');
+  return 'všechno, nebo nic';
+});
+
+check('běžící kolo si nevymýšlí nuly, ale doplní se ze sestav', () => {
+  /* Druhá polovina chyby. Řádek běžícího kola se skládal z pořadí ligy,
+     které zná jen body a součet — a `event_transfers: 0, value: 0` se
+     do žebříčků sečetlo jako fakt. Nejhůř na tom byla „Efektivita
+     kádru“: brala hodnotu kádru z posledního řádku, tedy z toho
+     vymyšleného, takže vyšla 0.0 celé lize. */
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  const fn = src.slice(src.indexOf('async function snapHists'),
+                       src.indexOf('function snapPatchCurrent'));
+  if(/event_transfers: 0, event_transfers_cost: 0/.test(fn))
+    throw new Error('běžící kolo se pořád vyplňuje nulami');
+
+  const hists = [{current: [
+    {round: 1, event: 1, points: 60, total_points: 60, event_transfers: 0,
+     event_transfers_cost: 0, points_on_bench: 5, value: 1000},
+    {round: 2, event: 2, points: 55, total_points: 115, zeStandings: true,
+     event_transfers: null, event_transfers_cost: null,
+     points_on_bench: null, value: null, bank: null},
+  ]}];
+  w.__h = hists;
+  w.__p = [{entry_history: {event_transfers: 2, event_transfers_cost: 4,
+                            points_on_bench: 9, value: 1012, bank: 3}}];
+  const out = w.eval('snapPatchCurrent(window.__h, window.__p, 2)');
+  const r = out[0].current[1];
+  if(r.event_transfers !== 2 || r.points_on_bench !== 9 || r.value !== 1012)
+    throw new Error('sestavy se do řádku nepromítly');
+  if(r.zeStandings) throw new Error('řádek se pořád tváří jako neúplný');
+
+  // Bez sestav se nic nedomýšlí — null zůstane null.
+  w.__h2 = [{current: [{round: 2, points: 55, zeStandings: true, value: null}]}];
+  w.__p2 = [null];
+  if(w.eval('snapPatchCurrent(window.__h2, window.__p2, 2)')[0].current[0].value !== null)
+    throw new Error('bez dat se doplnila nula');
+  return 'ze sestav, zadarmo';
+});
+
+check('žebříčky sčítají celou sezónu, ne poslední kolo', () => {
+  /* Regrese na hlášené chování: po třech kolech ukazovaly tabulky nuly
+     všem. Tři kola, v každém někdo něco udělal — součet tedy nesmí být
+     ani nula, ani hodnota posledního kola. */
+  const members = [
+    {entry: 1, player_name: 'Adam Marko', total: 180, event_total: 60},
+    {entry: 2, player_name: 'Filip Buddeus', total: 170, event_total: 55},
+    {entry: 3, player_name: 'Jarda Peřina', total: 160, event_total: 50},
+  ];
+  const hists = members.map((m, i) => ({
+    chips: [],
+    current: [1, 2, 3].map(g => ({
+      round: g, event: g, points: 50 + g,
+      total_points: 50 * g + g,
+      event_transfers: g === 1 ? 0 : 1 + i,
+      event_transfers_cost: g === 3 && i === 0 ? 8 : 0,
+      points_on_bench: 3 + i,
+      value: 1000 + g,
+    })),
+  }));
+  w.__hub = {st: {league: {name: 'T'}}, members, hists, cur: {id: 3}, picks: []};
+  const puv = w.eval('HUB');
+  w.eval('HUB = window.__hub');
+  try{
+    const html = w.eval('buildBoards()');
+
+    // Lavička: 3 kola × (3+i). Nejvyšší je Jarda s 3×5 = 15.
+    if(!/Jarda Peřina\s*<span>15<\/span>/.test(html))
+      throw new Error('lavička se nesečetla přes kola');
+    // Přestupy: GW2+GW3 po (1+i). Jarda 3+3 = 6.
+    if(!/Jarda Peřina\s*<span>6<\/span>/.test(html))
+      throw new Error('přestupy se nesečetly přes kola');
+    // Daň: jen Adam, −8.
+    if(!/Adam Marko\s*<span>−8<\/span>/.test(html))
+      throw new Error('daň za transfery se ztratila');
+    // Efektivita: 180 / 100.3 ≈ 1.8 — rozhodně ne 0.0.
+    if(/<span>0\.0<\/span>/.test(html))
+      throw new Error('efektivita kádru vyšla nula');
+    if(!/Součet za 3 kol/.test(html))
+      throw new Error('rozsah součtu není vidět');
+    return 'sečteno od GW1';
+  } finally { w.__puv = puv; w.eval('HUB = window.__puv'); }
+});
+
+check('neúplný řádek se do součtu nezapočítá jako nula', () => {
+  /* Kdyby se do historie znovu dostal řádek bez lavičky, nesmí to
+     vypadat jako „nikdo nic nenechal na lavičce“. */
+  const members = [{entry: 1, player_name: 'A', total: 100, event_total: 50},
+                   {entry: 2, player_name: 'B', total: 90, event_total: 45}];
+  const hists = members.map(() => ({chips: [], current: [
+    {round: 1, points: 50, total_points: 50, points_on_bench: 6,
+     event_transfers: 1, event_transfers_cost: 0, value: 1000},
+    {round: 2, points: 50, total_points: 100, points_on_bench: null,
+     event_transfers: null, event_transfers_cost: null, value: null,
+     zeStandings: true},
+  ]}));
+  w.__hub2 = {st: {league: {name: 'T'}}, members, hists, cur: {id: 2}, picks: []};
+  const puv = w.eval('HUB');
+  w.eval('HUB = window.__hub2');
+  try{
+    const html = w.eval('buildBoards()');
+    if(!/A\s*<span>6<\/span>/.test(html))
+      throw new Error('známé kolo se do součtu nedostalo');
+    if(!/Součet za 1 kol|Součet za GW/.test(html))
+      throw new Error('neříká se, kolik kol se sečetlo');
+    return 'sečte se jen to známé';
+  } finally { w.__puv = puv; w.eval('HUB = window.__puv'); }
+});
+
+/* ============================================================
+   AKTUÁLNÍ GAMEWEEK V LIZE
+   ============================================================ */
+
+const gwlEls = {1: {web_name: 'Haaland'}, 2: {web_name: 'Szoboszlai'},
+                3: {web_name: 'B.Fernandes'}, 4: {web_name: 'Salah'}};
+const gwlM = ['Kryštof Benka', 'Filip Buddeus', 'Daniel Fábry', 'Jarda Peřina',
+              'Adam Marko', 'Adam Vrzal', 'Yannick Tchaou']
+  .map((n, i) => ({player_name: n, entry: i + 1}));
+const gwlPk = (cap, chip, cost, tr) => ({
+  active_chip: chip || null,
+  entry_history: {event_transfers_cost: cost || 0, event_transfers: tr || 0},
+  picks: [{element: cap, is_captain: true, multiplier: chip === '3xc' ? 3 : 2},
+          {element: 4, is_captain: false, multiplier: 1}],
+});
+const gwlText = (picks, n) => {
+  w.__m = gwlM.slice(0, n || picks.length);
+  w.__p = picks; w.__e = gwlEls;
+  const f = w.eval('gwLeagueFacts(window.__m, window.__p, window.__e)');
+  return f ? f.vety.join(' ') : null;
+};
+
+check('přehled kola: čipy, kapitán a daň v jednom odstavci', () => {
+  const t = gwlText([gwlPk(1, 'wildcard', 0, 9), gwlPk(1, 'wildcard', 0, 8),
+                     gwlPk(1, 'wildcard', 0, 7), gwlPk(2), gwlPk(1, null, 8, 3),
+                     gwlPk(1), gwlPk(1)]);
+  if(!/3 manažeři \(Kryštof, Filip a Daniel\) zahráli wildcard\./.test(t))
+    throw new Error('čipy: ' + t);
+  if(!/Nikdo nezahrál žádný jiný chip\./.test(t))
+    throw new Error('seznam čipů se neuzavřel');
+  if(!/Jinak volil jen Jarda, který má „Szoboszlai“\./.test(t))
+    throw new Error('kapitán: ' + t);
+  if(!/Za přestupy utratil Adam Marko −8 bodů\./.test(t))
+    throw new Error('daň: ' + t);
+  return 'čte se jako věta';
+});
+
+check('kolo, ve kterém se nic nestalo, to umí říct', () => {
+  const t = gwlText([gwlPk(1), gwlPk(2), gwlPk(3), gwlPk(4),
+                     gwlPk(1), gwlPk(2), gwlPk(3)]);
+  if(!/Nikdo v lize nezahrál žádný chip\./.test(t)) throw new Error(t);
+  if(!/Žádný hráč nebyl jako kapitán zvolen u více než poloviny manažerů/.test(t))
+    throw new Error(t);
+  if(!/Za přestupy v tomto kole nikdo neutratil žádné body navíc\./.test(t))
+    throw new Error(t);
+  // Nic se nestalo ≠ chybí data. Věta o přestupech musí chybět, ne hlásit nulu.
+  if(/0 přestupů/.test(t)) throw new Error('nula se vydává za informaci');
+  return 'tři poctivé věty';
+});
+
+check('triple kapitán se neuvádí bez jména kapitána', () => {
+  const t = gwlText([gwlPk(3, '3xc'), gwlPk(1, 'bboost'), gwlPk(1, 'bboost'),
+                     gwlPk(1, 'wildcard', 0, 11), gwlPk(1), gwlPk(1), gwlPk(1)]);
+  if(!/Kryštof zahrál triple kapitána s kapitánem „B\.Fernandes“\./.test(t))
+    throw new Error(t);
+  if(!/2 manažeři \(Filip a Daniel\) zahráli bench boost\./.test(t))
+    throw new Error(t);
+  if(!/Jarda zahrál wildcard\./.test(t)) throw new Error(t);
+  // Free hit se nehrál, takže se o něm nesmí psát.
+  if(/free hit/.test(t)) throw new Error('zmiňuje čip, který nikdo nezahrál');
+  return 'trojnásobná sázka i s tím, na koho';
+});
+
+check('počítané tvary a jména se skloňují správně', () => {
+  /* „Až na 3 manažeři“ a „kromě Adam Marko“ jsou tvary, u kterých
+     čtenář ztratí důvěru i v čísla kolem nich. Jména proto zůstávají
+     v prvním pádě a počítaný tvar má vlastní čtvrtý pád. */
+  const t = gwlText([gwlPk(2), gwlPk(2), gwlPk(2), gwlPk(2),
+                     gwlPk(1, null, 4, 2), gwlPk(3, null, 4, 2), gwlPk(4)]);
+  if(!/až na 3 manažery \(Adam Marko, Adam Vrzal a Yannick\), kteří volili jinak/.test(t))
+    throw new Error(t);
+  if(!/Za přestupy utratili 2 manažeři \(Adam Marko a Adam Vrzal\) −4 body\./.test(t))
+    throw new Error(t);
+  if(/manažeři \(Adam Marko, Adam Vrzal/.test(t)) throw new Error('špatný pád');
+  return 'čtvrtý pád jen tam, kde patří';
+});
+
+check('shodné křestní jméno v lize se píše celé', () => {
+  // Adam Marko a Adam Vrzal v jedné lize znamenají, že věta
+  // „Adam zahrál wildcard“ neříká, který z nich.
+  const t = gwlText([gwlPk(1), gwlPk(1), gwlPk(1), gwlPk(1),
+                     gwlPk(1, 'wildcard'), gwlPk(2), gwlPk(1)]);
+  if(!/Adam Marko zahrál wildcard\./.test(t)) throw new Error(t);
+  if(/^Adam zahrál/.test(t)) throw new Error('dvojznačné jméno');
+  return 'jednoznačně';
+});
+
+check('různé mínusy se vypíšou po manažerech', () => {
+  const t = gwlText([gwlPk(1, null, 8, 4), gwlPk(1, null, 4, 2), gwlPk(1),
+                     gwlPk(1), gwlPk(2), gwlPk(1), gwlPk(1)]);
+  if(!/Kryštof \(−8\) a Filip \(−4\) — dohromady −12 bodů\./.test(t))
+    throw new Error(t);
+  return 'kdo kolik';
+});
+
+check('bez sestav se sekce nedomýšlí', () => {
+  if(gwlText([gwlPk(1)], 1) !== null) throw new Error('jeden manažer projde');
+  w.__m = gwlM; w.__p = null; w.__e = gwlEls;
+  if(w.eval('gwLeagueFacts(window.__m, window.__p, window.__e)') !== null)
+    throw new Error('chybějící sestavy nevrací null');
+  return 'radši nic';
+});
+
+check('sekce je na Přehledu nad Zpravodajem', () => {
+  const core = fs.readFileSync('js/core.js', 'utf8');
+  const dh = core.slice(core.indexOf('function drawHome'),
+                        core.indexOf('/* Odkazy „Spravovat“'));
+  const a = dh.indexOf('homeGwLeague');
+  const b = dh.indexOf('homeNews');
+  if(a < 0) throw new Error('drawHome sekci nevykresluje');
+  if(!(a < b)) throw new Error('sekce je pod Zpravodajem');
+  // Volá se přes typeof: homeGwLeague žije v js/tabs.js, který se
+  // načítá až po core.js.
+  if(!/typeof homeGwLeague === 'function'/.test(dh))
+    throw new Error('bez typeof by prázdný tabs.js shodil celý Přehled');
+  return 'nad Zpravodajem';
+});
+
+check('sekce si data nestahuje sama, veze se s Hubem', () => {
+  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const fn = src.slice(src.indexOf('function homeGwLeague'),
+                       src.indexOf('function buildHealth'));
+  if(/\bapi\(|cached\(|pooled\(/.test(fn))
+    throw new Error('sekce přidává dotazy na FPL');
+  if(!/homeHubPending/.test(fn))
+    throw new Error('bez Hubu se nikdy nenačte');
+  return 'nula dotazů navíc';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
