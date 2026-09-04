@@ -1141,6 +1141,12 @@ async function loadHub(){
     const picks = await pooled(members, m => cached('entry/' + m.entry + '/event/' + cur.id + '/picks/'),
       5, (d, t) => { $('hubmsg').textContent = `Načítám sestavy… ${d}/${t}`; });
 
+    /* Sestavy vezou `entry_history` běžícího kola. Bez tohohle kroku by
+       poslední řádek historie znal jen body a součet — a sezónní
+       žebříčky by z něj četly nulovou hodnotu kádru, nula přestupů
+       a prázdnou lavičku. */
+    if(typeof snapPatchCurrent === 'function') snapPatchCurrent(hists, picks, cur.id);
+
     HUB = {st: {league}, members, hists, picks, cur};
     renderHub();
     $('hubmsg').textContent = '';
@@ -1471,41 +1477,113 @@ function buildNews(gwId, picksFor){
   return news;
 }
 
+/* ------------------------------------------------------------
+   SEZÓNNÍ ŽEBŘÍČKY
+
+   Všechno, co je tady, je součet OD ZAČÁTKU SEZÓNY — ne poslední kolo.
+   Původní verze to tak myslela, ale sčítala `x.event_transfers` a spol.
+   bez ptaní, a `undefined + 0` je NaN, kdežto `null`/chybějící pole se
+   přes `reduce` protáhly jako nuly. Když se do historie dostal jediný
+   neúplný řádek (běžící kolo z pořadí ligy, poškozený archiv), tabulky
+   tvrdily „nula přestupů, prázdná lavička, nulová hodnota kádru“ —
+   a vypadalo to, jako by se sezóna resetovala.
+
+   Odteď platí tři pravidla:
+     · sčítá se jen z řádků, které tu položku opravdu znají,
+     · hodnota kádru se bere z posledního řádku, který ji zná,
+     · pod tabulkami je vidět, kolik kol se do součtu vešlo.
+
+   Když se do součtu nevejde nic, píše se pomlčka. Prázdno je poctivé;
+   nula je tvrzení.
+   ------------------------------------------------------------ */
 function buildBoards(){
-  const {members, hists} = HUB;
+  const {members, hists, cur} = HUB;
   const myId = parseInt(CONFIG.entryId || localStorage.getItem('fpl_entry') || '0', 10);
+
+  // Číslo je použitelné jen tehdy, když to opravdu je číslo. `null`
+  // znamená „tenhle řádek to neví“, ne nulu.
+  const num = v => (v === null || v === undefined || v === '' ? null
+                    : (Number.isFinite(Number(v)) ? Number(v) : null));
+
+  let pokryto = 0;      // nejvíc kol, ze kterých se povedlo sečíst
 
   const stats = members.map((m, i) => {
     const h = hists[i];
-    const cs = h ? h.current : [];
-    const pts = cs.map(x => x.points);
+    const cs = (h && Array.isArray(h.current)) ? h.current : [];
+
+    /* Součet přes kola, která tu položku znají. Vrací i počet kol,
+       ze kterých se sčítalo — bez něj by „0“ znamenala jak „nikdo nic
+       neudělal“, tak „nemám data“. */
+    const sum = key => {
+      let a = 0, n = 0;
+      for(const x of cs){
+        const v = num(x[key]);
+        if(v === null) continue;
+        a += v; n++;
+      }
+      return {v: n ? a : null, n};
+    };
+
+    const tax   = sum('event_transfers_cost');
+    const moves = sum('event_transfers');
+    const bench = sum('points_on_bench');
+    pokryto = Math.max(pokryto, tax.n, moves.n, bench.n);
+
+    const pts = cs.map(x => num(x.points)).filter(v => v !== null);
     const mean = pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : 0;
     const sd = pts.length > 1
-      ? Math.sqrt(pts.reduce((a, b) => a + (b - mean) ** 2, 0) / pts.length) : 0;
-    const last = cs[cs.length - 1];
+      ? Math.sqrt(pts.reduce((a, b) => a + (b - mean) ** 2, 0) / pts.length) : null;
+
+    /* Hodnota kádru: poslední kolo, které ji zná. Dřív to byl prostě
+       poslední řádek — a když to byl ten z pořadí ligy, vyšla nula
+       a s ní nulová efektivita pro celou ligu. */
+    let value = null;
+    for(let k = cs.length - 1; k >= 0; k--){
+      const v = num(cs[k].value);
+      if(v !== null && v > 0){ value = v / 10; break; }
+    }
+
+    /* Celkové body: autoritativní je pořadí ligy (`m.total`), protože
+       to je živé a nepotřebuje historii vůbec. */
+    let total = num(m.total);
+    if(total === null) for(let k = cs.length - 1; k >= 0; k--){
+      const v = num(cs[k].total_points);
+      if(v !== null){ total = v; break; }
+    }
+
     return {
       m,
-      tax: cs.reduce((a, x) => a + x.event_transfers_cost, 0),
-      moves: cs.reduce((a, x) => a + x.event_transfers, 0),
-      bench: cs.reduce((a, x) => a + x.points_on_bench, 0),
-      sd, mean,
-      value: last ? last.value / 10 : 0,
-      total: last ? last.total_points : 0,
+      tax: tax.v, moves: moves.v, bench: bench.v,
+      sd, mean, value, total,
       chips: (h && h.chips) ? h.chips : [],
     };
   });
 
   const board = (title, cap, arr, fmt, asc) => {
-    const rows = arr.slice().sort((a, b) => asc ? a.v - b.v : b.v - a.v).slice(0, 5);
+    // Kdo hodnotu nemá, do žebříčku nepatří — jinak by se s nulou
+    // usadil na kraji tabulky a vypadal jako výsledek.
+    const rows = arr.filter(r => r.v !== null && Number.isFinite(r.v))
+      .sort((a, b) => asc ? a.v - b.v : b.v - a.v).slice(0, 5);
+    const body = rows.length
+      ? `<ol>${rows.map(r => `<li class="${r.id === myId ? 'me' : ''}">${esc(r.n)}
+          <span>${fmt(r.v)}</span></li>`).join('')}</ol>`
+      : '<p class="cap" style="margin:0">Zatím není z čeho počítat.</p>';
     return `<div class="board">
       <h4>${esc(title)}</h4>
       <p class="cap">${esc(cap)}</p>
-      <ol>${rows.map(r => `<li class="${r.id === myId ? 'me' : ''}">${esc(r.n)}
-        <span>${fmt(r.v)}</span></li>`).join('')}</ol>
+      ${body}
     </div>`;
   };
 
   const pick = f => stats.map(s => ({n: s.m.player_name, id: s.m.entry, v: f(s)}));
+
+  /* Rozsah, ze kterého se sčítalo. Uživatel se ptal přesně na tohle —
+     „je to za celou sezónu, nebo jen za poslední kolo?“ — a tabulka
+     na to dosud neuměla odpovědět. */
+  const doKola = cur ? cur.id : pokryto;
+  const rozsah = !pokryto ? 'Zatím není z čeho počítat.'
+    : pokryto === 1 ? 'Součet za GW' + doKola + '.'
+    : `Součet za ${pokryto} kol sezóny (GW1–${doKola}).`;
 
   const chipNames = {wildcard: 'Wildcard', '3xc': 'Triple captain',
                      bboost: 'Bench boost', freehit: 'Free hit', manager: 'Manager'};
@@ -1513,20 +1591,316 @@ function buildBoards(){
     `<li>${esc(s.m.player_name)} <span>${s.chips.map(c =>
       (chipNames[c.name] || c.name) + ' GW' + c.event).join(', ')}</span></li>`).join('');
 
-  return `<div class="boards">
+  return `<p class="boardsnote">${esc(rozsah)}</p>
+  <div class="boards">
     ${board('Daň za transfery', 'Body odevzdané za přesuny', pick(s => s.tax), v => '−' + v)}
     ${board('Zmrzlá lavička', 'Body, co protekly na lavičce', pick(s => s.bench), v => v)}
     ${board('Nejaktivnější', 'Počet transferů za sezónu', pick(s => s.moves), v => v)}
     ${board('Nejstabilnější', 'Nejmenší rozptyl bodů po kolech', pick(s => s.sd),
             v => v.toFixed(1), true)}
     ${board('Efektivita kádru', 'Body na milion hodnoty týmu',
-            pick(s => s.value ? s.total / s.value : 0), v => v.toFixed(1))}
+            pick(s => (s.value && s.total !== null) ? s.total / s.value : null),
+            v => v.toFixed(1))}
     <div class="board">
       <h4>Spálené žolíky</h4>
       <p class="cap">Kdo už co použil</p>
       <ol>${chipRows || '<li style="list-style:none;margin-left:-19px;color:var(--mute)">Zatím nikdo.</li>'}</ol>
     </div>
   </div>`;
+}
+
+/* ============================================================
+   AKTUÁLNÍ GAMEWEEK V LIZE
+
+   Krátký odstavec o tom, co se v lize děje v právě otevřeném kole:
+   kdo spálil čip, na koho vsadila většina pásku a kdo si vzal mínusy.
+   Jsou to tři věci, kvůli kterým se člověk po deadlinu chodí dívat do
+   ligy — a dosud pro ně musel projít Hub, Miniligu a sestavy jednu po
+   druhé.
+
+   Data jsou zadarmo: sestavy kola (`entry/{gw}/picks/`) si Hub stahuje
+   tak jako tak. Nic dalšího tahle sekce nepotřebuje, takže nepřidává
+   ani jeden dotaz.
+
+   Proč právě `is_current`: sestavy jsou veřejné až po deadlinu.
+   Před ním by sekce mohla ukázat leda tipy — a tipovat, co kdo nasadí,
+   není informace. Dokud další kolo nezačalo, mluví se tedy o tom
+   posledním a je to v poznámce pod odstavcem napsané.
+   ============================================================ */
+
+const GWL_CHIPS = {
+  wildcard: {veta: 'wildcard',             pill: 'Wildcard'},
+  bboost:   {veta: 'bench boost',          pill: 'Bench boost'},
+  '3xc':    {veta: 'triple kapitána',      pill: 'Triple captain'},
+  freehit:  {veta: 'free hit',             pill: 'Free hit'},
+  manager:  {veta: 'asistenta manažera',   pill: 'Asistent manažera'},
+};
+
+/* Křestní jméno je čitelnější než celé, ale jen dokud je v lize jediné.
+   Adam Marko a Adam Vrzal v jedné lize znamenají, že věta „Adam zahrál
+   wildcard“ je nepoužitelná — u takového jména se proto píše celé. */
+function gwlJmena(members){
+  const prvni = (members || []).map(m =>
+    String(m.player_name || '').trim().split(/\s+/)[0] || '?');
+  const kolik = new Map();
+  prvni.forEach(f => kolik.set(f, (kolik.get(f) || 0) + 1));
+  return (members || []).map((m, i) => kolik.get(prvni[i]) === 1
+    ? prvni[i]
+    : (String(m.player_name || '').trim() || prvni[i]));
+}
+
+/* Čeština má tři tvary počítaného podstatného jména. Věta, která je
+   plete („2 manažerů zahrálo“), vypadá jako strojový překlad a čtenář
+   pak nevěří ani číslům v ní. */
+function gwlTvar(n, jedna, dva, pet){
+  const a = Math.abs(n) % 10, b = Math.abs(n) % 100;
+  if(a === 1 && b !== 11) return jedna;
+  if(a >= 2 && a <= 4 && (b < 12 || b > 14)) return dva;
+  return pet;
+}
+const gwlManazeru = n => n + ' ' + gwlTvar(n, 'manažer', 'manažeři', 'manažerů');
+/* Čtvrtý pád. „Až na 3 manažeři“ je věta, u které čtenář ztratí důvěru
+   i v čísla kolem ní — a přitom je to jediné místo v odstavci, kde se
+   počítaný tvar neskloňuje v prvním pádě. */
+const gwlManazery = n => n + ' ' + gwlTvar(n, 'manažera', 'manažery', 'manažerů');
+const gwlBodu     = n => gwlTvar(n, 'bod', 'body', 'bodů');
+const gwlPrestupu = n => gwlTvar(n, 'přestup', 'přestupy', 'přestupů');
+
+function gwlSeznam(xs){
+  if(!xs || !xs.length) return '';
+  if(xs.length === 1) return xs[0];
+  return xs.slice(0, -1).join(', ') + ' a ' + xs[xs.length - 1];
+}
+
+/* Nominovaný kapitán, ne ten, kterému nakonec připadla páska. Věta
+   mluví o rozhodnutí manažera před deadlinem — přesun pásky na
+   náhradníka je věc autosubů a patří do sestavy, ne sem. */
+function gwlKapitan(pk){
+  const c = ((pk && pk.picks) || []).find(x => x.is_captain);
+  return c ? c.element : null;
+}
+
+function gwlCena(pk){
+  const v = Number(pk && pk.entry_history && pk.entry_history.event_transfers_cost);
+  return Number.isFinite(v) ? v : 0;
+}
+
+function gwlPresuny(pk){
+  const v = Number(pk && pk.entry_history && pk.entry_history.event_transfers);
+  return Number.isFinite(v) ? v : 0;
+}
+
+/* Fakta o kole jako čistá funkce nad daty — bez DOM, bez globálů.
+   Jenom tak se dají odchytat všechny ty kombinace (nikdo/jeden/většina/
+   remíza) testem místo čekáním na to správné kolo v sezóně.
+
+   Vrací `{vety, pily}`, nebo `null`, když sestavy k dispozici nejsou. */
+function gwLeagueFacts(members, picks, els){
+  const jmena = gwlJmena(members);
+  const rows = (members || []).map((m, i) => ({m, jm: jmena[i], pk: picks && picks[i]}))
+    .filter(r => r.pk && Array.isArray(r.pk.picks) && r.pk.picks.length);
+  if(rows.length < 2) return null;
+
+  const jmeno = id => {
+    const p = els && els[id];
+    return p ? (p.web_name || '?') : '?';
+  };
+  const uv = s => '„' + s + '“';
+
+  const vety = [], pily = [];
+
+  /* ---------- 1. čipy ---------- */
+  const podleCipu = new Map();
+  rows.forEach(r => {
+    const c = r.pk.active_chip;
+    if(!c) return;
+    if(!podleCipu.has(c)) podleCipu.set(c, []);
+    podleCipu.get(c).push(r);
+  });
+
+  if(!podleCipu.size){
+    vety.push('Nikdo v lize nezahrál žádný chip.');
+  } else {
+    // Nejdřív to nejdražší rozhodnutí, pak zbytek. Pořadí je dané, aby
+    // odstavec vypadal pokaždé stejně a dal se přečíst po diagonále.
+    const poradi = ['3xc', 'bboost', 'freehit', 'wildcard', 'manager'];
+    const klice = [...podleCipu.keys()].sort((a, b) =>
+      ((poradi.indexOf(a) + 1) || 99) - ((poradi.indexOf(b) + 1) || 99));
+
+    for(const k of klice){
+      const kdo = podleCipu.get(k);
+      const nazev = (GWL_CHIPS[k] && GWL_CHIPS[k].veta) || k;
+
+      /* Triple kapitán bez jména kapitána je půlka zprávy — trojnásobná
+         sázka je právě o tom, na koho padla. */
+      if(k === '3xc'){
+        kdo.forEach(r => {
+          const c = gwlKapitan(r.pk);
+          vety.push(r.jm + ' zahrál triple kapitána'
+            + (c ? ' s kapitánem ' + uv(jmeno(c)) : '') + '.');
+        });
+      } else if(kdo.length === 1){
+        vety.push(kdo[0].jm + ' zahrál ' + nazev + '.');
+      } else {
+        vety.push(gwlManazeru(kdo.length) + ' (' + gwlSeznam(kdo.map(r => r.jm))
+          + ') zahráli ' + nazev + '.');
+      }
+
+      pily.push({cls: 'chip', t: ((GWL_CHIPS[k] && GWL_CHIPS[k].pill) || k)
+        + (kdo.length > 1 ? ' ×' + kdo.length : '')});
+    }
+
+    // Uzavření seznamu dává smysl jen u jediného druhu; u tří čipů už
+    // je z odstavce zřejmé, co se hrálo.
+    if(klice.length === 1) vety.push('Nikdo nezahrál žádný jiný chip.');
+  }
+
+  /* ---------- 2. kapitáni ---------- */
+  const sKap = rows.filter(r => gwlKapitan(r.pk) !== null);
+  if(!sKap.length){
+    vety.push('Kapitáni se z dat tohohle kola vyčíst nedají.');
+  } else {
+    const pocty = new Map();
+    sKap.forEach(r => {
+      const id = gwlKapitan(r.pk);
+      pocty.set(id, (pocty.get(id) || 0) + 1);
+    });
+    const serazeno = [...pocty.entries()].sort((a, b) => b[1] - a[1]);
+    const topN = serazeno[0][1];
+    const naVrcholu = serazeno.filter(([, n]) => n === topN).map(([id]) => id);
+    const topId = naVrcholu[0];
+
+    if(naVrcholu.length === 1 && topN === sKap.length){
+      vety.push('Kapitánem zvolila celá liga ' + uv(jmeno(topId)) + '.');
+      pily.push({cls: 'cap', t: 'C · ' + jmeno(topId) + ' ' + topN + '/' + sKap.length});
+
+    } else if(naVrcholu.length === 1 && topN * 2 > sKap.length){
+      const jini = sKap.filter(r => gwlKapitan(r.pk) !== topId);
+      /* Jména zůstávají v prvním pádě. „Kromě Adam Marko“ i „kromě
+         Kryštof“ jsou tvary, které v češtině neexistují, a skloňovat
+         cizí i domácí jména strojově se nedá spolehlivě — tak je věta
+         postavená tak, aby to nebylo potřeba. */
+      if(jini.length === 1){
+        vety.push('Jako kapitán je u většiny manažerů ' + uv(jmeno(topId))
+          + '. Jinak volil jen ' + jini[0].jm + ', který má '
+          + uv(jmeno(gwlKapitan(jini[0].pk))) + '.');
+      } else {
+        vety.push('Jako kapitána zvolila většina manažerů ' + uv(jmeno(topId))
+          + ' — až na ' + gwlManazery(jini.length)
+          + ' (' + gwlSeznam(jini.map(r => r.jm)) + '), kteří volili jinak.');
+      }
+      pily.push({cls: 'cap', t: 'C · ' + jmeno(topId) + ' ' + topN + '/' + sKap.length});
+
+    } else {
+      /* Většina se nenašla — buď je pole roztříštěné, nebo je na špici
+         remíza. Obojí je zpráva sama o sobě: v malé lize to znamená, že
+         se kolo rozhodne na kapitánovi.
+
+         Vyjmenovat se dají tři jména; při širší remíze by z věty byl
+         seznam, který nikdo nedočte. */
+      let v = 'Žádný hráč nebyl jako kapitán zvolen u více než poloviny manažerů';
+      if(naVrcholu.length === 1){
+        v += '; nejčastěji (' + topN + '×) padla volba na ' + uv(jmeno(topId)) + '.';
+      } else if(naVrcholu.length <= 3){
+        v += '; nejčastěji, ' + topN + '× každý, na '
+          + gwlSeznam(naVrcholu.map(id => uv(jmeno(id)))) + '.';
+      } else {
+        v += ' — na špici je remíza ' + naVrcholu.length + ' hráčů po '
+          + topN + ' hlasech.';
+      }
+      vety.push(v);
+      pily.push({cls: 'cap', t: 'C · bez většiny'});
+    }
+  }
+
+  /* ---------- 3. daň za přestupy ---------- */
+  const platici = rows.filter(r => gwlCena(r.pk) > 0)
+    .sort((a, b) => gwlCena(b.pk) - gwlCena(a.pk));
+
+  if(!platici.length){
+    vety.push('Za přestupy v tomto kole nikdo neutratil žádné body navíc.');
+  } else if(platici.length === 1){
+    const c = gwlCena(platici[0].pk);
+    vety.push('Za přestupy utratil ' + platici[0].jm + ' −' + c + ' ' + gwlBodu(c) + '.');
+  } else if(platici.every(r => gwlCena(r.pk) === gwlCena(platici[0].pk))){
+    const c = gwlCena(platici[0].pk);
+    vety.push('Za přestupy utratili ' + gwlManazeru(platici.length)
+      + ' (' + gwlSeznam(platici.map(r => r.jm)) + ') −' + c + ' ' + gwlBodu(c) + '.');
+  } else {
+    const celkem = platici.reduce((a, r) => a + gwlCena(r.pk), 0);
+    vety.push('Za přestupy zaplatili ' + gwlManazeru(platici.length) + ': '
+      + gwlSeznam(platici.map(r => r.jm + ' (−' + gwlCena(r.pk) + ')'))
+      + ' — dohromady −' + celkem + ' ' + gwlBodu(celkem) + '.');
+  }
+
+  const danCelkem = rows.reduce((a, r) => a + gwlCena(r.pk), 0);
+  if(danCelkem > 0) pily.push({cls: 'bad', t: 'celkem −' + danCelkem + ' za přestupy'});
+
+  /* ---------- 4. objem přestupů ---------- */
+  const presuny = rows.reduce((a, r) => a + gwlPresuny(r.pk), 0);
+  if(presuny > 0){
+    /* Wildcard a free hit počítají do `event_transfers` celou přestavbu
+       kádru. Bez téhle poznámky vypadá „27 přestupů“ v sedmičlenné lize
+       jako chyba výpočtu. Jmenuje se jen to, co se opravdu hrálo —
+       zmínka o free hitu v kole, kde ho nikdo nezahrál, je taky chyba,
+       jen míň nápadná. */
+    const prestavba = ['wildcard', 'freehit'].filter(k => podleCipu.has(k))
+      .map(k => GWL_CHIPS[k].veta);
+    vety.push('Dohromady liga udělala ' + presuny + ' ' + gwlPrestupu(presuny)
+      + (prestavba.length ? ', včetně tahů na ' + gwlSeznam(prestavba) + '.' : '.'));
+    pily.push({cls: '', t: presuny + ' ' + gwlPrestupu(presuny)});
+  }
+
+  return {vety, pily};
+}
+
+/* Box na Přehledu. Skládá se ze stejných dílů jako ostatní: hlavička
+   s odkazem do Hubu, obsah, případně kostra, dokud se liga načítá. */
+function homeGwLeague(){
+  const box = (inner, gw) => `<div class="hbox hgwl">
+    <h3><i class="hi">📋</i>Aktuální gameweek v lize${gw ? ' · GW' + gw : ''}
+      <button type="button" class="lnkbtn" data-goto="t-hub">Hub ligy</button></h3>
+    ${inner}</div>`;
+
+  const lid = CONFIG.leagueId || localStorage.getItem('fpl_league');
+  if(!lid){
+    return box(`<p class="note">Sekce se počítá ze sestav miniligy — zadej
+      si její ID v záložce Miniliga.</p>`);
+  }
+
+  // Data si tahá Hub. Když se ještě nenačetl, spustíme totéž, co ceny
+  // kola, a do té doby držíme výšku kostrou místo prázdna. Když se
+  // nepovedl, ukáže se důvod a tlačítko — ne věčná kostra.
+  if(typeof HUB === 'undefined' || !HUB){
+    const cekani = typeof homeHubPending === 'function' ? homeHubPending() : null;
+    return box(cekani || '<div class="skel"><i></i><i></i></div>');
+  }
+
+  const els = Object.fromEntries((BOOT.elements || []).map(p => [p.id, p]));
+  const f = gwLeagueFacts(HUB.members, HUB.picks, els);
+  if(!f){
+    return box('<p class="note">Sestavy tohohle kola zatím nejsou k dispozici.</p>',
+               HUB.cur.id);
+  }
+
+  const faze = gwPhase(HUB.cur.id);
+  const nxt = (BOOT.events || []).find(e => e.is_next);
+
+  /* Mezi koncem kola a dalším deadlinem sekce mluví o dohraném kole.
+     Kdyby to neřekla, vypadala by jako zastaralá — a člověk by hledal
+     tlačítko na obnovení, které by nic nezměnilo. */
+  const pozn = (faze === 'final' && nxt)
+    ? `Kolo je dohrané. Co kdo nasadí v GW${nxt.id}, bude vidět až po deadlinu.`
+    : '';
+
+  const stitek = faze === 'final' ? ''
+    : `<span class="livetag">${faze === 'running' ? 'živě' : 'čeká na bonusy'}</span>`;
+
+  return box(`${stitek}
+    <p class="gwltext">${f.vety.map(esc).join(' ')}</p>
+    ${f.pily.length ? `<div class="gwlpills">${f.pily.map(p =>
+      `<span class="gwlpill ${p.cls}">${esc(p.t)}</span>`).join('')}</div>` : ''}
+    ${pozn ? `<p class="gwlnote">${esc(pozn)}</p>` : ''}`, HUB.cur.id);
 }
 
 function buildHealth(){

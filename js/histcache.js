@@ -40,7 +40,22 @@
    snímcích našla chyba, jediná cesta ven je nechat appku starou verzi
    ignorovat. Snímky v1 se pro sestavy pořád použijí, jen z nich nejde
    poskládat historie. */
-const ARCH_V = 2;
+/* Verze 3 je oprava, ne nová funkce.
+
+   Ve v2 se snímek dal přebalit sám sebou: `unpackPicks` z něj vytáhlo
+   jen `event_transfers_cost` a `points`, ale `packPicks` z toho ohryzku
+   zase složilo celý řádek historie — a co v něm chybělo, doplnilo
+   nulami. Stačilo, aby snímek jednou prošel povýšením verze nebo
+   doplněním chybějícího člena, a v archivu zůstal řádek tvaru
+   `body:0:0:0:0:daň:0:0:0`. Sezónní žebříčky z něj pak počítaly nulovou
+   lavičku, nula přestupů a nulovou hodnotu kádru — a vypadalo to, že se
+   sčítá jen poslední kolo.
+
+   Číslo verze se zvyšuje proto, že to poškození nejde z dat poznat
+   zpětně u každého pole: nula je platná hodnota. Snímky v2 se pro
+   sestavy pořád použijí (to je ta drahá část), historie se z nich ale
+   neskládá — ta se dobere z API a zapíše se znovu už jako v3. */
+const ARCH_V = 3;
 const ARCH_KEY = 'sc:gwsnap:';
 
 /* ID ligy, pod kterým archiv leží. Sestavy jsou sice per manažer, ale
@@ -60,7 +75,25 @@ function snapKey(g){ return ARCH_KEY + snapLid() + ':' + g; }
 
    Pořadí polí je dané a nesmí se měnit; nová se smějí přidávat jen na
    konec, jinak by starší snímky četly čísla posunutá o jedno místo. */
+/* Je ten řádek vůbec možný?
+
+   FPL nemá kolo, ve kterém by hodnota kádru byla nula — startuje se na
+   100.0 a nikdy neklesne na dno. A `total_points` je součet od začátku
+   sezóny, takže nemůže být menší než body toho kola. Řádek, který
+   tohle porušuje, nevznikl v FPL: vznikl u nás přebalením neúplných
+   dat. Sčítat ho jako nuly znamená tvrdit, že se v tom kole nic nestalo
+   — a to je horší než přiznat, že data nemáme. */
+function histCredible(h){
+  if(!h) return false;
+  if(!(Number(h.value) > 0)) return false;
+  if(!(Number(h.total_points) >= Number(h.points))) return false;
+  return true;
+}
+
+/* Vrací prázdný řetězec, když se řádek složit nedá. Prázdné pole `h`
+   je poctivé „nevím“; devět nul je lež, kterou nikdo nepozná. */
 function packHist(eh){
+  if(!histCredible(eh)) return '';
   return [
     eh.points || 0,
     eh.total_points || 0,
@@ -77,12 +110,16 @@ function packHist(eh){
 function unpackHist(str, gw){
   const n = String(str || '').split(':').map(Number);
   if(n.length < 9) return null;
-  return {
+  if(n.some(x => !Number.isFinite(x))) return null;
+  const row = {
     round: gw, event: gw,
     points: n[0], total_points: n[1], rank: n[2], overall_rank: n[3],
     event_transfers: n[4], event_transfers_cost: n[5],
     points_on_bench: n[6], value: n[7], bank: n[8],
   };
+  // Řádek poškozený starým přebalením se tváří jako platný — pozná se
+  // jen podle toho, že takhle FPL data nikdy neposlalo.
+  return histCredible(row) ? row : null;
 }
 
 function packPicks(pk){
@@ -99,10 +136,29 @@ function packPicks(pk){
   };
 }
 
-function unpackPicks(v){
+/* Rozbalení musí být inverzní k zabalení, jinak je snímek jednosměrný.
+
+   Tady byla ta chyba: `entry_history` se rekonstruovalo ze dvou polí
+   (`k`, `b`), ačkoli celý řádek historie leží vedle v `h`. Kdo pak
+   snímek jen prohnal tam a zpátky — povýšení verze, doplnění chybějícího
+   člena — uložil místo historie devět nul a sezónní žebříčky ztratily
+   lavičku, přestupy i hodnotu kádru.
+
+   `gw` je potřeba, protože řádek nese číslo kola až od nadřazeného
+   snímku; bez něj by se historie nedala zařadit. */
+function unpackPicks(v, gw){
+  const h = unpackHist(v.h, gw);
+  const eh = h
+    ? {event: gw, points: h.points, total_points: h.total_points,
+       rank: h.rank, overall_rank: h.overall_rank,
+       event_transfers: h.event_transfers,
+       event_transfers_cost: h.event_transfers_cost,
+       points_on_bench: h.points_on_bench, value: h.value, bank: h.bank}
+    : {event_transfers_cost: v.k || 0, points: v.b || 0};
+
   return {
     active_chip: v.c || null,
-    entry_history: {event_transfers_cost: v.k || 0, points: v.b || 0},
+    entry_history: eh,
     picks: String(v.p || '').split(',').filter(Boolean).map(s => {
       const [el, pos, mult, fl] = s.split(':').map(Number);
       return {
@@ -156,7 +212,7 @@ function packSnap(g, members, picks, live){
 function unpackSnap(snap, members){
   if(!snap || !(snap.v <= ARCH_V) || !snap.picks) return null;
   const byEntry = new Map(Object.entries(snap.picks)
-    .map(([e, v]) => [Number(e), unpackPicks(v)]));
+    .map(([e, v]) => [Number(e), unpackPicks(v, snap.gw)]));
   const picks = members.map(m => byEntry.get(m.entry) || null);
   const chybi = members.filter((m, i) => !picks[i]);
   return {picks, live: unpackLive(snap.live), chybi};
@@ -358,7 +414,12 @@ async function snapHists(members, curId){
   }
   if(!snapy.size) return null;
 
-  return members.map(m => {
+  /* Smyčka, ne `members.map`. V mapě se `return null` týkal jen jednoho
+     člena: pole se vrátilo s dírou, volající viděl „archiv stačil“ a
+     tomu jednomu se sečetly nuly. Chybějící historie musí shodit celou
+     cestu, jinak je to zase tichá chyba. */
+  const out = [];
+  for(const m of members){
     const current = [], chips = [];
 
     for(const [g, snap] of snapy){
@@ -372,17 +433,68 @@ async function snapHists(members, curId){
 
     /* Běžící kolo v archivu není a být nesmí. Pořadí ligy ale jeho body
        zná — je to tentýž údaj, který používá gwRows, když historie od
-       FPL ještě nedoběhla. */
+       FPL ještě nedoběhla.
+
+       Co pořadí ligy NEZNÁ, se sem nepíše jako nula. Dřív tu stálo
+       `event_transfers: 0, points_on_bench: 0, value: 0` a sezónní
+       žebříčky to sečetly jako fakt — hodnota kádru z posledního řádku
+       vyšla nula, takže „Efektivita kádru“ hlásila 0.0 celé lize.
+       Chybějící údaj je `null`; `zeStandings` říká proč. Doplní ho
+       `snapPatchCurrent()` ze sestav, které se stahují tak jako tak. */
     if(Number.isFinite(m.event_total))
       current.push({round: curId, event: curId, points: m.event_total,
-                    total_points: m.total, rank: 0, overall_rank: 0,
-                    event_transfers: 0, event_transfers_cost: 0,
-                    points_on_bench: 0, value: 0, bank: 0,
+                    total_points: m.total, rank: null, overall_rank: null,
+                    event_transfers: null, event_transfers_cost: null,
+                    points_on_bench: null, value: null, bank: null,
                     zeStandings: true});
 
     current.sort((a, b) => a.round - b.round);
-    return {current, chips, past: []};
+    out.push({current, chips, past: []});
+  }
+  return out;
+}
+
+/* Doplní běžící kolo do historie ze sestav.
+
+   `entry/{gw}/picks/` nese `entry_history` — tentýž řádek, jaký by
+   přišel z `entry/{id}/history/`, jen za jedno kolo. Hub i Miniliga si
+   sestavy stahují tak jako tak, takže tohle nestojí ani jeden dotaz
+   navíc a přitom je to jediná cesta, jak se do sezónních součtů dostane
+   lavička, přestupy a hodnota kádru z rozehraného kola.
+
+   Sahá se jen na řádek označený `zeStandings` — ten je náš. Řádek od
+   FPL se nepřepisuje: co přišlo z historie, je autoritativní.
+
+   Nemutuje vstup naslepo: když sestavy chybí nebo nemají
+   `entry_history`, nechá řádek být i s jeho `null` poli. */
+function snapPatchCurrent(hists, picks, curId){
+  if(!Array.isArray(hists) || !Array.isArray(picks)) return hists;
+
+  hists.forEach((h, i) => {
+    if(!h || !Array.isArray(h.current)) return;
+    const row = h.current.find(x => x.round === curId && x.zeStandings);
+    if(!row) return;
+
+    const eh = picks[i] && picks[i].entry_history;
+    if(!eh) return;
+
+    const num = v => (Number.isFinite(Number(v)) ? Number(v) : null);
+    row.event_transfers      = num(eh.event_transfers);
+    row.event_transfers_cost = num(eh.event_transfers_cost);
+    row.points_on_bench      = num(eh.points_on_bench);
+    row.value                = num(eh.value);
+    row.bank                 = num(eh.bank);
+
+    /* Body z pořadí ligy jsou živější než z `entry_history`, takže se
+       nepřepisují. Součet ale ano, když ho standings neznaly. */
+    if(!Number.isFinite(row.total_points)) row.total_points = num(eh.total_points);
+
+    // Řádek už není jen z pořadí — ví o sobě všechno, co ostatní.
+    if(row.event_transfers !== null && row.points_on_bench !== null)
+      delete row.zeStandings;
   });
+
+  return hists;
 }
 
 /* Uloží kolo do archivu. Volá se až po úspěšném načtení z API a jen

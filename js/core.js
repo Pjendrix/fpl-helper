@@ -1351,8 +1351,19 @@ document.addEventListener('keydown', ev => {
    ============================================================ */
 let HUB_FOR_HOME = false;
 
-function homeAwardsLoad(){
-  if(HUB_FOR_HOME || typeof loadHub !== 'function') return;
+/* Proč se Hub nenačetl, když se o to Přehled pokusil.
+
+   Tady byla tichá past. `loadHub()` si svou chybu ošetří sám: napíše ji
+   do `hubmsg`, tedy do panelu Hubu — a resolvne se normálně. Z pohledu
+   Přehledu tedy načtení „prošlo“, jen `HUB` zůstal null. Příznak
+   `HUB_FOR_HOME` přitom zůstal nastavený, takže se to už nikdy nezkusilo
+   znovu a boxy s cenami a s přehledem kola držely kostru donekonečna.
+   Zvenku to vypadalo jako věčné načítání, ne jako chyba — a hláška
+   s důvodem ležela na záložce, na kterou se člověk nedíval. */
+let HUB_HOME_ERR = null;
+
+function homeAwardsLoad(force){
+  if((HUB_FOR_HOME && !force) || typeof loadHub !== 'function') return;
   const lid = CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY);
   if(!lid) return;
   HUB_FOR_HOME = true;
@@ -1361,13 +1372,42 @@ function homeAwardsLoad(){
      potom, TAB_INIT by pustil loadHub podruhé. */
   TAB_DONE.add('t-hub');
 
+  // Nezdar se musí propsat zpátky: jinak zůstane příznak nastavený,
+  // Hub se už nikdy nezkusí a Přehled donekonečna ukazuje kostru.
+  const nezdar = () => {
+    HUB_HOME_ERR = 'Ligu se teď nepodařilo načíst.';
+    HUB_FOR_HOME = false;
+    TAB_DONE.delete('t-hub');
+  };
+
   Promise.resolve()
     .then(() => loadHub())
-    // Kapitánské ceny potřebují navíc body hráčů kola. renderHub()
-    // si je tahá sám na pozadí, ale my nevíme kdy — tak si počkáme.
-    .then(() => HUB && nactiKolo(HUB.cur.id))
+    .then(() => {
+      if(typeof HUB === 'undefined' || !HUB){ nezdar(); return; }
+      HUB_HOME_ERR = null;
+      // Kapitánské ceny potřebují navíc body hráčů kola. renderHub()
+      // si je tahá sám na pozadí, ale my nevíme kdy — tak si počkáme.
+      return nactiKolo(HUB.cur.id);
+    })
     .then(() => drawHome())
-    .catch(() => { HUB_FOR_HOME = false; });
+    .catch(() => { nezdar(); drawHome(); });
+}
+
+/* Co ukázat v boxu, který stojí na Hubu, dokud Hub není.
+
+   Vrací `null`, když se ještě načítá — volající pak dá kostru. Když to
+   selhalo, vrátí hlášku s tlačítkem, protože skákat po neúspěchu rovnou
+   do dalšího pokusu by z jedné nedostupné ligy udělalo smyčku dotazů. */
+function homeHubPending(){
+  if(HUB_HOME_ERR){
+    return errBox(HUB_HOME_ERR, null, () => {
+      HUB_HOME_ERR = null;
+      drawHome();
+      homeAwardsLoad(true);
+    });
+  }
+  homeAwardsLoad();
+  return null;
 }
 
 function homeAwards(){
@@ -1386,8 +1426,7 @@ function homeAwards(){
   }
 
   if(typeof HUB === 'undefined' || !HUB){
-    homeAwardsLoad();
-    return box('<div class="skel"><i></i><i></i></div>');
+    return box(homeHubPending() || '<div class="skel"><i></i><i></i></div>');
   }
 
   const awards = buildAwards(HUB.cur.id, NEWS_PICKS.get(HUB.cur.id),
@@ -1436,6 +1475,8 @@ function drawHome(){
     ${homeOutlook()}
     ${typeof homeH2H === 'function'
       ? `<div class="hgrid">${homeH2H()}${homeAwards()}</div>` : homeAwards()}
+    ${typeof homeGwLeague === 'function'
+      ? `<div class="hgrid one">${homeGwLeague()}</div>` : ''}
     ${typeof homeNews === 'function' ? `<div class="hgrid one">${homeNews()}</div>` : ''}`;
 }
 
@@ -1581,6 +1622,7 @@ function resetVolatile(){
   // Hub a to, co si na něj Přehled zavěsil.
   HUB = null;
   HUB_FOR_HOME = false;
+  HUB_HOME_ERR = null;
 
   // Zpravodaj a novinky po kole.
   NEWS_GW = null;
@@ -1742,6 +1784,9 @@ async function loadLeague(lid){
     if(cur){
       picks = await pooled(members, m => cached('entry/' + m.entry + '/event/' + cur.id + '/picks/'),
         5, prog('Načítám sestavy…'));
+      // Táž oprava jako v Hubu: běžící kolo doplní `entry_history` ze
+      // sestav, které stahujeme tak jako tak.
+      if(typeof snapPatchCurrent === 'function') snapPatchCurrent(hist, picks, cur.id);
     }
 
     renderLeague({league}, members, hist, picks, cur, truncated);
