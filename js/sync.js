@@ -233,6 +233,10 @@ function initAuth(){
     /* Archiv kol je pro nepřihlášeného nečitelný, takže po přihlášení
        musí jít dotaz znovu — jinak by v paměti zůstalo prázdno. */
     SNAP_CLOUD = null;
+    /* Členství visí na účtu, takže po přihlášení i odhlášení se musí
+       zjistit znovu — jinak by se odemčený box nabízel dál. */
+    LIGA_STAV = null;
+    LIGA_CHYBA = '';
     renderAuth();
     if(FB_USER) pullSync();
     else setSyncStatus('');
@@ -260,6 +264,129 @@ function initAuth(){
 if(window.FB) initAuth();
 else window.addEventListener('fb-ready', initAuth, {once: true});
 
+/* ============================================================
+   KÓD LIGY
+
+   Sdílený archiv (losování H2H a dohraná kola) je pro celou ligu, ne
+   pro jednoho člověka. Pravidla Firestore se proto musí ptát „patříš
+   do téhle ligy?“ — a na to neumějí odpovědět sama: čtou jen Firestore,
+   na FPL API nedosáhnou.
+
+   Odpověď tedy vkládá člověk. Majitel ligy jednou založí v konzoli
+   Firebase dokument s kódem a rozešle ho; každý člen ho jednou zadá
+   a tím si založí členství. Od té chvíle se kód nikde nedrží ani
+   neposílá — pravidla se ptají jen na existenci toho členství.
+
+   Není to autentizace, je to zámek na chatě. Data jsou stejně veřejná;
+   chrání se možnost je poškodit, protože zamrazené kolo nejde přepsat
+   ničím jiným než novější verzí.
+
+   Stavy:
+     null       — ještě se neptalo
+     'nelze'    — bez Firebase nebo bez ID ligy; není o čem mluvit
+     'anonym'   — Firebase je, ale nikdo není přihlášen
+     'zamceno'  — přihlášen a členství nemá; tady se nabízí kód
+     'clen'     — hotovo
+   ============================================================ */
+let LIGA_STAV = null;
+let LIGA_CHYBA = '';
+let LIGA_CEKA = null;   // rozdělaný dotaz, ať se neptáme třikrát naráz
+
+function ligaId(){
+  return String(CONFIG.leagueId || localStorage.getItem(LEAGUE_KEY) || '');
+}
+
+/* Zjistí stav a překreslí, když se změnil. Vrací se `LIGA_STAV`, ale
+   volající ho většinou nepotřebuje — jde o ten překreslený box. */
+async function ligaZjisti(){
+  const puvodni = LIGA_STAV;
+  const lid = ligaId();
+
+  if(!window.FB || !window.FB.ligaClen || !lid) LIGA_STAV = 'nelze';
+  else {
+    if(typeof authReady === 'function') await authReady();
+    if(!FB_USER) LIGA_STAV = 'anonym';
+    else if(LIGA_CEKA) return LIGA_CEKA;
+    else {
+      LIGA_CEKA = (async () => {
+        try{
+          LIGA_STAV = await window.FB.ligaClen(lid, FB_USER.uid) ? 'clen' : 'zamceno';
+        }catch(e){
+          /* Vlastní dokument členství smí číst každý přihlášený, takže
+             tohle není „nemáš právo“ — spíš spadlá síť. Chovat se k tomu
+             jako k zámku by znamenalo nabízet kód někomu, kdo ho už
+             zadal. */
+          LIGA_STAV = 'zamceno';
+          LIGA_CHYBA = 'Stav členství se nepodařilo ověřit.';
+        }finally{ LIGA_CEKA = null; }
+        return LIGA_STAV;
+      })();
+      await LIGA_CEKA;
+    }
+  }
+
+  if(LIGA_STAV !== puvodni && BOOT && typeof drawHome === 'function') drawHome();
+  return LIGA_STAV;
+}
+
+/* Box s polem na kód. Vrací prázdno vždycky, když není co řešit —
+   proto se dá zavolat bezpodmínečně z `drawHome()` a nemusí se nikde
+   větvit. */
+function ligaNote(){
+  if(!window.FB || !ligaId()) return '';
+
+  // První průchod se jen zeptá; překreslí se, až bude vědět.
+  if(LIGA_STAV === null){ ligaZjisti(); return ''; }
+  if(LIGA_STAV === 'clen' || LIGA_STAV === 'nelze' || LIGA_STAV === 'anonym') return '';
+
+  return `<div class="hbox ligakod">
+    <h3><i class="hi">🔑</i>Archiv ligy je zamčený</h3>
+    <p class="note">Losování H2H a dohraná kola se sdílejí s ligou, takže
+      appka potřebuje vědět, že do ní patříš. Zadej kód, který ti přišel —
+      stačí jednou na tomhle účtu.</p>
+    <p class="ligarow">
+      <input id="ligakod" type="text" autocomplete="off" spellcheck="false"
+        placeholder="kód ligy" aria-label="Kód ligy">
+      <button type="button" class="small" data-ligaodemkni>Odemknout</button>
+    </p>
+    ${LIGA_CHYBA ? `<p class="note bad" role="alert">${esc(LIGA_CHYBA)}</p>` : ''}
+    <p class="note">Bez kódu appka funguje dál: dvojice se dopočítají
+      v prohlížeči a kola se ukládají lokálně. Nesdílí se jen napříč ligou.</p>
+  </div>`;
+}
+
+document.addEventListener('click', async ev => {
+  const btn = ev.target.closest('[data-ligaodemkni]');
+  if(!btn) return;
+
+  const pole = $('ligakod');
+  /* Kód chodí do chatu, kde ho lidi kopírují i s mezerou navíc, a psaní
+     malým písmem je běžnější než velkým. Normalizuje se proto tady —
+     pravidla porovnávají přesně a poradit si s tím nemůžou. */
+  const kod = ((pole && pole.value) || '').trim().toUpperCase();
+  if(!kod){ LIGA_CHYBA = 'Kód je prázdný.'; drawHome(); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Odemykám…';
+  LIGA_CHYBA = '';
+
+  try{
+    await window.FB.ligaOdemkni(ligaId(), FB_USER.uid, kod);
+    LIGA_STAV = 'clen';
+    SNAP_CLOUD = null;         // archiv byl nečitelný, teď se má načíst
+    H2H_FROZEN_LID = null;     // totéž pro zamrazená kola
+    drawHome();
+  }catch(e){
+    /* Pravidla vrátí permission-denied jak na špatný kód, tak na ligu,
+       kterou majitel ještě nezaložil. Zvenku je to k nerozeznání, takže
+       hláška musí připustit obojí — tvrdit „špatný kód“ někomu, kdo ho
+       má správný, je horší než přiznat, že to appka neví. */
+    LIGA_CHYBA = 'Nepovedlo se. Buď kód nesedí, nebo liga v databázi '
+      + 'ještě není založená — zeptej se toho, kdo ti kód poslal.';
+    drawHome();
+  }
+});
+
 /* ============ VSTUPNÍ OBRAZOVKA ============
    Nic se nestahuje, dokud uživatel nezadá ID. Jednotlivé záložky si
    pak data tahají samy, až když na ně přijde řada.
@@ -272,32 +399,30 @@ const LEAGUE_KEY = 'fpl_league';
    Bez tohohle zůstaly v paměti sestava, vlastnictví v lize i rozpracovaná
    analýza přestupů z předchozího ID — nový tým pak viděl cizí čísla. */
 function resetState(){
-  API_CACHE = new Map();
-  // Jinak by si nový tým myslel, že ligové záložky už načtené má,
-  // a zůstal by koukat na prázdný panel.
-  TAB_DONE.clear();
-  BUY_COST = null;
-  PLANNER = null;
+  /* Společná část je v `resetVolatile()` v core.js — cache, záložky,
+     Hub, zpravodaj, H2H a příznaky. Tady zůstává jen to, co je vlastní
+     přepnutí týmu: kádr, kolejnice, watchlist a vyprázdnění panelů. */
+  resetVolatile();
+
   if(RAIL_TIMER){ clearInterval(RAIL_TIMER); RAIL_TIMER = null; }
   const rail = $('rail'); if(rail) rail.hidden = true;
   const rk = $('railKey'); if(rk) rk.hidden = true;
+
   MY_SQUAD = null;
   HOME = null;
   WATCH = null;          // watchlist je per entry ID, nový tým má svůj
-  TR_STATE = null;
-  HUB = null;
-  NEWS_GW = null;          // jinak by nový tým začal na cizím zvoleném kole
-  NEWS_PICKS.clear();
-  NEWS_LIVE.clear();
-  HALL_ALL = false;
   SNAP_CLOUD = null;     // archiv kol se čte podle ligy, ne podle týmu
-  LEAGUE_OWN = null;
-  PLAYERS = null;
   CMP_A = CMP_B = null;
 
+  /* Všechny výstupní kontejnery, ne jen některé. Poradce, H2H,
+     Zpravodaj a Zranění tady dřív chyběly, takže po přepnutí týmu
+     chvíli svítila diagnóza cizího kádru — než si nová záložka
+     sáhla na data, koukal člověk na výsledky předchozího ID. */
   ['hmout','out','msg','lout','lmsg','hubout','hubmsg','pout','pmsg','pdetail',
    'trout','trmsg','plout','plmsg','prout','prmsg',
-   'plnout','plnmsg','pcompare'].forEach(id => {
+   'plnout','plnmsg','pcompare',
+   'advout','advmsg','h2hout','h2hmsg','newsout','newsmsg',
+   'injout','injmsg'].forEach(id => {
     const el = $(id);
     if(el) el.innerHTML = '';
   });

@@ -70,6 +70,38 @@ if(FIREBASE_CONFIG.projectId){
       gwWrite: (lid, gw, data) =>
         store.setDoc(store.doc(db, "leagues", String(lid), "gw", String(gw)),
                      data),
+
+      /* Kód ligy — členství.
+
+         Archiv a losování jsou sdílené, takže se pravidla musí ptát
+         „patříš do téhle ligy?“. Odpověď se do Firestore musí nějak
+         dostat: pravidla umějí číst jen Firestore, na FPL API
+         nedosáhnou. Vkládá ji proto člověk jednorázově kódem, který
+         majitel ligy rozešle.
+
+         Zapisuje se jednou. Od té chvíle stačí, že dokument existuje —
+         kód se neposílá pokaždé znovu a nikde v appce se nedrží. */
+      ligaOdemkni: (lid, uid, kod) =>
+        store.setDoc(
+          store.doc(db, "leagues", String(lid), "clenove", uid),
+          {kod: String(kod), kdy: new Date().toISOString()}
+        ),
+
+      /* Je tenhle účet členem? Čte se vlastní dokument, na který má
+         člověk právo i bez členství — jinak by se „nejsem člen“ nedalo
+         odlišit od „pravidla mě nepustila“ a appka by nabízela kód
+         i tomu, kdo ho už zadal. */
+      ligaClen: async (lid, uid) => {
+        const snap = await store.getDoc(
+          store.doc(db, "leagues", String(lid), "clenove", uid));
+        return snap.exists();
+      },
+
+      /* Odemknout znovu po změně kódu. Smazat jde jen svoje členství;
+         archiv tím nemizí, jen se člověk odřízne od přístupu. */
+      ligaZapomen: (lid, uid) =>
+        store.deleteDoc(
+          store.doc(db, "leagues", String(lid), "clenove", uid)),
     };
   }catch(e){
     // Bez sync appka funguje dál. Hlásit to na stránce nemá cenu —

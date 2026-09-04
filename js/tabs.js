@@ -1681,12 +1681,24 @@ function buildCollective(){
 
 /* Body hráčů daného kola jako mapa id → body. Bez `event/{gw}/live/`
    bychom u kapitána znali jen jméno, ne jeho výkon. */
+/* Body hráčů z jedné odpovědi `event/{gw}/live/`.
+
+   Drží se u té odpovědi, ne přepočítává se pokaždé znovu — stejný důvod
+   jako u `liveStats()` v core.js. `lavickaRows()` a `capRows()` se volají
+   jednou na člena ligy, takže padesátičlenná liga jinak znamená padesát
+   průchodů přes sedm set hráčů, a při „Načíst celou sezónu“ ještě
+   osmatřicetkrát tolik. */
+const IDX_LIVEMAP = new WeakMap();
+
 function liveMap(live){
-  const m = new Map();
-  if(live && Array.isArray(live.elements)){
+  if(!live || !Array.isArray(live.elements)) return new Map();
+  let m = IDX_LIVEMAP.get(live);
+  if(!m){
+    m = new Map();
     for(const e of live.elements){
       m.set(e.id, e.stats ? (e.stats.total_points || 0) : 0);
     }
+    IDX_LIVEMAP.set(live, m);
   }
   return m;
 }

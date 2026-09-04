@@ -55,6 +55,18 @@ function h2hStart(){ return H2H_START; }
 let H2H_FROZEN = {};      // {gw: {matches, ghost, okno}}
 let H2H_FROZEN_LID = null;
 
+/* Verze zamrazeného kola.
+
+   Existuje ze stejného důvodu jako `ARCH_V` u archivu: pravidla dovolí
+   přepsat dokument jen novějším číslem. Bez toho byl `create`-only
+   pastí — jediný špatný zápis (třeba z rozbité verze appky) by v lize
+   zůstal navždy a neopravil by ho ani majitel. Zamrazená je verze,
+   ne dokument.
+
+   Zvedá se, jen když se změní tvar nebo způsob výpočtu dvojic. Zvednout
+   ji kvůli maličkosti znamená přepsat lize historii. */
+const H2H_V = 1;
+
 async function h2hLoadFrozen(lid){
   if(!window.FB || !FB_USER || H2H_FROZEN_LID === lid) return;
   try{
@@ -73,15 +85,13 @@ async function h2hFreezeDone(lid){
 
   for(const round of h2hSeason()){
     if(round.frozen || gwPhase(round.gw) !== 'final') continue;
+    const doc = {
+      v: H2H_V, gw: round.gw, matches: round.matches,
+      ghost: round.ghost ?? null, okno: round.okno,
+    };
     try{
-      await window.FB.h2hFreeze(lid, round.gw, {
-        gw: round.gw, matches: round.matches,
-        ghost: round.ghost ?? null, okno: round.okno,
-      });
-      H2H_FROZEN[String(round.gw)] = {
-        gw: round.gw, matches: round.matches,
-        ghost: round.ghost ?? null, okno: round.okno,
-      };
+      await window.FB.h2hFreeze(lid, round.gw, doc);
+      H2H_FROZEN[String(round.gw)] = doc;
       zapsano++;
     }catch(e){
       /* Nejčastější chyba tady je „už tam je“ — někdo z ligy byl

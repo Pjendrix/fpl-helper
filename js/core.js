@@ -360,6 +360,54 @@ async function load(id){
    Výstup: {rows, total, benchTotal, toPlay, capId, subs}
    ============================================================ */
 
+/* ------------------------------------------------------------
+   INDEXY
+
+   Tři vyhledávací tabulky nad daty, která se stejně už stáhla. Vznikly
+   proto, že `resolveLineup()` se volá jednou na člena ligy a uvnitř
+   sahal na hráče přes `find()` (sedm set prvků) a na rozpis přes
+   `filter()` (tři sta osmdesát) — patnáctkrát za sestavu. Padesátičlenná
+   liga na jedno kolo tak znamenala statisíce průchodů polem a „Načíst
+   celou sezónu“ z toho udělalo miliony.
+
+   Klíčem je identita samotného pole, ne příznak platnosti. Když se
+   `BOOT` nebo `FIX` přepíše (tvrdé obnovení, změna týmu), je to nový
+   objekt a index se postaví znovu sám. Zneplatňovat ručně tedy není co
+   zapomenout — což je přesně ta chyba, kterou by pojmenovaná cache
+   dřív nebo později udělala.
+   ------------------------------------------------------------ */
+const IDX_ELS = new WeakMap();
+const IDX_FIX = new WeakMap();
+const IDX_LIVE = new WeakMap();
+
+/* Map(playerId → element). Prázdná mapa, dokud není bootstrap. */
+function elsById(){
+  const src = BOOT && BOOT.elements;
+  if(!Array.isArray(src)) return new Map();
+  let m = IDX_ELS.get(src);
+  if(!m){ m = new Map(src.map(p => [p.id, p])); IDX_ELS.set(src, m); }
+  return m;
+}
+
+function elById(id){ return elsById().get(id) || null; }
+
+/* Zápasy jednoho kola. Vrací sdílené pole — volající do něj nesmí psát. */
+function fixOfGw(gw){
+  if(!Array.isArray(FIX)) return [];
+  let m = IDX_FIX.get(FIX);
+  if(!m){
+    m = new Map();
+    for(const f of FIX){
+      if(f.event === null || f.event === undefined) continue;
+      let a = m.get(f.event);
+      if(!a){ a = []; m.set(f.event, a); }
+      a.push(f);
+    }
+    IDX_FIX.set(FIX, m);
+  }
+  return m.get(gw) || [];
+}
+
 /* Odehrál hráč pro tohle kolo všechno, co měl?
 
    Podstatné pro autosuby: dokud jeho tým ještě hraje, není nula nula —
@@ -367,14 +415,20 @@ async function load(id){
    takže dřív ji dělat nesmíme ani my, jinak by se během soboty střídalo
    tam a zpátky.
 
-   Bez rozpisu (nebo u hráče bez zápasu) se odpovídá `false`: raději
-   nesubstituovat než substituovat na základě dohadu. */
+   Hráč, jehož tým v tom kole vůbec nehraje (blank, nebo odchod z ligy),
+   je hotový v okamžiku, kdy skončí celé kolo. Dřív se tady vracelo
+   `false` s odůvodněním „radši nestřídat než hádat“ — jenže tady se
+   nehádá: FPL takového hráče vystřídá úplně stejně jako toho, kdo zápas
+   měl a nenastoupil. Součty v Hubu i v H2H proto v blankových kolech
+   vycházely nižší, než jak kolo doopravdy dopadlo. */
 function playerDone(pid, gw){
-  const el = (BOOT && BOOT.elements || []).find(p => p.id === pid);
+  const el = elById(pid);
   if(!el || !Array.isArray(FIX)) return false;
-  const fs = FIX.filter(f => f.event === gw &&
-    (f.team_h === el.team || f.team_a === el.team));
-  if(!fs.length) return false;   // blank: střídat za koho není proč čekat, ale ani není jistota
+  const fs = fixOfGw(gw).filter(f => f.team_h === el.team || f.team_a === el.team);
+  if(!fs.length){
+    const ev = ((BOOT && BOOT.events) || []).find(e => e.id === gw);
+    return !!(ev && ev.finished);
+  }
   return fs.every(f => f.finished || f.finished_provisional);
 }
 
@@ -387,7 +441,7 @@ function validShape(types){
 }
 
 function resolveLineup(pk, stats, gw){
-  const els = Object.fromEntries((BOOT.elements || []).map(p => [p.id, p]));
+  const els = elsById();
   const st = id => stats && stats.get(id) || null;
   const mins = id => { const x = st(id); return x ? (x.minutes || 0) : 0; };
   const pts  = id => { const x = st(id); return x ? (x.total_points || 0) : 0; };
@@ -406,7 +460,7 @@ function resolveLineup(pk, stats, gw){
 
   if(!bboost){
     const xi = picks.filter(x => x.position <= 11).map(x => x.element);
-    const typ = id => (els[id] ? els[id].element_type : 0);
+    const typ = id => { const p = els.get(id); return p ? p.element_type : 0; };
     const lavice = bench.map(x => x.element);
 
     for(const out of xi.slice()){
@@ -439,7 +493,17 @@ function resolveLineup(pk, stats, gw){
   if(cptn && mins(cptn.element) === 0 && playerDone(cptn.element, gw) && vice){
     const nasobek = cptn.multiplier > 1 ? cptn.multiplier : 2;
     mult.set(cptn.element, mult.get(cptn.element) > 0 ? 1 : 0);
-    if(mult.get(vice.element) > 0 || mins(vice.element) > 0){
+
+    /* Rozhoduje výhradně efektivní násobička, ne odehrané minuty.
+
+       Dřív stačilo `mins(vice) > 0` — jenže to je pravda i o hráči,
+       který zůstal na lavičce (autosub ho nevzal, protože by rozbil
+       formaci) a přesto nastoupil za svůj klub. Takový vicekapitán
+       dostal na lavičce dvojnásobek, který mu FPL nedá: pásku přebírá
+       jen ten, kdo v tom kole doopravdy hraje za tebe. Násobička je
+       v tuhle chvíli po autosubech, takže o tom ví — s Bench Boostem
+       je nenulová i na lavičce, což je správně, tam hraje celý kádr. */
+    if(mult.get(vice.element) > 0){
       mult.set(vice.element, nasobek);
       capId = vice.element;
     }
@@ -463,9 +527,20 @@ function resolveLineup(pk, stats, gw){
 }
 
 /* Mapa hráč → statistiky z event/{gw}/live/. Všechny volající chtějí
-   totéž, tak ať to nedělá každý po svém. */
+   totéž, tak ať to nedělá každý po svém.
+
+   Výsledek se drží u té konkrétní odpovědi. Volá se to totiž i uvnitř
+   smyček přes členy ligy (`gwRows`), kde se pro padesát lidí stavěla
+   padesátkrát tatáž sedmisetprvková mapa. Klíčem je objekt odpovědi,
+   takže nová data znamenají novou mapu samy od sebe. */
 function liveStats(data){
-  return new Map(((data && data.elements) || []).map(e => [e.id, e.stats || {}]));
+  if(!data || typeof data !== 'object') return new Map();
+  let m = IDX_LIVE.get(data);
+  if(!m){
+    m = new Map(((data.elements) || []).map(e => [e.id, e.stats || {}]));
+    IDX_LIVE.set(data, m);
+  }
+  return m;
 }
 
 function fdr(teamId, startGw, n){
@@ -485,8 +560,7 @@ function fdr(teamId, startGw, n){
    nikde neposkytuje přímo, plyne až z rozpisu. */
 function gwFixtures(teamId, gw){
   const out = [];
-  for(const f of FIX){
-    if(f.event !== gw) continue;
+  for(const f of fixOfGw(gw)){
     if(f.team_h === teamId) out.push({opp: f.team_a, home: true, d: f.team_h_difficulty});
     else if(f.team_a === teamId) out.push({opp: f.team_h, home: false, d: f.team_a_difficulty});
   }
@@ -1355,6 +1429,7 @@ function drawHome(){
   /* Žádná hlavička panelu. Že jsem na Přehledu, říká navigace, a deadline
      stojí v liště nad obsahem — dvakrát totéž jen odsouvalo čísla pod ohyb. */
   out.innerHTML = `
+    ${typeof ligaNote === 'function' ? ligaNote() : ''}
     ${homeMetrics()}
     ${homeAttention()}
     ${homePrices()}
@@ -1469,6 +1544,73 @@ TABS.forEach(([tid]) => {
    sestavu i právě otevřenou záložku. Bootstrap a rozpis se zahazují
    taky, protože právě v nich bývá zdroj zaseknutí.
    ============================================================ */
+
+/* ------------------------------------------------------------
+   JEDEN ÚKLID PRO OBĚ CESTY
+
+   Odvozený stav se zahazuje na dvou místech: tady při tvrdém obnovení
+   a v `resetState()` při změně týmu. Byly to dva ručně udržované
+   seznamy proměnných a rozešly se — každý zapomněl na něco jiného,
+   a protože to byly „jen“ příznaky, nikde to nespadlo.
+
+   Zaseklo se to takhle: `hardReload()` nulovalo `HUB`, ale ne
+   `HUB_FOR_HOME`. Přehled pak viděl prázdný Hub, zavolal
+   `homeAwardsLoad()`, ta se podívala na pořád nastavený příznak
+   a hned se vrátila — a protože `loadHub()` Přehled nepřekresluje,
+   zůstala v boxu s cenami kostra napořád. Totéž platilo o zpravodaji
+   (`NEWS_FOR_HOME`) a o štítku „záložní data“, který se po prvním
+   výpadku FPL už nikdy nesundal, protože `STALE_USED` nikdo neresetoval.
+
+   Odteď je seznam jeden. Přibude-li příznak, patří sem — a obě cesty
+   ho dostanou zadarmo.
+
+   Sahá se i na proměnné z pozdějších souborů. To je v pořádku: skripty
+   sdílejí jeden globální scope a tahle funkce běží až dávno po jejich
+   načtení. Volat ji dřív by neprošlo, ale to nedělá nikdo.
+   ------------------------------------------------------------ */
+function resetVolatile(){
+  API_CACHE = new Map();
+  TAB_DONE.clear();
+
+  PLAYERS = null;
+  LEAGUE_OWN = null;
+  TR_STATE = null;
+  BUY_COST = null;
+  PLANNER = null;
+
+  // Hub a to, co si na něj Přehled zavěsil.
+  HUB = null;
+  HUB_FOR_HOME = false;
+
+  // Zpravodaj a novinky po kole.
+  NEWS_GW = null;
+  NEWS_PICKS.clear();
+  NEWS_LIVE.clear();
+  HALL_ALL = false;
+  NEWS_FOR_HOME = false;
+
+  /* H2H drží zamrazená kola a spočítaný los podle ligy. Po přepnutí
+     na jinou ligu by ukazoval dvojice té předchozí. */
+  H2H_CACHE = null;
+  H2H_FROZEN = {};
+  H2H_FROZEN_LID = null;
+  H2H_LIVE = null;
+  H2H_HOME_GW = null;
+  if(H2H_TIMER){ clearInterval(H2H_TIMER); H2H_TIMER = null; }
+
+  // Body kola v okně se sestavou soupeře.
+  SQ_LIVE = null;
+
+  /* Členství v lize je vlastnost ligy, ne týmu — po přepnutí na jinou
+     se musí zjistit znovu, jinak by appka tvrdila, že do ní patříš. */
+  LIGA_STAV = null;
+  LIGA_CHYBA = '';
+
+  /* Štítek „záložní data“ musí zmizet, když se povede načíst čerstvá.
+     Jinak appka tvrdí, že ukazuje starou odpověď, i když neukazuje. */
+  STALE_USED = null;
+}
+
 let RELOADING = false;
 
 async function hardReload(){
@@ -1479,25 +1621,17 @@ async function hardReload(){
   if(btn){ btn.disabled = true; btn.classList.add('spin'); }
 
   try{
-    // Kompletní vyprázdnění. BOOT a FIX se stahují znovu v load().
-    API_CACHE = new Map();
-    BOOT = null;
-    FIX = null;
-    PLAYERS = null;
-    HUB = null;
-    NEWS_GW = null;
-    NEWS_PICKS.clear();
-  NEWS_LIVE.clear();
-  HALL_ALL = false;
-    LEAGUE_OWN = null;
-    TR_STATE = null;
-    PLANNER = null;
-
     // Otevřenou záložku si zapamatujeme, ať člověk neskončí jinde,
     // než byl. Ostatní se načtou samy, až na ně přijde řada.
     const open = (TABS.find(([t]) => $(t).getAttribute('aria-selected') === 'true')
                   || ['t-home'])[0];
-    TAB_DONE.clear();
+
+    resetVolatile();
+
+    // Bootstrap a rozpis navíc: právě v nich bývá zdroj zaseknutí
+    // a load() je stáhne znovu.
+    BOOT = null;
+    FIX = null;
 
     if(ENTRY_ID) await load(ENTRY_ID);
 
