@@ -1844,3 +1844,29 @@ body.sq-lock{overflow:hidden}
   border:1px solid var(--gold);border-radius:999px;padding:3px 11px;
   background:#FDF6E8;color:#7A5A1E;font-size:12px;white-space:nowrap}
 .statusbar .sbdl b{font-family:var(--f-disp);letter-spacing:.05em;color:#5E4416}
+
+/* ============================================================
+   KÓD LIGY
+
+   Box se objeví jen tomu, kdo je přihlášený a členství ještě nemá —
+   tedy jednou za účet. Proto nemá vlastní záložku ani místo v nabídce:
+   sedí nahoře na Přehledu, kde ho člověk potká sám, a jakmile je
+   odemčeno, zmizí a už se nevrátí.
+
+   Zlatý rámeček je tentýž jazyk jako u odpočtu a stavu dat: „všimni
+   si, ale nic nehoří“. Červený by lhal — bez kódu appka funguje dál,
+   jen se archiv nesdílí. */
+.ligakod{border-color:var(--gold);background:#FDF9F0}
+.ligakod .note{margin:0 0 9px}
+.ligakod .note:last-child{margin:9px 0 0;opacity:.75;font-size:12px}
+.ligakod .note.bad{color:var(--alert);opacity:1}
+
+.ligarow{display:flex;gap:8px;align-items:center;margin:0;flex-wrap:wrap}
+.ligarow input{flex:1 1 190px;min-width:0;padding:8px 11px;
+  border:1px solid var(--line);border-radius:var(--r-in);
+  background:var(--card);color:var(--ink);
+  font-family:var(--f-mono);font-size:14px;letter-spacing:.08em;
+  text-transform:uppercase}
+.ligarow input:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+
+[data-theme="dark"] .ligakod{background:rgba(212,175,55,.07)}
