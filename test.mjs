@@ -149,6 +149,95 @@ check('gwShape najde blank+double',()=>{
   const sh=g.gwShape(11,1)[0];
   return `blanků ${sh.blanks.length}, doublů ${sh.doubles.length}`;
 });
+/* ---- záložní klubové značky ---- */
+
+check('každý klub z palety dresů má i záložní značku', () => {
+  /* Když odznak na CDN chybí, `crest()` sáhne na <use href="#club-XXX">.
+     Chybějící symbol znamená prázdné místo, ne náhradní značku — a to se
+     stalo: sprite si vezl Coventry a Hull, ale neměl Burnley, Leicester,
+     Southampton, West Ham ani Wolves. */
+  const sprite = fs.readFileSync('club-marks.svg', 'utf8');
+  const kit = [...fs.readFileSync('js/ui.js', 'utf8')
+    .matchAll(/^ {2}([A-Z]{3}):\{/gm)].map(m => m[1]);
+  if(kit.length < 20) throw new Error('paleta dresů se nenašla');
+
+  const chybi = kit.filter(sn => !sprite.includes(`id="club-${sn}"`));
+  if(chybi.length) throw new Error('bez značky: ' + chybi.join(', '));
+  return kit.length + ' klubů pokrytých';
+});
+
+check('sprite v brand/ se nerozešel s tím nasazeným', () => {
+  // Nasazuje se kopie v rootu; kdyby se lišily, opravy ve zdroji značky
+  // by se na web nikdy nedostaly.
+  if(fs.readFileSync('club-marks.svg', 'utf8')
+     !== fs.readFileSync('brand/club-marks.svg', 'utf8'))
+    throw new Error('root a brand/ se liší');
+  return 'shodné';
+});
+
+check('text značky nezmizí na vlastním pozadí', () => {
+  /* AVL a TOT měly poloviční přebarvení a zkratku ve stejné barvě jako
+     ta polovina — nad ní byla neviditelná. */
+  const sprite = fs.readFileSync('club-marks.svg', 'utf8');
+  for(const sn of ['AVL', 'TOT']){
+    const sym = sprite.slice(sprite.indexOf(`id="club-${sn}"`));
+    const konec = sym.indexOf('</symbol>');
+    const barvy = [...sym.slice(0, konec).matchAll(/fill="(#[0-9A-Fa-f]{6})"/g)]
+      .map(m => m[1].toUpperCase());
+    const text = barvy[barvy.length - 1];
+    if(barvy.slice(0, -1).includes(text))
+      throw new Error(sn + ': zkratka má barvu pozadí');
+  }
+  return 'čitelné';
+});
+
+/* ---- indexy nad staženými daty ---- */
+
+check('index hráčů najde totéž co find()', () => {
+  const p = bootstrap.elements[123];
+  w.__id = p.id;
+  const nalezeny = w.eval('elById(window.__id)');
+  if(!nalezeny || nalezeny.id !== p.id) throw new Error('index vrací něco jiného');
+  if(w.eval('elById(999999)') !== null) throw new Error('neznámé id nevrací null');
+  return 'shoduje se';
+});
+
+check('index rozpisu vrací zápasy jednoho kola', () => {
+  const rucne = fixtures.filter(f => f.event === 11).length;
+  w.__gw = 11;
+  const idx = w.eval('fixOfGw(window.__gw).length');
+  if(idx !== rucne) throw new Error(`index ${idx}, ručně ${rucne}`);
+  if(w.eval('fixOfGw(99).length') !== 0) throw new Error('neznámé kolo není prázdné');
+  return rucne + ' zápasů';
+});
+
+check('index se přestaví, když se přepíšou data', () => {
+  /* Klíčem je identita pole, ne příznak platnosti — nové `FIX` tedy
+     znamená nový index samo od sebe a není co zapomenout zneplatnit. */
+  const puv = w.eval('FIX');
+  const pred = w.eval('fixOfGw(11).length');
+  w.__fx = fixtures.filter(f => f.event !== 11);
+  try{
+    w.eval('FIX = window.__fx');
+    if(w.eval('fixOfGw(11).length') !== 0)
+      throw new Error('index si drží stará data');
+  }finally{ w.__fx = puv; w.eval('FIX = window.__fx'); }
+  if(w.eval('fixOfGw(11).length') !== pred) throw new Error('nevrátil se zpátky');
+  return 'samo, bez zneplatnění';
+});
+
+check('liveStats se pro tutéž odpověď nepočítá dvakrát', () => {
+  // Volá se uvnitř smyčky přes členy ligy; bez tohohle se pro padesát
+  // lidí stavěla padesátkrát tatáž sedmisetprvková mapa.
+  w.__live = {elements: bootstrap.elements.map(p => ({id: p.id, stats: {minutes: 90}}))};
+  const a = w.eval('liveStats(window.__live)');
+  const b = w.eval('liveStats(window.__live)');
+  if(a !== b) throw new Error('pokaždé nová mapa');
+  if(a.size !== bootstrap.elements.length) throw new Error('mapa je neúplná');
+  if(w.eval('liveStats(null).size') !== 0) throw new Error('null nevrací prázdno');
+  return 'jedna mapa na odpověď';
+});
+
 check('projectGw blank = 0',()=>g.projectGw(bootstrap.elements.find(p=>p.team===1),11).toFixed(2));
 check('projectGw double > single',()=>{
   const p=bootstrap.elements.find(x=>x.team===2);
@@ -3477,20 +3566,24 @@ check('zamrazuje se jen dopočítané kolo', () => {
 });
 
 check('pravidla Firestore nedovolí přepsat zamrazené kolo', () => {
-  // Kdyby šlo update, ztratil by zámek smysl — kdokoli by mohl
-  // přepsat historii ligy.
+  /* Přepsat kolo jinými čísly TÉŽE verze nesmí jít — jinak ztrácí zámek
+     smysl a kdokoli může přepsat historii ligy.
+
+     `allow update` tu ale být musí, a to je změna proti dřívějšku:
+     `create`-only znamenalo, že jediný špatný zápis je nevratný, protože
+     ho nespraví ani majitel. Zamrazená je verze, ne dokument. */
   const rules = fs.readFileSync('firestore.rules', 'utf8');
-  /* Výřez končí u archivu kol. Dřív bral zbytek souboru, takže se
-     chytil na `allow update` v úplně jiném bloku — test o H2H, který
-     spadne kvůli pravidlu pro archiv, ukazuje na špatné místo. */
   const blok = rules.slice(rules.indexOf('match /leagues/{lid}/h2h/{gw}'),
-                           rules.indexOf('/* Archiv dohraných kol'));
+                           rules.indexOf('function h2hMaTvar'));
   if(!/allow create:/.test(blok)) throw new Error('chybí create');
-  if(/allow (update|write|delete)/.test(blok))
-    throw new Error('zamrazené kolo jde přepsat');
-  if(!/request\.auth != null/.test(blok))
-    throw new Error('může zapisovat i nepřihlášený');
-  return 'jen create';
+  if(/allow write/.test(blok)) throw new Error('allow write obchází podmínku na verzi');
+  if(!/allow update/.test(blok)) throw new Error('špatný zápis by byl nevratný');
+  if(!/resource\.data\.get\('v', 0\) < request\.resource\.data\.v/.test(blok))
+    throw new Error('update nevyžaduje vyšší verzi — historie by šla přepsat');
+  if(!/allow delete: if false/.test(blok)) throw new Error('mazání není zakázané');
+  if(!/jeClen\(lid\)/.test(blok))
+    throw new Error('nekontroluje se členství v lize');
+  return 'create + povýšení verze';
 });
 
 check('bez přihlášení H2H funguje dál', () => {
@@ -3715,6 +3808,97 @@ check('páska přechází na vicekapitána, když kapitán nehrál', () => {
     if(v.mult !== 2) throw new Error('vicekapitán se nezdvojnásobil: ' + v.mult);
     return 'vicekapitán za ' + v.pts + ' bodů';
   });
+});
+
+check('vicekapitán na lavičce pásku nepřebírá', () => {
+  /* Regrese: podmínka se ptala na odehrané minuty, ne na to, jestli
+     hráč hraje za tebe. Vicekapitán, kterého autosub nevzal (rozbil by
+     formaci), tak dostal na lavičce dvojnásobek, který mu FPL nedá. */
+  const pk = sestava();
+  const cap = pk.picks.find(x => x.is_captain);
+  cap.multiplier = 2;
+
+  // Pásku přehodíme na druhého brankáře: ten je na lavičce a autosub ho
+  // za polaře vzít nemůže, protože by v sestavě byli brankáři dva.
+  pk.picks.forEach(x => { x.is_vice_captain = false; });
+  const vice = pk.picks.find(x => x.position === 12);
+  vice.is_vice_captain = true;
+
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 3}));
+  st.set(cap.element, {minutes: 0, total_points: 0});
+  st.set(vice.element, {minutes: 90, total_points: 9});
+
+  return sAutosuby(30, () => {
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    const v = L.rows.find(r => r.element === vice.element);
+    if(v.mult > 0) throw new Error('lavička se počítá: ×' + v.mult);
+    if(L.capId === vice.element) throw new Error('pásku dostal nehrající náhradník');
+    return 'zůstal na lavičce bez násobičky';
+  });
+});
+
+check('v blankovém kole se po jeho konci střídá taky', () => {
+  /* `playerDone()` u hráče bez zápasu vracelo false, takže se nevystřídal
+     nikdy. FPL ho ale vystřídá stejně jako toho, kdo zápas měl a
+     nenastoupil — součty v Hubu i H2H proto v blancích vycházely nižší,
+     než jak kolo doopravdy dopadlo. */
+  const pk = sestava();
+  const zaklad = pk.picks.filter(x => x.position <= 11);
+  const lavice = pk.picks.filter(x => x.position > 11);
+  const els = w.eval('BOOT.elements');
+  const tymu = id => els.find(p => p.id === id).team;
+
+  const blankTym = tymu(zaklad[10].element);   // poslední útočník v základu
+
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  st.set(zaklad[10].element, {minutes: 0, total_points: 0});
+  st.set(lavice[3].element, {minutes: 90, total_points: 6});
+
+  // Rozpis kola 31 bez zápasu pro blankující tým; kolo samo je dohrané.
+  const puvFix = w.eval('FIX'), puvEv = w.eval('BOOT.events');
+  w.__fx = els.length ? w.eval('BOOT.teams')
+    .filter(t => t.id !== blankTym && t.id !== tymu(lavice[3].element))
+    .map(t => ({event: 31, team_h: t.id, team_a: (t.id % 20) + 1,
+                finished: true, finished_provisional: true}))
+    : [];
+  // Lavičkový náhradník zápas mít musí, jinak by nebyl koho nasadit.
+  w.__fx.push({event: 31, team_h: tymu(lavice[3].element), team_a: 20,
+               finished: true, finished_provisional: true});
+  w.__ev = puvEv.map(e => (e.id === 31 ? {...e, finished: true} : e));
+
+  try{
+    w.eval('FIX = window.__fx; BOOT = {...BOOT, events: window.__ev}');
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 31)');
+    if(!L.subs.some(s => s.out === zaklad[10].element))
+      throw new Error('blankující hráč zůstal v sestavě');
+    return 'blank se vystřídal';
+  }finally{
+    w.__fx = puvFix; w.__ev = puvEv;
+    w.eval('FIX = window.__fx; BOOT = {...BOOT, events: window.__ev}');
+  }
+});
+
+check('během běžícího blankového kola se nestřídá', () => {
+  // Dokud kolo neskončilo, není jisté nic — a střídat na základě dohadu
+  // je horší než počkat.
+  const pk = sestava();
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  st.set(pk.picks[10].element, {minutes: 0, total_points: 0});
+
+  const puvFix = w.eval('FIX');
+  w.__fx = [];                       // kolo 32 nemá v rozpisu nic
+  try{
+    w.eval('FIX = window.__fx');
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 32)');
+    if(L.subs.length) throw new Error('vystřídalo se před koncem kola');
+    return 'čeká se';
+  }finally{ w.__fx = puvFix; w.eval('FIX = window.__fx'); }
 });
 
 check('Triple Captain přenese trojnásobek, ne dvojku', () => {
@@ -4588,16 +4772,60 @@ check('tlačítko Aktualizovat je v hlavičce', () => {
   return 'v liště, s popiskem';
 });
 
+/* Tělo společného úklidu. Obě cesty — tvrdé obnovení i změna týmu —
+   ho volají, takže testy níž se ptají jeho, ne dvou opisů. */
+const RESET_FN = SRC.slice(SRC.indexOf('function resetVolatile()'),
+                           SRC.indexOf('let RELOADING'));
+
 check('obnovení vyhodí i bootstrap a rozpis', () => {
   // Půlka zaseknutí je právě v nich; ponechat je v paměti by znamenalo
   // tlačítko, které vypadá že něco dělá, ale vrátí tatáž data.
   const html = SRC;
   const fn = html.slice(html.indexOf('async function hardReload()'),
                         html.indexOf("if($('reload'))"));
-  for(const v of ['API_CACHE = new Map()', 'BOOT = null', 'FIX = null',
-                  'TAB_DONE.clear()'])
+  for(const v of ['resetVolatile()', 'BOOT = null', 'FIX = null'])
     if(!fn.includes(v)) throw new Error('nezahazuje ' + v);
+  for(const v of ['API_CACHE = new Map()', 'TAB_DONE.clear()'])
+    if(!RESET_FN.includes(v)) throw new Error('společný úklid nezahazuje ' + v);
   return 'cache, bootstrap, rozpis i stav záložek';
+});
+
+check('úklid je jeden, ne dva rozejité seznamy', () => {
+  /* Regrese k zaseknutému boxu s cenami: `hardReload()` nulovalo HUB,
+     ale ne HUB_FOR_HOME, takže Přehled zůstal na kostře napořád.
+     Příčinou byly dva ručně udržované seznamy proměnných. */
+  if(!RESET_FN) throw new Error('resetVolatile() neexistuje');
+
+  const reset = SRC.slice(SRC.indexOf('function resetState()'),
+                          SRC.indexOf('function resetState()') + 2000);
+  if(!/resetVolatile\(\)/.test(reset))
+    throw new Error('resetState() si úklid dělá po svém');
+
+  for(const v of ['HUB = null', 'HUB_FOR_HOME = false', 'NEWS_FOR_HOME = false',
+                  'STALE_USED = null', 'SQ_LIVE = null', 'H2H_FROZEN_LID = null'])
+    if(!RESET_FN.includes(v)) throw new Error('chybí ' + v);
+  return 'obě cesty jedním seznamem';
+});
+
+check('štítek záložních dat po úspěšném načtení zmizí', () => {
+  /* STALE_USED se nastavuje při použití uložené odpovědi, ale nikdo ho
+     nevracel zpátky. Appka pak tvrdila „záložní data“ i po obnovení,
+     které všechno stáhlo znovu a čerstvě. */
+  w.eval('STALE_USED = Date.now()');
+  if(!g.STALE_USED) throw new Error('nešlo nastavit');
+  w.eval('resetVolatile()');
+  if(g.STALE_USED !== null) throw new Error('štítek by zůstal viset');
+  return 'sundá se';
+});
+
+check('po úklidu se ceny na Přehledu smějí načíst znovu', () => {
+  // Vlastní zaseknutí: příznak zůstal true, homeAwardsLoad() se hned
+  // vracela a v boxu byla kostra, kterou nic nepřepsalo.
+  w.eval('HUB_FOR_HOME = true; NEWS_FOR_HOME = true');
+  w.eval('resetVolatile()');
+  if(g.HUB_FOR_HOME !== false) throw new Error('ceny by zůstaly na kostře');
+  if(g.NEWS_FOR_HOME !== false) throw new Error('zpravodaj by zůstal na kostře');
+  return 'oba příznaky spadly';
 });
 
 check('obnovení zůstane na otevřené záložce', () => {
@@ -4896,10 +5124,7 @@ check('přepínač označí právě jedno kolo', () => {
 });
 
 check('výběr kola se nepřenese na jiný tým', () => {
-  const html = SRC;
-  const reset = html.slice(html.indexOf('function resetState()'),
-                           html.indexOf('function resetState()') + 1600);
-  if(!/NEWS_GW = null/.test(reset) || !/NEWS_PICKS\.clear\(\)/.test(reset))
+  if(!/NEWS_GW = null/.test(RESET_FN) || !/NEWS_PICKS\.clear\(\)/.test(RESET_FN))
     throw new Error('po přepnutí týmu by zůstalo cizí kolo i cizí sestavy');
   return 'reset čistí';
 });
@@ -5103,12 +5328,19 @@ check('panel ukáže ceny, novinky i síň slávy', () => {
 });
 
 check('výběr kola nechá i body hráčů cizímu týmu', () => {
-  const html = SRC;
-  const reset = html.slice(html.indexOf('function resetState()'),
-                           html.indexOf('function resetState()') + 1800);
-  if(!/NEWS_LIVE\.clear\(\)/.test(reset) || !/HALL_ALL = false/.test(reset))
+  if(!/NEWS_LIVE\.clear\(\)/.test(RESET_FN) || !/HALL_ALL = false/.test(RESET_FN))
     throw new Error('po přepnutí týmu by zůstala cizí síň slávy');
   return 'reset čistí i ceny';
+});
+
+check('přepnutí týmu vyprázdní i Poradce, H2H a Zranění', () => {
+  /* Seznam kontejnerů byl neúplný: panely, které si sáhly na data až
+     při otevření, ukazovaly do té doby výsledky předchozího ID. */
+  const reset = SRC.slice(SRC.indexOf('function resetState()'),
+                          SRC.indexOf('function resetState()') + 2000);
+  for(const id of ['advout', 'advmsg', 'h2hout', 'newsout', 'injout'])
+    if(!reset.includes(`'${id}'`)) throw new Error('zůstane viset ' + id);
+  return 'všechny panely';
 });
 
 
@@ -5684,6 +5916,155 @@ check('do archivu jde jen dopočítané kolo', () => {
   return 'jen final';
 });
 
+/* ---------- kód ligy ---------- */
+
+check('dokument ligy s kódem není odnikud čitelný ani zapsatelný', () => {
+  /* Kdyby šel přečíst, byl by kód k ničemu. Kdyby šel zapsat, mohl by
+     si kdokoli přepsat cizí kód na svůj a ligu si tím vzít. */
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  const blok = rules.slice(rules.indexOf('match /leagues/{lid} {'),
+                           rules.indexOf('match /leagues/{lid}/clenove'));
+  if(!/allow read, write: if false/.test(blok))
+    throw new Error('dokument ligy je přístupný');
+  return 'jen z konzole Firebase';
+});
+
+check('členství vznikne jen se správným kódem a jen sobě', () => {
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  const blok = rules.slice(rules.indexOf('match /leagues/{lid}/clenove'),
+                           rules.indexOf('function ligaKod'));
+  if(!/request\.auth\.uid == uid/.test(blok))
+    throw new Error('dá se založit členství cizímu účtu');
+  if(!/request\.resource\.data\.kod == ligaKod\(lid\)/.test(blok))
+    throw new Error('kód se neověřuje');
+  if(!/hasOnly\(\['kod', 'kdy'\]\)/.test(blok))
+    throw new Error('do dokumentu členství jde propašovat cokoli');
+  /* Bez tohohle by šlo test kódu obejít: založ s platným, přepiš na
+     cokoli. Update proto není povolený vůbec. */
+  if(!/allow update: if false/.test(blok))
+    throw new Error('členství jde přepsat, a tím obejít kód');
+  return 'kód, vlastní uid, pevný tvar';
+});
+
+check('neexistující liga nikoho nepustí', () => {
+  // Kdyby chybějící dokument znamenal „pusť všechny“, stačilo by si
+  // vybrat lid, který ještě nikdo nezaložil.
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  const fn = rules.slice(rules.indexOf('function ligaKod'),
+                         rules.indexOf('function jeClen'));
+  if(!/exists\(/.test(fn) || !/: null/.test(fn))
+    throw new Error('zámek neselhává zavřeně');
+  return 'zavřeně';
+});
+
+check('archiv i losování se ptají na členství, ne jen na přihlášení', () => {
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  const fn = rules.slice(rules.indexOf('function jeClen'),
+                         rules.indexOf('/* ---------- sdílené losování'));
+  if(!/clenove\/\$\(request\.auth\.uid\)/.test(fn))
+    throw new Error('jeClen() se neptá na dokument členství');
+
+  for(const cesta of ['match /leagues/{lid}/h2h/{gw}', 'match /leagues/{lid}/gw/{gw}']){
+    const blok = rules.slice(rules.indexOf(cesta), rules.indexOf(cesta) + 700);
+    if(/allow read: if request\.auth != null/.test(blok))
+      throw new Error(cesta + ' pustí kohokoli s účtem Google');
+    if(!/allow read: if jeClen\(lid\)/.test(blok))
+      throw new Error(cesta + ' nekontroluje členství při čtení');
+  }
+  return 'obě kolekce';
+});
+
+check('jeden zápis nemůže sníst free tier', () => {
+  /* Pravidla neumějí změřit dokument v bajtech; `.size()` ale funguje
+     na řetězci i na mapě, takže strop jde dát aspoň na ně. */
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  const arch = rules.slice(rules.indexOf('function archivMaTvar'));
+  if(!/live\.size\(\) < \d+/.test(arch)) throw new Error('živá data bez stropu');
+  if(!/picks\.size\(\) <= \d+/.test(arch)) throw new Error('sestavy bez stropu');
+  const h2h = rules.slice(rules.indexOf('function h2hMaTvar'),
+                          rules.indexOf('/* ---------- archiv dohraných kol'));
+  if(!/matches\.size\(\) <= \d+/.test(h2h)) throw new Error('dvojice bez stropu');
+  return 'stropy na obojím';
+});
+
+check('zamrazené kolo nese verzi, jinak by ho pravidla nevzala', () => {
+  // h2hMaTvar() vyžaduje `v`; kdyby ho klient neposílal, přestalo by
+  // zamrazování fungovat úplně.
+  const h2h = fs.readFileSync('js/h2h.js', 'utf8');
+  if(!/const H2H_V = \d+/.test(h2h)) throw new Error('chybí konstanta verze');
+  const blok = h2h.slice(h2h.indexOf('async function h2hFreezeDone'));
+  if(!/v: H2H_V/.test(blok.slice(0, 900)))
+    throw new Error('do dokumentu se verze nezapisuje');
+  return 'v: H2H_V';
+});
+
+check('box s kódem se ukáže jen tomu, kdo ho potřebuje', () => {
+  /* Nepřihlášenému nemá co nabízet — ten nemá kam členství zapsat.
+     A kdo už členem je, ho nesmí vidět vůbec, jinak by ho appka
+     otravovala navždy. */
+  // Bez načteného Firebase se box nenabízí vůbec — v jsdom ho proto
+  // musíme podstrčit, jinak by test procházel z nesprávného důvodu.
+  w.eval('window.FB = window.FB || {ligaClen: async () => false}');
+  w.eval('LIGA_STAV = "zamceno"');
+  if(g.ligaNote() === '') throw new Error('nenabízí se ani zamčenému');
+
+  w.eval('LIGA_STAV = "clen"');
+  if(g.ligaNote() !== '') throw new Error('člen ho vidí taky');
+  w.eval('LIGA_STAV = "anonym"');
+  if(g.ligaNote() !== '') throw new Error('nabízí se nepřihlášenému');
+  w.eval('LIGA_STAV = "nelze"');
+  if(g.ligaNote() !== '') throw new Error('ukazuje se i bez Firebase');
+  w.eval('LIGA_STAV = "zamceno"');
+  const html = g.ligaNote();
+  if(!/id="ligakod"/.test(html)) throw new Error('chybí pole na kód');
+  if(!/data-ligaodemkni/.test(html)) throw new Error('chybí tlačítko');
+  w.eval('LIGA_STAV = null');
+  return 'jen zamčenému';
+});
+
+check('appka bez kódu neumře, jen se nesdílí', () => {
+  // Box to musí říct rovnou. Zámek, u kterého není jasné, co se stane
+  // když ho neotevřeš, vypadá jako rozbitá appka.
+  w.eval('window.FB = window.FB || {ligaClen: async () => false}');
+  w.eval('LIGA_STAV = "zamceno"');
+  const html = g.ligaNote();
+  if(!/funguje dál/.test(html)) throw new Error('neřekne, že se dá pokračovat');
+  w.eval('LIGA_STAV = null');
+  return 'řekne to';
+});
+
+check('členství se po přepnutí ligy zjišťuje znovu', () => {
+  /* Je to vlastnost ligy, ne týmu. Bez tohohle by appka po přepnutí
+     tvrdila, že do nové ligy patříš. */
+  if(!/LIGA_STAV = null/.test(RESET_FN))
+    throw new Error('resetVolatile() na členství zapomíná');
+  const sync = fs.readFileSync('js/sync.js', 'utf8');
+  const auth = sync.slice(sync.indexOf('window.FB.onUser'),
+                          sync.indexOf('window.FB.onUser') + 700);
+  if(!/LIGA_STAV = null/.test(auth))
+    throw new Error('po přihlášení ani odhlášení se stav neobnoví');
+  return 'reset i přepnutí účtu';
+});
+
+check('kód se normalizuje, než se pošle', () => {
+  // Chodí do chatu, kde ho lidi kopírují i s mezerou navíc. Pravidla
+  // porovnávají přesně a poradit si s tím nemůžou.
+  const sync = fs.readFileSync('js/sync.js', 'utf8');
+  if(!/\.trim\(\)\.toUpperCase\(\)/.test(sync))
+    throw new Error('mezera navíc nebo malé písmo kód rozbije');
+  return 'trim + velká písmena';
+});
+
+check('špatný kód a nezaložená liga se nerozliší, a hláška to přizná', () => {
+  /* Pravidla vrátí permission-denied na obojí. Tvrdit „špatný kód“
+     někomu, kdo ho má správný, pošle hledání úplně jinam. */
+  const sync = fs.readFileSync('js/sync.js', 'utf8');
+  const blok = sync.slice(sync.indexOf('data-ligaodemkni'));
+  if(!/ještě není založená/.test(blok))
+    throw new Error('hláška připouští jen jednu z příčin');
+  return 'připouští obojí';
+});
+
 check('sdílený archiv kol je zapsatelný jednou', () => {
   const rules = fs.readFileSync('firestore.rules', 'utf8');
   const blok = rules.slice(rules.indexOf('/leagues/{lid}/gw/{gw}'),
@@ -5697,9 +6078,9 @@ check('sdílený archiv kol je zapsatelný jednou', () => {
     throw new Error('allow write obchází podmínku na verzi');
   if(/allow update/.test(blok) && !/resource\.data\.v < request\.resource\.data\.v/.test(blok))
     throw new Error('archiv by šel přepsat — historie ligy musí být neměnná');
-  if(/allow delete/.test(blok)) throw new Error('archiv jde mazat');
-  if(!/request\.auth != null/.test(blok))
-    throw new Error('do archivu by mohl kdokoli');
+  if(!/allow delete: if false/.test(blok)) throw new Error('mazání není zakázané');
+  if(!/jeClen\(lid\)/.test(blok))
+    throw new Error('do archivu by mohl kdokoli s účtem Google');
   return 'create + povýšení verze';
 });
 
@@ -5925,7 +6306,7 @@ check('archiv jde povýšit na novější verzi, ale ne přepsat', () => {
   if(!/allow update/.test(blok)) throw new Error('povýšení verze nejde');
   if(!/resource\.data\.v < request\.resource\.data\.v/.test(blok))
     throw new Error('update nevyžaduje vyšší verzi — historie by šla přepsat');
-  if(/allow delete/.test(blok)) throw new Error('mazání se povolilo');
+  if(!/allow delete: if false/.test(blok)) throw new Error('mazání se povolilo');
 
   const hc = fs.readFileSync('js/histcache.js', 'utf8');
   if(!/snap\.v < ARCH_V/.test(hc))

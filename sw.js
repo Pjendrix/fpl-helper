@@ -9,7 +9,7 @@
 // (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
 // nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v26';
+const SHELL = 'squadcheck-shell-v28';
 const BADGES = 'squadcheck-badges-v1';
 const FILES = ['/', '/index.html', '/manifest.webmanifest',
                '/icon.svg', '/favicon.svg', '/club-marks.svg',
@@ -21,9 +21,12 @@ const FILES = ['/', '/index.html', '/manifest.webmanifest',
                '/js/core.js', '/js/tabs.js', '/js/ui.js', '/js/planner.js',
                '/js/h2h.js', '/js/status.js', '/js/squad.js', '/js/news.js', '/js/advisor.js', '/js/histcache.js', '/js/sync.js', '/js/topbar.js', '/js/mobile.js', '/js/boot.js',
                '/js/firebase.js',
-               // plakát a loga: velké, neměnné, a bez nich vypadá vstup rozbitě
+               /* Plakát a loga: velké, neměnné, a bez nich vypadá vstup
+                  rozbitě. `logo.webp` tu bylo taky — jenže na něj nikde
+                  nevede odkaz, takže se 19 kB stahovalo a drželo offline
+                  pro obrázek, který se nikdy nezobrazí. */
                '/assets/headline.webp', '/assets/logo-transp.webp',
-               '/assets/logo.webp', '/assets/mark.webp'];
+               '/assets/mark.webp'];
 
 self.addEventListener('install', ev => {
   ev.waitUntil(

@@ -2,47 +2,158 @@ rules_version = '2';
 
 /* Pravidla pro Squad Check.
 
-   Dvě kolekce, dva různé modely.
+   Dva modely, dvě různé otázky.
 
-   users/{uid} je soukromá záloha nastavení — watchlist, ceny, plánovač.
-   Osobní věc, vidí do ní jen její majitel.
+   `users/{uid}` je soukromá záloha nastavení — watchlist, ceny, plánovač.
+   Osobní věc, vidí do ní jen její majitel. Otázka zní „jsi to ty?“.
 
-   leagues/{lid}/h2h/{gw} je sdílené losování H2H. Sem musí vidět celá
-   liga, protože dvojice, které vidí jen jeden člověk, nejsou dvojice.
+   `leagues/{lid}/…` je sdílený archiv ligy: losování H2H a dohraná kola.
+   Sem musí vidět celá liga, protože dvojice, které vidí jen jeden člověk,
+   nejsou dvojice. Otázka zní „patříš do téhle ligy?“ — a na tu se dřív
+   neptal nikdo.
 
-   Klíčové omezení je `allow create` bez `update` a bez `delete`:
-   zamrazené kolo se dá zapsat právě jednou. Kdyby šlo přepsat, ztratil
-   by zámek smysl — kdokoli by mohl přepsat historii, ať už schválně,
-   nebo tím, že mu appka spočítá jiné dvojice po odchodu člena z ligy.
+   ============================================================
+   PROČ KÓD LIGY
 
-   Výchozí pravidlo Firestore je "deny all", takže cokoli, co tu není
+   Do verze s kódem stačilo `request.auth != null`: kdokoli s účtem
+   Google mohl číst i zapisovat do libovolného `lid`. V kombinaci
+   s `create`-only to znamenalo, že jediný nesmyslný zápis do
+   `h2h/{gw}` je nevratný — přepsat ho nešlo ani majiteli.
+
+   Pravidla Firestore ale umějí číst jen Firestore. Na FPL API
+   nedosáhnou, takže „kdo je v lize 14044“ je fakt, který se do
+   databáze musí nějak dostat — a kdokoli ho tam zapíše, je zase ten,
+   komu se musí věřit. Většina samoobslužných variant je proto kruhová.
+
+   Kód tenhle kruh přetíná tím, že tajemství vloží člověk, ne appka.
+   Není to autentizace, je to zámek na chatě: laťka se posouvá
+   z „kdokoli s účtem Google“ na „kdokoli, komu se ten kód dostal do
+   ruky“. U miniligy o dvaceti lidech je to přesně ta míra, která dává
+   smysl — data jsou stejně veřejná, chrání se možnost je poškodit.
+
+   ============================================================
+   JAK TO FUNGUJE
+
+   1. Majitel ligy ručně založí v konzoli Firebase dokument
+      `leagues/{lid}` s jediným polem `kod`.
+   2. Člen zadá kód v appce. Ta založí `leagues/{lid}/clenove/{jeho uid}`
+      a pravidlo při tom zápisu porovná, co poslal, s tím, co je
+      v dokumentu ligy.
+   3. Od té chvíle se u čtení i zápisu archivu ověřuje jen to, že to
+      členství existuje. Kód se do Firestore neposílá pokaždé znovu.
+
+   POZOR PŘI NASAZENÍ: dokud `leagues/{lid}` neexistuje, neodemkne se
+   nikdo a sdílený archiv je pro všechny zavřený. Appka to přežije —
+   H2H se dopočítá lokálně a kola se drží v localStorage — ale zámek
+   selhává zavřeně schválně. Kdyby chybějící dokument znamenal „pusť
+   všechny“, stačilo by si vybrat `lid`, který ještě nikdo nezaložil.
+
+   Výchozí pravidlo Firestore je „deny all“, takže cokoli, co tu není
    výslovně povolené, je zakázané. */
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    /* ---------- soukromá záloha nastavení ---------- */
 
     match /users/{uid} {
       // request.auth je null pro nepřihlášené — ti neprojdou ani k sobě.
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    match /leagues/{lid}/h2h/{gw} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null
-        && request.resource.data.keys().hasAll(['matches', 'gw', 'okno'])
-        && request.resource.data.gw is int;
-      // Žádné update ani delete: zamrazené je zamrazené.
+    /* ---------- liga ---------- */
+
+    /* Dokument ligy nese kód a nic víc.
+
+       Nečitelný i nezapisovatelný odkudkoli, včetně přihlášených:
+       kdyby ho šlo přečíst, byl by kód k ničemu, a kdyby ho šlo
+       zapsat, mohl by si kdokoli přepsat cizí kód na svůj a ligu si
+       tím vzít. Zakládá se proto ručně v konzoli Firebase — je to
+       jediná věc v celém projektu, která se nedá udělat z appky, a to
+       je záměr. */
+    match /leagues/{lid} {
+      allow read, write: if false;
     }
 
-    /* Archiv dohraných kol. Táž úvaha jako u h2h: sdílené v rámci ligy,
-       zapisovatelné právě jednou. Dohrané kolo se nemění, takže jediný,
-       komu by `update` k něčemu byl, je ten, kdo chce historii ligy
-       přepsat.
+    /* Členství.
 
-       Kontrolujeme tvar, ne obsah — ověřit, že sestavy odpovídají FPL,
-       by šlo jen dalším dotazem na FPL, což pravidla neumějí. */
+       Kód v dokumentu členství zůstat musí: pravidla umějí ověřit jen
+       to, co se opravdu ukládá. Číst ho proto smí jen jeho vlastník —
+       kdo si ho přečte, znal ho už předtím, jinak by ten dokument
+       nevznikl.
+
+       Smazat si svoje členství jde. Je to jediná cesta, jak se
+       odemknout znovu po změně kódu, a ničemu to nevadí: archiv se tím
+       nemaže, jen se člověk odřízne od svého vlastního přístupu.
+       Cizí členství smazat nejde. */
+    match /leagues/{lid}/clenove/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+
+      allow create: if request.auth != null
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['kod', 'kdy'])
+        && request.resource.data.kod is string
+        && request.resource.data.kod.size() > 0
+        && request.resource.data.kod.size() < 100
+        && request.resource.data.kod == ligaKod(lid);
+
+      /* Žádný update: měnit se tu nemá co, a kdyby šel, dal by se jím
+         obejít test kódu (založ s platným, přepiš na cokoli). */
+      allow update: if false;
+    }
+
+    /* Kód ligy, nebo null když liga založená není. Porovnání řetězce
+       s null je nepravda, takže neexistující liga nikoho nepustí. */
+    function ligaKod(lid) {
+      return exists(/databases/$(database)/documents/leagues/$(lid))
+        ? get(/databases/$(database)/documents/leagues/$(lid)).data.kod
+        : null;
+    }
+
+    function jeClen(lid) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/leagues/$(lid)/clenove/$(request.auth.uid));
+    }
+
+    /* ---------- sdílené losování H2H ---------- */
+
+    /* Zapisuje ten, kdo se na dohrané kolo podívá první; ostatní už jen
+       čtou. Dvojice se odvozují ze seznamu členů, takže bez zamrazení
+       by se po odchodu člena přepočítala i kola dávno dohraná.
+
+       `update` jen na vyšší verzi — táž úvaha jako u archivu kol níž.
+       Bez něj byl každý špatný zápis nevratný, protože `create`-only
+       nedovolí opravu ani majiteli. Historii to přepsat pořád nedovolí:
+       stejnou verzí to neprojde. */
+    match /leagues/{lid}/h2h/{gw} {
+      allow read: if jeClen(lid);
+      allow create: if jeClen(lid) && h2hMaTvar();
+      allow update: if jeClen(lid) && h2hMaTvar()
+        && resource.data.get('v', 0) < request.resource.data.v;
+      allow delete: if false;
+    }
+
+    /* Strop na počet dvojic. Liga má v appce strop 200 členů, tedy
+       nejvýš sto zápasů; cokoli většího není losování, ale pokus
+       nacpat do free tieru, co se do něj vejde. */
+    function h2hMaTvar() {
+      return request.resource.data.keys().hasAll(['matches', 'gw', 'okno', 'v'])
+        && request.resource.data.gw is int
+        && request.resource.data.v is int
+        && request.resource.data.matches is list
+        && request.resource.data.matches.size() <= 100;
+    }
+
+    /* ---------- archiv dohraných kol ---------- */
+
+    /* Táž úvaha jako u H2H: sdílené v rámci ligy a v zásadě neměnné,
+       protože dohrané kolo je fakt.
+
+       Kontrolujeme tvar a velikost, ne obsah — ověřit, že sestavy
+       odpovídají FPL, by šlo jen dalším dotazem na FPL, což pravidla
+       neumějí. */
     match /leagues/{lid}/gw/{gw} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && archivMaTvar();
+      allow read: if jeClen(lid);
+      allow create: if jeClen(lid) && archivMaTvar();
 
       /* Jediná povolená změna je povýšení verze snímku.
 
@@ -54,17 +165,25 @@ service cloud.firestore {
          `resource.data.v < request.resource.data.v` je to podstatné:
          přepsat jde jen novějším, nikdy stejným ani starším. Historii
          tak pořád nejde přepsat jinými čísly téže verze. */
-      allow update: if request.auth != null && archivMaTvar()
+      allow update: if jeClen(lid) && archivMaTvar()
         && resource.data.v < request.resource.data.v;
+
+      allow delete: if false;
     }
 
+    /* Stropy jsou na řetězci i na mapě, protože `.size()` umí obojí:
+       u řetězce vrací délku, u mapy počet klíčů. Bez nich může jeden
+       zápis sníst free tier — a pravidla jiný způsob, jak omezit
+       velikost dokumentu, nemají. */
     function archivMaTvar() {
       return request.resource.data.keys().hasAll(['v', 'gw', 'picks', 'live'])
         && request.resource.data.gw is int
         && request.resource.data.v is int
         && request.resource.data.live is string
+        && request.resource.data.live.size() < 400000
         && request.resource.data.picks is map
-        && request.resource.data.picks.size() > 0;
+        && request.resource.data.picks.size() > 0
+        && request.resource.data.picks.size() <= 200;
     }
   }
 }

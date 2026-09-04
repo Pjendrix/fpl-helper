@@ -8,16 +8,26 @@ sama, až když na ni přijde řada.
 
 ## Co umí
 
+Jedenáct živých záložek; pořadí odpovídá `TABS` v `js/core.js`.
+
 | Záložka | K čemu je |
 |---|---|
+| **Přehled** | Rozcestník: čísla kola, na co se podívat, cenové pohyby, výhled, H2H box, ceny posledního kola a zpravodaj |
 | **Sestava** | Kádr **seskupený podle pozic** s rozpisem na tři kola, živé body během kola, zranění a otazníky, doporučení kapitána, optimální jedenáctka z tvých patnácti, upozornění na blanky a doubly |
 | **Miniliga** | Pořadí, **průběžné body během kola**, vývoj pozic v grafu, hráči, které máš jen ty nebo naopak nemáš, kdo koho vlastní |
 | **Hub ligy** | Novinky po kole, sezónní žebříčky (daň za transfery, zmrzlá lavička), zdraví kádrů, kapitánská mapa a efekt šablony |
+| **H2H** | Losování dvojic z ID ligy a čísla kola, výsledky a tabulka; dohraná kola se zamrazují do Firestore |
+| **Zpravodaj** | Články z FFScout a FF247 přes `api/news.js`, filtr podle zdroje |
+| **Zranění** | Kdo je zraněný, potrestaný nebo pod otazníkem — nejdřív tvůj kádr, pak celá liga |
 | **Top hráči** | Žebříčky top 10 podle gólů, asistencí, DEFCON, bonusů, xG, xA a xGI; u brankářů čistá konta a zákroky. Pod nimi **porovnání dvou libovolných hráčů** vedle sebe |
-| **Transfery** | Najde problémové hráče a navrhne náhrady do rozpočtu, seřazené podle vlastnictví; statistiky pod tlačítkem **i** |
 | **Program** | Rozpis na šest kol s vlastní obtížností, blanky a doubly |
 | **Ceny** | Kdo dnes v noci zdraží nebo zlevní (oficiální predikce), kdo se pohnul za poslední kolo, největší růst a propad za sezónu |
-| **Plánovač** | Přestupy na čtyři kola dopředu — banka, volné přestupy a hity spočítané kolo po kole |
+| **Poradce** | Diagnostika kádru a hráči k zamyšlení, postavené na Opta metrikách z bootstrapu |
+
+**Transfery** a **Plánovač** jsou vypnuté, ne smazané: chybí jim řádek
+v `TABS` a jejich tlačítko v `index.html` je zakomentované. Kód i panely
+zůstávají na místě, takže návrat jsou dva řádky. Práci Transferů převzal
+Poradce, který říká proč, ne jak.
 
 V hlavičce běží odpočet do nejbližšího deadlinu a pod ní **kolejnice sezóny**:
 38 čárek, jedna na kolo. Odehraná plná, aktuální se plní do deadlinu, budoucí
@@ -44,27 +54,34 @@ css/app.css             hlavní stylopis
 css/narrow.css          do 720 px  (<link id="mqL">)
 css/small.css           do 640 px  (<link id="mqS">)
 css/mobile.css          mobilní skořápka (<link id="mqM">)
-js/core.js              konfigurace, cache, načtení kádru, záložky
+js/core.js              konfigurace, cache, indexy, načtení kádru, záložky
 js/tabs.js              vykreslování obsahu jednotlivých sekcí
+js/status.js            stav dat, chybové boxy, sdílení, odkaz na kolo
+js/squad.js             sestava manažera v okně (společné pro celou appku)
 js/h2h.js               H2H miniliga: losování, tabulka, box na Přehledu
 js/news.js              FPL Zpravodaj: filtr, karty, box na Přehledu
 js/advisor.js           Přestupový poradce: diagnostika kádru, tipy z Opta metrik
-js/ui.js                téma, přepínač zobrazení, tooltip, kolejnice
+js/ui.js                téma, přepínač zobrazení, tooltip, kolejnice, dresy
+js/histcache.js         archiv dohraných kol (localStorage + Firestore)
 js/planner.js           plánovač přestupů (záložka vypnutá, kód ponechán)
-js/sync.js              přihlášení a zrcadlení nastavení do Firestore
+js/sync.js              přihlášení, zrcadlení nastavení, vstupní obrazovka
+js/topbar.js            segment sekcí, nabídka „Víc“, hledání (Ctrl+K)
 js/mobile.js            spodní navigace, plachta „Více“, gesta
 js/boot.js              start aplikace a registrace service workeru
 js/firebase.js          jediný ES modul — inicializace Firebase
-api/news.js             agregace RSS zdrojů (FFScout, FF247, The Scout)
+api/news.js             agregace RSS zdrojů (FFScout, FF247)
 api/fpl.js              proxy na oficiální FPL API (řeší CORS)
 api/badge.js            odznaky klubů z CDN Premier League, převedené na WebP
+worker.js               Cloudflare Worker — objížďka, když FPL odmítne Vercel
 sw.js                   service worker — skořápka a odznaky, data nikdy
-club-marks.svg          záložní barevné značky 20 klubů (sprite)
+club-marks.svg          záložní barevné značky klubů (sprite); zdroj v brand/
 manifest.webmanifest    PWA manifest
 icon.svg, favicon.svg   ikona aplikace a favicon
+assets/                 plakát vstupní obrazovky a značka do hlavičky
 brand/                  logo, zdroje značky, mockup redesignu
+firestore.rules         pravidla: users/, kód ligy, členství, h2h a archiv
 vercel.json             bezpečnostní hlavičky včetně CSP
-test.mjs                338 smoke testů nad falešnými daty FPL
+test.mjs                477 smoke testů nad falešnými daty FPL
 ```
 
 Skripty v `js/` jsou **klasické `<script>`, ne ES moduly**: sdílejí jeden
@@ -121,6 +138,83 @@ Vlastní model (`perMatchXp` → `projectGw` → `projectRange`) zůstal jen tam
 FPL nic nedává: výhled na pět a šest kol dopředu a double kola. `ep_next` je
 totiž vždy za jedno kolo bez ohledu na to, kolik zápasů tým reálně hraje —
 v doublu proto beru vyšší z obou čísel a v rozhraní to označím.
+
+**Kód ligy.** Sdílený archiv — losování H2H a dohraná kola — je pro celou
+ligu, takže se pravidla Firestore musí ptát „patříš do téhle ligy?“. Do verze
+s kódem stačilo `request.auth != null`: kdokoli s účtem Google mohl číst
+i zapisovat do libovolného `lid`, a v kombinaci s `create`-only byl jediný
+nesmyslný zápis nevratný.
+
+Pravidla ale umějí číst jen Firestore. Na FPL API nedosáhnou, takže „kdo je
+v lize 14044“ je fakt, který se do databáze musí nějak dostat — a kdokoli ho
+tam zapíše, je zase ten, komu se musí věřit. Většina samoobslužných variant
+je proto kruhová. Kód ten kruh přetíná tím, že tajemství vloží člověk.
+
+Není to autentizace, je to **zámek na chatě**: laťka se posouvá z „kdokoli
+s účtem Google“ na „kdokoli, komu se ten kód dostal do ruky“. Data jsou stejně
+veřejná; chrání se možnost je poškodit.
+
+Zprovoznění:
+
+1. V konzoli Firebase založ ručně dokument `leagues/{lid}` s jediným polem
+   `kod` (velkými písmeny, bez mezer). Z appky to nejde a je to záměr —
+   dokument je `allow read, write: if false`.
+2. Rozešli kód lize. Každý ho jednou zadá v boxu, který se mu ukáže nahoře
+   na Přehledu; tím vznikne `leagues/{lid}/clenove/{uid}`.
+3. Od té chvíle se kód nikde nedrží ani neposílá — pravidla se ptají jen na
+   existenci toho členství.
+
+**Zámek selhává zavřeně.** Dokud `leagues/{lid}` neexistuje, neodemkne se
+nikdo. Appka to přežije: dvojice se dopočítají v prohlížeči a kola se drží
+v localStorage, jen se nesdílí napříč ligou. Kdyby chybějící dokument znamenal
+„pusť všechny“, stačilo by si vybrat `lid`, který ještě nikdo nezaložil.
+
+Odemknout se znovu po změně kódu jde smazáním vlastního členství
+(`FB.ligaZapomen`). Cizí smazat nejde a archiv se tím nemaže.
+
+**Zamrazená je verze, ne dokument.** `h2h/{gw}` má nově pole `v` (`H2H_V`
+v `js/h2h.js`) a pravidla dovolí přepis jen vyšším číslem — stejně jako
+u archivu kol. Bez toho byl `create`-only past: špatný zápis z rozbité verze
+appky by v lize zůstal navždy a neopravil by ho ani majitel. Přepsat kolo
+jinými čísly téže verze pořád nejde.
+
+**Stropy na velikost.** Pravidla neumějí změřit dokument v bajtech, ale
+`.size()` funguje na řetězci (délka) i na mapě (počet klíčů). Archiv má strop
+na `live` i na `picks`, losování na `matches`. Bez nich může jeden zápis sníst
+free tier.
+
+**Indexy nad staženými daty.** `elsById()`, `fixOfGw()`, `liveStats()`
+a `liveMap()` drží vyhledávací tabulky ve `WeakMap` klíčované **identitou
+zdrojového pole**, ne příznakem platnosti. Nový `BOOT` nebo `FIX` je nový
+objekt, takže se index postaví znovu sám a není co zapomenout zneplatnit —
+což je přesně chyba, kterou by pojmenovaná cache dřív nebo později udělala.
+
+Existují proto, že `resolveLineup()` se volá jednou na člena ligy a uvnitř
+sahal na hráče přes `find()` a na rozpis přes `filter()`, patnáctkrát za
+sestavu. Padesátičlenná liga přes celou sezónu z toho udělala miliony
+průchodů polem: 258 ms na desktopu, na telefonu několikanásobek. Teď je to
+42 ms.
+
+**Úklid stavu je na jednom místě.** `resetVolatile()` v `js/core.js` volá
+tvrdé obnovení i změna týmu. Byly to dva ručně udržované seznamy proměnných
+a rozešly se — každý zapomněl na něco jiného. Projevilo se to tím, že
+`hardReload()` nulovalo `HUB`, ale ne `HUB_FOR_HOME`, takže box s cenami na
+Přehledu zůstal na kostře napořád; a že `STALE_USED` nikdo nevracel zpátky,
+takže štítek „záložní data“ po prvním výpadku FPL už nezmizel. **Přibude-li
+příznak, patří sem** — obě cesty ho pak dostanou zadarmo.
+
+**Autosuby v blankovém kole.** Hráč, jehož tým v tom kole vůbec nehraje, je
+pro účely střídání hotový v okamžiku, kdy skončí celé kolo (`events[gw]
+.finished`) — ne nikdy, jak to bylo dřív. FPL takového hráče vystřídá úplně
+stejně jako toho, kdo zápas měl a nenastoupil, takže součty v Hubu i v H2H
+v blancích vycházely nižší, než jak kolo dopadlo. Během běžícího kola se
+pořád nestřídá: dokud kolo neskončilo, není jisté nic.
+
+Pásku po nehrajícím kapitánovi přebírá vicekapitán jen tehdy, když má
+**nenulovou efektivní násobičku** — tedy hraje za tebe. Odehrané minuty
+nestačí: vicekapitán, kterého autosub nevzal, protože by rozbil formaci,
+sedí na lavičce a FPL mu dvojnásobek nedá. S Bench Boostem je násobička
+nenulová i na lavičce, což je správně — tam hraje celý kádr.
 
 **Živé body.** Dokud kolo běží, na hřišti i v tabulce kádru jsou body, které
 hráči skutečně mají (`event/{gw}/live/`), ne projekce na příští kolo — kapitánovy
