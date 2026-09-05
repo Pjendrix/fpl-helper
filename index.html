@@ -14,16 +14,16 @@
      nasazení načte nová. Číslo se zvyšuje spolu s SHELL v sw.js —
      obě čísla musí sedět, jinak service worker předcachuje jiné
      URL, než jaké stránka žádá. Hlídá to test. -->
-<link rel="stylesheet" href="/css/app.css?v=30">
+<link rel="stylesheet" href="/css/app.css?v=31">
 
 <!-- Responzivní pravidla. Atribut media se dá za běhu přepsat, takže
      přepínač Desktop/Mobil nemusí mít vlastní kopie pravidel. -->
-<link id="mqL" rel="stylesheet" media="(max-width:720px)" href="/css/narrow.css?v=30">
-<link id="mqS" rel="stylesheet" media="(max-width:640px)" href="/css/small.css?v=30">
+<link id="mqL" rel="stylesheet" media="(max-width:720px)" href="/css/narrow.css?v=31">
+<link id="mqS" rel="stylesheet" media="(max-width:640px)" href="/css/small.css?v=31">
 
 <!-- Mobilní skořápka. Vlastní tag, ať s ním umí hýbat přepínač zobrazení
      (viz VIEW_MQ) stejně jako s mqL a mqS. -->
-<link id="mqM" rel="stylesheet" media="(max-width:720px)" href="/css/mobile.css?v=30">
+<link id="mqM" rel="stylesheet" media="(max-width:720px)" href="/css/mobile.css?v=31">
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
   <meta name="mobile-web-app-capable" content="yes">
@@ -332,30 +332,30 @@
      Rules, ne to, že klíč není vidět. Prázdný config je v pořádku:
      sync se prostě nezapne a appka běží dál na localStorage.
      ============================================================ -->
-<script type="module" src="/js/firebase.js?v=30"></script>
+<script type="module" src="/js/firebase.js?v=31"></script>
 
 <!-- Pořadí není libovolné. Klasické skripty sdílejí globální scope, ale
      hoisting přes hranici souboru neplatí: core.js definuje CONFIG, cache,
      load() a selectTab, na kterých stojí všechno ostatní, a boot.js jako
      poslední spouští appku. mobile.js musí být před ním — přepisuje
      selectTab a čte TABS. -->
-<script src="/js/core.js?v=30"></script>
-<script src="/js/tabs.js?v=30"></script>
-<script src="/js/tabs-players.js?v=30"></script>
-<script src="/js/tabs-hub.js?v=30"></script>
-<script src="/js/tabs-prices.js?v=30"></script>
-<script src="/js/tabs-league.js?v=30"></script>
-<script src="/js/status.js?v=30"></script>
-<script src="/js/squad.js?v=30"></script>
-<script src="/js/h2h.js?v=30"></script>
-<script src="/js/advisor.js?v=30"></script>
-<script src="/js/news.js?v=30"></script>
-<script src="/js/ui.js?v=30"></script>
-<script src="/js/planner.js?v=30"></script>
-<script src="/js/histcache.js?v=30"></script>
-<script src="/js/sync.js?v=30"></script>
-<script src="/js/topbar.js?v=30"></script>
-<script src="/js/mobile.js?v=30"></script>
-<script src="/js/boot.js?v=30"></script>
+<script src="/js/core.js?v=31"></script>
+<script src="/js/tabs.js?v=31"></script>
+<script src="/js/tabs-players.js?v=31"></script>
+<script src="/js/tabs-hub.js?v=31"></script>
+<script src="/js/tabs-prices.js?v=31"></script>
+<script src="/js/tabs-league.js?v=31"></script>
+<script src="/js/status.js?v=31"></script>
+<script src="/js/squad.js?v=31"></script>
+<script src="/js/h2h.js?v=31"></script>
+<script src="/js/advisor.js?v=31"></script>
+<script src="/js/news.js?v=31"></script>
+<script src="/js/ui.js?v=31"></script>
+<script src="/js/planner.js?v=31"></script>
+<script src="/js/histcache.js?v=31"></script>
+<script src="/js/sync.js?v=31"></script>
+<script src="/js/topbar.js?v=31"></script>
+<script src="/js/mobile.js?v=31"></script>
+<script src="/js/boot.js?v=31"></script>
 </body>
 </html>

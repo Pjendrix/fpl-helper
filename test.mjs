@@ -6870,16 +6870,21 @@ check('žolíky se počítají po polovinách sezóny', () => {
     const html = w.eval('buildBoards()');
     if(!/2\. polovina sezóny/.test(html))
       throw new Error('karta neříká, o kterou polovinu jde');
-    if(/Wildcard GW2\b/.test(html))
+    const karta = html.slice(html.indexOf('Žolíky</h4>'));
+
+    // Adam spálil bboost v GW24, wildcard v GW2 patří do první poloviny.
+    if(!/Bench boost<\/span>\s*<span class="bar"><i style="width:50%">/.test(karta))
+      throw new Error('proužek nesedí na 1 z 2');
+    if(!/Wildcard<\/span>\s*<span class="bar"><i style="width:0%">/.test(karta))
       throw new Error('čip z první poloviny se počítá do druhé');
-    if(!/Bench boost GW24/.test(html))
-      throw new Error('čip z probíhající poloviny chybí');
-    // Adam spálil jeden ze čtyř, zbývají tři.
-    if(!/zbývá 3/.test(html)) throw new Error('nepočítá, co komu zbývá');
-    // Filip v druhé polovině nic nespálil, do seznamu čipů nepatří —
-    // jinde v žebříčcích se jeho jméno objevit smí.
-    const karta = html.slice(html.indexOf('Spálené žolíky'));
-    if(/Filip/.test(karta)) throw new Error('karta je soupiska, ne přehled čipů');
+    if(!/1\/2/.test(karta)) throw new Error('chybí poměr použití');
+
+    // Kdo čip nespálil, se u něj nesmí objevit jako uživatel; Filip
+    // v druhé polovině nespálil nic, takže je jen u „zatím nikdo“.
+    const bb = karta.slice(karta.indexOf('Bench boost'));
+    if(/Filip/.test(bb.slice(0, bb.indexOf('Triple') + 1 || bb.length)))
+      throw new Error('u čipu je i ten, kdo ho nespálil');
+    if(!/zatím nikdo/.test(karta)) throw new Error('nepoužitý čip nemá popisek');
     return 'sady oddělené';
   } finally { w.__p = puv; w.eval('HUB = window.__p'); }
 });
