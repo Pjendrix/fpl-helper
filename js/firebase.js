@@ -113,3 +113,10 @@ if(FIREBASE_CONFIG.projectId){
 // I když se Firebase nenačte, hlavní skript musí vědět, že už na nic
 // nečeká — jinak by tlačítko Přihlásit zůstalo viset v „Načítám“.
 window.dispatchEvent(new Event("fb-ready"));
+
+/* Soubor se načítá jako <script type="module">, takže modul opravdu je.
+   Statický import v něm žádný není (Firebase se dotahuje dynamicky až
+   po kliknutí), takže by ho typová kontrola jinak považovala za klasický
+   skript a zakázala v něm top-level await. Ven se nic neexportuje —
+   komunikuje se přes window.FB, viz js/types.d.ts. */
+export {};

@@ -917,3 +917,13 @@ function homeH2H(){
 }
 
 let H2H_HOME_GW = null;
+/* H2H drží zamrazená kola a spočítaný los podle ligy. Po přepnutí na
+   jinou ligu by ukazoval dvojice té předchozí. */
+volatile('h2h', () => {
+  H2H_CACHE = null;
+  H2H_FROZEN = {};
+  H2H_FROZEN_LID = null;
+  H2H_LIVE = null;
+  H2H_HOME_GW = null;
+  if(H2H_TIMER){ clearInterval(H2H_TIMER); H2H_TIMER = null; }
+});

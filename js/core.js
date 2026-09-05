@@ -57,6 +57,10 @@ const CONFIG = {
 const S = {a:['OK','ok'],d:['Pochybný','wn'],i:['Zraněný','al'],
            s:['Suspendovaný','al'],u:['Nedostupný','al'],n:['Neregistrovaný','al']};
 const POS = {1:'GKP',2:'DEF',3:'MID',4:'FWD'};
+/* Vrací `any` schválně: volající sahají na `.value`, `.disabled`
+   i `.checked` podle toho, co za prvek to je, a rozepisovat u každého
+   volání přetypování by bylo víc práce než užitku. */
+/** @param {string} id @returns {any} */
 const $ = id => document.getElementById(id);
 // Apostrof je v seznamu schválně: dneska jsou všechny atributy v dvojitých
 // uvozovkách, ale stačí jedna výjimka a chybějící &#39; se stane dírou.
@@ -233,22 +237,52 @@ function dropCached(re){
    datacentra je ale přesně ten obrazec, který si u FPL vyslouží blok —
    a když se jednou spustí, schytá to i to, co předtím procházelo.
    Dva jsou pomalejší o pár set milisekund a projdou. */
+/* Neúspěch se nesmí ztratit.
+
+   `out[i] = null` bylo pohodlné, ale `null` znamenalo dvě různé věci:
+   „ten člen nemá data“ a „dotaz selhal“. Volající je od sebe nerozeznal,
+   takže výpadek půlky ligy vypadal stejně jako liga, ve které půlka lidí
+   ještě nezaložila tým — tedy jako normální stav, o kterém se nemá
+   cenu zmiňovat.
+
+   Chyby se proto sbírají a věší na vrácené pole jako `failed`. Staří
+   volající se nemění: pole se chová pořád stejně. Kdo chce vědět, kolik
+   toho chybí, si o to řekne — a `pooledNote()` z toho udělá větu. */
 async function pooled(items, fn, limit = 2, onDone = null){
   const out = new Array(items.length);
+  const failed = [];
   let next = 0, done = 0;
 
   async function worker(){
     while(next < items.length){
       const i = next++;
       try { out[i] = await fn(items[i], i); }
-      catch(e){ out[i] = null; }
+      catch(e){
+        out[i] = null;
+        failed.push({i, item: items[i], error: e});
+      }
       done++;
       if(onDone) onDone(done, items.length);
     }
   }
 
   await Promise.all(Array.from({length: Math.min(limit, items.length)}, worker));
+
+  /* Nevýčtová vlastnost: `JSON.stringify`, spread ani `map` si jí
+     nevšimnou, takže se nikde neprojeví jako šestnáctý člen ligy. */
+  Object.defineProperty(out, 'failed', {value: failed, enumerable: false});
   return out;
+}
+
+/* Věta o tom, co se nenačetlo — nebo prázdný řetězec, když je všechno.
+
+   Záměrně nezastavuje vykreslení. Osm z deseti sestav je pořád lepší
+   než chybová stránka; jen se to nesmí tvářit jako deset z deseti. */
+function pooledNote(out, co){
+  const n = (out && out.failed && out.failed.length) || 0;
+  if(!n) return '';
+  const celkem = out.length;
+  return `${n} z ${celkem} ${co} se nepodařilo načíst — čísla níž jsou tedy neúplná.`;
 }
 
 /* Pořadí miniligy chodí po 50 na stránku. Bez tohohle se liga o 120 lidech
@@ -290,7 +324,7 @@ async function load(id){
     startCountdown();
     drawRail();
     drawStatus();
-    if(typeof drawChip === 'function') drawChip();
+    if(typeof window.drawChip === 'function') window.drawChip();
 
     const cur = BOOT.events.find(e => e.is_current);
     const nxt = BOOT.events.find(e => e.is_next);
@@ -440,6 +474,11 @@ function validShape(types){
   return types.length === 11 && c(1) === 1 && c(2) >= 3 && c(4) >= 1;
 }
 
+/**
+ * @param {FplPicks} pk sestava z entry/{id}/event/{gw}/picks/
+ * @param {Map<number, FplLiveStats>} stats z liveStats()
+ * @param {number} gw číslo kola — slouží k dohledání rozpisu
+ */
 function resolveLineup(pk, stats, gw){
   const els = elsById();
   const st = id => stats && stats.get(id) || null;
@@ -533,6 +572,7 @@ function resolveLineup(pk, stats, gw){
    smyček přes členy ligy (`gwRows`), kde se pro padesát lidí stavěla
    padesátkrát tatáž sedmisetprvková mapa. Klíčem je objekt odpovědi,
    takže nová data znamenají novou mapu samy od sebe. */
+/** @param {FplLive|null} data @returns {Map<number, FplLiveStats>} */
 function liveStats(data){
   if(!data || typeof data !== 'object') return new Map();
   let m = IDX_LIVE.get(data);
@@ -678,7 +718,7 @@ function render(entry, picks, startGw, liveCtx){
   // Součet za kolo — to je číslo, kvůli kterému se člověk během soboty dívá.
   const liveTotal = lineup ? lineup.total : null;
   LAST_LIVE_TOTAL = liveTotal;
-  if(typeof drawChip === 'function') drawChip();
+  if(typeof window.drawChip === 'function') window.drawChip();
 
   const benchTotal = lineup ? lineup.benchTotal : null;
   const toPlay = lineup ? lineup.toPlay : null;
@@ -1483,8 +1523,9 @@ function drawHome(){
 /* Odkazy „Spravovat“ a spol. přepínají záložky. Delegovaně, protože
    se přehled překresluje při každé změně watchlistu. */
 document.addEventListener('click', ev => {
+  // Fokus zůstává tam, kde uživatel klikl — viz selectTab().
   const btn = ev.target.closest('button[data-goto]');
-  if(btn) selectTab(btn.dataset.goto);
+  if(btn) selectTab(btn.dataset.goto, false);
 });
 
 /* ============ ZALOZKY ============ */
@@ -1530,14 +1571,27 @@ function autoLoadLeague(){
 }
 const TAB_DONE = new Set();
 
-function selectTab(tid){
+/* `moveFocus`: true = přesuň vždy, false = nikdy, undefined = rozhodni sám.
+
+   Fokus na tlačítku záložky je potřeba při ovládání klávesnicí, jinak
+   se šipky po přepnutí zaseknou. Jenže `selectTab` volá i delegovaný
+   listener na `button[data-goto]` (odkazy „Hub ligy“ a „Vše“ v boxech
+   na Přehledu), paleta hledání a obnovení hashe při startu — a tam
+   `.focus()` odscrolluje stránku na navigační lištu, přestože uživatel
+   klikal někde dole.
+
+   Rozdíl není v tom, kam se jde, ale odkud. Když už fokus v navigaci
+   byl, patří tam dál; když byl jinde, nemá ho co brát. */
+function selectTab(tid, moveFocus){
+  const zNavigace = TABS.some(([t]) => document.activeElement === $(t));
+
   TABS.forEach(([t, p]) => {
     const on = t === tid;
     $(t).setAttribute('aria-selected', on);
     $(t).tabIndex = on ? 0 : -1;
     $(p).hidden = !on;
   });
-  $(tid).focus();
+  if(moveFocus === true || (moveFocus !== false && zNavigace)) $(tid).focus();
 
   /* Panely mají tabindex="-1", takže se dá fokus přesunout na obsah.
      Bez tohohle zůstala klávesnice na tlačítku a odečítač se o změně
@@ -1556,7 +1610,7 @@ function selectTab(tid){
 
 TABS.forEach(([tid]) => {
   $(tid).tabIndex = tid === 't-home' ? 0 : -1;
-  $(tid).addEventListener('click', () => selectTab(tid));
+  $(tid).addEventListener('click', () => selectTab(tid, true));
 
   // role="tablist" slibuje ovládání šipkami. Dřív ho slibovala a neplnila.
   $(tid).addEventListener('keydown', ev => {
@@ -1568,7 +1622,7 @@ TABS.forEach(([tid]) => {
     if(ev.key === 'ArrowLeft')  next = usable[(i - 1 + usable.length) % usable.length];
     if(ev.key === 'Home')       next = usable[0];
     if(ev.key === 'End')        next = usable[usable.length - 1];
-    if(next){ ev.preventDefault(); selectTab(next); }
+    if(next){ ev.preventDefault(); selectTab(next, true); }
   });
 });
 
@@ -1609,49 +1663,54 @@ TABS.forEach(([tid]) => {
    sdílejí jeden globální scope a tahle funkce běží až dávno po jejich
    načtení. Volat ji dřív by neprošlo, ale to nedělá nikdo.
    ------------------------------------------------------------ */
+/* ------------------------------------------------------------
+   REGISTR ODVOZENÉHO STAVU
+
+   Dřív to byl jeden ručně psaný seznam proměnných z osmi souborů. Ten
+   seznam se rozešel se skutečností pokaždé, když někdo přidal příznak
+   a zapomněl na něj — a protože to byly „jen“ příznaky, nikde to
+   nespadlo. Takhle vznikla věčná kostra na Přehledu (`HUB_FOR_HOME`
+   zůstal true), viset zůstávající štítek „záložní data“ (`STALE_USED`)
+   i zpravodaj, který se po chybě nikdy nezkusil znovu.
+
+   Odteď si každý soubor uklízí sám a hlásí se sem. Seznam tím přestal
+   být vzdálenou kopií pravdy a leží u proměnné, které se týká — což je
+   jediný způsob, jak se ty dvě věci nemůžou rozejít.
+
+   Pořadí registrace je pořadí <script> tagů v index.html a nezáleží
+   na něm: úklidy jsou nezávislé.
+   ------------------------------------------------------------ */
+const VOLATILE = [];
+
+function volatile(jmeno, reset){
+  VOLATILE.push({jmeno, reset});
+}
+
 function resetVolatile(){
   API_CACHE = new Map();
   TAB_DONE.clear();
 
+  /* Jeden nefunkční úklid nesmí shodit ostatní — jinak by chyba
+     v jednom souboru nechala celou appku v půlce starého stavu, což je
+     horší než ten stav celý. */
+  for(const v of VOLATILE){
+    try{ v.reset(); }
+    catch(e){ console.warn('resetVolatile: ' + v.jmeno + ' selhal', e); }
+  }
+}
+
+volatile('core', () => {
   PLAYERS = null;
-  LEAGUE_OWN = null;
-  TR_STATE = null;
-  BUY_COST = null;
-  PLANNER = null;
 
   // Hub a to, co si na něj Přehled zavěsil.
   HUB = null;
   HUB_FOR_HOME = false;
   HUB_HOME_ERR = null;
 
-  // Zpravodaj a novinky po kole.
-  NEWS_GW = null;
-  NEWS_PICKS.clear();
-  NEWS_LIVE.clear();
-  HALL_ALL = false;
-  NEWS_FOR_HOME = false;
-
-  /* H2H drží zamrazená kola a spočítaný los podle ligy. Po přepnutí
-     na jinou ligu by ukazoval dvojice té předchozí. */
-  H2H_CACHE = null;
-  H2H_FROZEN = {};
-  H2H_FROZEN_LID = null;
-  H2H_LIVE = null;
-  H2H_HOME_GW = null;
-  if(H2H_TIMER){ clearInterval(H2H_TIMER); H2H_TIMER = null; }
-
-  // Body kola v okně se sestavou soupeře.
-  SQ_LIVE = null;
-
-  /* Členství v lize je vlastnost ligy, ne týmu — po přepnutí na jinou
-     se musí zjistit znovu, jinak by appka tvrdila, že do ní patříš. */
-  LIGA_STAV = null;
-  LIGA_CHYBA = '';
-
   /* Štítek „záložní data“ musí zmizet, když se povede načíst čerstvá.
      Jinak appka tvrdí, že ukazuje starou odpověď, i když neukazuje. */
   STALE_USED = null;
-}
+});
 
 let RELOADING = false;
 
@@ -1790,7 +1849,10 @@ async function loadLeague(lid){
     }
 
     renderLeague({league}, members, hist, picks, cur, truncated);
-    $('lmsg').textContent = '';
+    // Totéž co v Hubu: co se nestáhlo, se řekne, místo aby se to
+    // tvářilo jako člen bez dat.
+    $('lmsg').textContent = [pooledNote(hist, 'historií'),
+                             pooledNote(picks, 'sestav')].filter(Boolean).join(' ');
   }catch(e){
     $('lmsg').innerHTML = errBox(e.message, 't-league');
   }
@@ -2257,10 +2319,13 @@ function bestEleven(squad){
                 ...byPos[3].slice(0, f[3]), ...byPos[4].slice(0, f[4])];
     const total = xi.reduce((a, b) => a + b.xp, 0);
 
-    if(!best || total > best.total) best = {xi, total, shape: `${f[2]}-${f[3]}-${f[4]}`};
+    if(!best || total > best.total)
+      best = {xi, total, shape: `${f[2]}-${f[3]}-${f[4]}`, bench: []};
   }
 
   if(!best) return null;
+  // Lavička je zbytek kádru. Dopisovala se až po vytvoření objektu,
+  // takže tvar výsledku se nedal poznat z jednoho místa.
   const inXi = new Set(best.xi.map(s => s.p.id));
   best.bench = squad.filter(s => !inXi.has(s.p.id)).sort((a, b) => b.xp - a.xp);
   return best;
@@ -2376,7 +2441,6 @@ function statGrid(p){
   return `<div class="pstats">${rows.map(r => `<div>
       <div class="k">${esc(r.label)}</div>
       <div class="v">${esc(String(r.value))}</div>
-      ${r.note ? `<div class="nt">${esc(r.note)}</div>` : ''}
     </div>`).join('')}</div>`;
 }
 

@@ -57,8 +57,8 @@ async function fetchNews(force){
    počítat; relativní čas u něčeho tři dny starého zase nic neřekne. */
 function newsTime(iso){
   const d = new Date(iso);
-  if(isNaN(d)) return '';
-  const min = Math.round((Date.now() - d) / 60000);
+  if(isNaN(d.getTime())) return '';
+  const min = Math.round((Date.now() - d.getTime()) / 60000);
   if(min < 1) return 'právě teď';
   if(min < 60) return 'před ' + min + ' min';
   if(min < 60 * 20) return 'před ' + Math.round(min / 60) + ' h';
@@ -167,15 +167,39 @@ document.addEventListener('click', ev => {
    ------------------------------------------------------------ */
 let NEWS_FOR_HOME = false;
 
+/* Proč se zpravodaj nenačetl. Tatáž past jako u Hubu na Přehledu:
+
+   `fetchNews().catch(() => { NEWS_FOR_HOME = false; })` sice příznak
+   shodilo, ale nezavolalo `drawHome()`. Na Přehledu tedy zůstala kostra
+   do nejbližšího jiného překreslení — a protože příznak spadl, každé
+   další překreslení pustilo nový pokus. Buď kostra napořád, nebo cyklus
+   dotazů, podle toho, co nastalo dřív.
+
+   Kostra po neúspěchu je navíc k nerozeznání od načítání. Důvod
+   a tlačítko jsou poctivější. */
+let NEWS_HOME_ERR = null;
+
 function homeNews(){
   const box = inner => `<div class="hbox">
     <h3><i class="hi">📰</i>Zpravodaj<button type="button" class="lnkbtn"
       data-goto="t-news">Vše</button></h3>${inner}</div>`;
 
   if(!NEWS){
+    /* Hláška sama další pokus nespouští — z jednoho nedostupného
+       zdroje by se jinak stala smyčka dotazů. Spustí ho až tlačítko. */
+    if(NEWS_HOME_ERR){
+      return box(errBox(NEWS_HOME_ERR, null, () => {
+        NEWS_HOME_ERR = null;
+        NEWS_FOR_HOME = false;
+        drawHome();
+      }));
+    }
     if(!NEWS_FOR_HOME){
       NEWS_FOR_HOME = true;
-      fetchNews().then(() => drawHome()).catch(() => { NEWS_FOR_HOME = false; });
+      fetchNews()
+        .then(() => { NEWS_HOME_ERR = null; })
+        .catch(() => { NEWS_HOME_ERR = 'Zdroje zpráv teď neodpovídají.'; })
+        .finally(() => { NEWS_FOR_HOME = false; drawHome(); });
     }
     return box('<div class="skel"><i></i></div>');
   }
@@ -190,3 +214,9 @@ function homeNews(){
       <b>${esc(it.title)}</b>
     </a>`).join('')}</div>`);
 }
+/* Zpravodaj na Přehledu: příznak i důvod chyby. Bez obojího zůstane
+   box na kostře napořád — viz komentář u NEWS_HOME_ERR. */
+volatile('news', () => {
+  NEWS_FOR_HOME = false;
+  NEWS_HOME_ERR = null;
+});

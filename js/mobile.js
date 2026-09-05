@@ -194,13 +194,31 @@
     if(more) more.setAttribute('aria-selected', String(REST.includes(open)));
   }
 
+  /* Druhý argument se musí předat dál. Bez toho by obal zahodil
+     rozhodnutí o fokusu a odkazy uvnitř panelů by zase odskakovaly
+     stránkou nahoru — přesně na telefonu, kde to vadí nejvíc. */
   const prevSelect = selectTab;
-  selectTab = function(tid){ prevSelect(tid); syncNav(); };
+  /* Přepis deklarované funkce je legální JS — jde o vlastnost globálního
+     objektu. Model tsc pro top-level `function` to ale nepokrývá a rušit
+     kvůli tomu deklaraci v core.js by rozbilo hoisting. */
+  // @ts-ignore
+  selectTab = function(tid, moveFocus){ prevSelect(tid, moveFocus); syncNav(); };
   syncNav();
 
   /* ---------- vodorovné scrollery kolem tabulek ----------
      Šablon, které vypisují tabulku, jsou desítky. Místo obalu v každé
-     z nich se obalí až to, co se objeví v DOM. */
+     z nich se obalí až to, co se objeví v DOM.
+
+     Obaluje se SYNCHRONNĚ v callbacku pozorovatele, ne přes
+     requestAnimationFrame. Rozdíl je jeden snímek — a v tom snímku
+     byla tabulka bez obalu, takže roztáhla stránku a hned zase
+     smrskla. Callback pozorovatele běží jako mikroúloha ještě před
+     vykreslením, takže takhle prohlížeč neobalenou tabulku nikdy
+     nenamaluje.
+
+     Vložení obalu samo vyvolá další mutaci. Zacyklit se to nemůže —
+     podruhé už `wrapTables` nic nenajde, protože rodičem je `.tscroll` —
+     ale `busy` ušetří jeden zbytečný průchod DOMem. */
   function wrapTables(){
     document.querySelectorAll('#app table').forEach(t => {
       const par = t.parentElement;
@@ -209,16 +227,43 @@
       box.className = 'tscroll';
       par.insertBefore(box, t);
       box.appendChild(t);
+      scrollHint(box);
     });
   }
+
+  /* Náznak, že tabulka pokračuje vpravo.
+
+     Vodorovný scroll bez okraje se pozná jedině tím, že do něj člověk
+     omylem šťouchne. Stín je `inset`, takže se s obsahem neposouvá,
+     a třídy se přepínají podle skutečné pozice — jakmile je konec
+     tabulky vidět, stín zmizí a neplete. */
+  function scrollHint(box){
+    const prepocet = () => {
+      const vpravo = box.scrollWidth - box.clientWidth - box.scrollLeft > 2;
+      const vlevo = box.scrollLeft > 2;
+      box.classList.toggle('more-r', vpravo);
+      box.classList.toggle('more-l', vlevo);
+    };
+    box.addEventListener('scroll', prepocet, {passive: true});
+    prepocet();
+    // Po vykreslení znovu: šířky tabulky nejsou hned po vložení konečné.
+    requestAnimationFrame(prepocet);
+    if('ResizeObserver' in window) new ResizeObserver(prepocet).observe(box);
+  }
+
   const app = document.getElementById('app');
-  if(app && 'MutationObserver' in window){
-    let queued = false;
-    new MutationObserver(() => {
-      if(queued) return;
-      queued = true;
-      requestAnimationFrame(() => { queued = false; wrapTables(); });
-    }).observe(app, {childList: true, subtree: true});
+  if(app){
+    if('MutationObserver' in window){
+      let busy = false;
+      new MutationObserver(() => {
+        if(busy) return;
+        busy = true;
+        try{ wrapTables(); } finally { busy = false; }
+      }).observe(app, {childList: true, subtree: true});
+    }
+    /* Poběží i bez pozorovatele. Dřív bylo `wrapTables()` uvnitř té
+       podmínky, takže prohlížeč bez MutationObserveru neobalil vůbec
+       nic a tabulky rozjížděly stránku natrvalo. */
     wrapTables();
   }
 

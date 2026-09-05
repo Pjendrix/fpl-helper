@@ -358,3 +358,5 @@ function squadBtn(entry, gw, jmeno, tym, cls){
     data-squad="${entry}" data-sqgw="${gw}" data-sqname="${esc(jmeno)}"
     data-sqteam="${esc(tym || '')}">${esc(jmeno)}</button>`;
 }
+// Body kola v okně se sestavou soupeře.
+volatile('squad', () => { SQ_LIVE = null; });

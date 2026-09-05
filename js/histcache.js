@@ -92,6 +92,7 @@ function histCredible(h){
 
 /* Vrací prázdný řetězec, když se řádek složit nedá. Prázdné pole `h`
    je poctivé „nevím“; devět nul je lež, kterou nikdo nepozná. */
+/** @param {Partial<FplEntryHistoryRow>|null} eh */
 function packHist(eh){
   if(!histCredible(eh)) return '';
   return [
@@ -107,6 +108,7 @@ function packHist(eh){
   ].join(':');
 }
 
+/** @param {string} str @param {number} gw @returns {FplEntryHistoryRow|null} */
 function unpackHist(str, gw){
   const n = String(str || '').split(':').map(Number);
   if(n.length < 9) return null;
@@ -467,6 +469,11 @@ async function snapHists(members, curId){
 
    Nemutuje vstup naslepo: když sestavy chybí nebo nemají
    `entry_history`, nechá řádek být i s jeho `null` poli. */
+/**
+ * @param {Array<FplEntryHistory|null>} hists
+ * @param {Array<FplPicks|null>} picks sestavy běžícího kola
+ * @param {number} curId
+ */
 function snapPatchCurrent(hists, picks, curId){
   if(!Array.isArray(hists) || !Array.isArray(picks)) return hists;
 

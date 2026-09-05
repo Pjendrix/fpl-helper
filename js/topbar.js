@@ -159,7 +159,7 @@
         <span class="sep" aria-hidden="true">·</span><b>bonusy</b>`;
       chip.title = 'Zápasy skončily, FPL ještě nepotvrdilo bonusové body';
     }else if(nxt){
-      const left = new Date(nxt.deadline_time) - Date.now();
+      const left = new Date(nxt.deadline_time).getTime() - Date.now();
       const d = Math.floor(left / 86400000), h = Math.floor(left / 3600000) % 24;
       const m = Math.floor(left / 60000) % 60;
       chip.className = 'state' + (left < 6 * 3600000 ? ' soon' : '');
@@ -287,7 +287,12 @@
       + ' <i class="chev" aria-hidden="true">▾</i>';
   }
 
+  // Argument o fokusu putuje skrz obal beze změny — viz mobile.js.
   const prevSelect = selectTab;
-  selectTab = function(tid){ prevSelect(tid); syncTop(); };
+  /* Přepis deklarované funkce je legální JS — jde o vlastnost globálního
+     objektu. Model tsc pro top-level `function` to ale nepokrývá a rušit
+     kvůli tomu deklaraci v core.js by rozbilo hoisting. */
+  // @ts-ignore
+  selectTab = function(tid, moveFocus){ prevSelect(tid, moveFocus); syncTop(); };
   syncTop();
 })();

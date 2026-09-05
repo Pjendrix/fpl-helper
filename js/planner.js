@@ -426,3 +426,4 @@ async function loadPlanner(){
     $('plnout').innerHTML = '';
   }
 }
+volatile('planner', () => { PLANNER = null; });

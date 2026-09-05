@@ -49,10 +49,11 @@ function dvojityDeadline(){
   if(!BOOT) return null;
   const dalsi = (BOOT.events || [])
     .filter(e => new Date(e.deadline_time).getTime() > Date.now())
-    .sort((a, b) => new Date(a.deadline_time) - new Date(b.deadline_time))
+    .sort((a, b) => new Date(a.deadline_time).getTime() - new Date(b.deadline_time).getTime())
     .slice(0, 2);
   if(dalsi.length < 2) return null;
-  const rozdil = new Date(dalsi[1].deadline_time) - new Date(dalsi[0].deadline_time);
+  const rozdil = new Date(dalsi[1].deadline_time).getTime()
+              - new Date(dalsi[0].deadline_time).getTime();
   return rozdil < 3 * 86400000 ? dalsi : null;
 }
 
@@ -230,7 +231,9 @@ async function applyHash(){
   const h = readHash();
   if(!h) return;
   if(h.gw && typeof H2H_GW !== 'undefined' && h.tab === 't-h2h') H2H_GW = h.gw;
-  selectTab(h.tab);
+  /* Odkaz z adresního řádku fokus nepřesouvá: uživatel právě přišel
+     zvenku a skok na navigační lištu by mu sebral začátek stránky. */
+  selectTab(h.tab, false);
 }
 
 window.addEventListener('hashchange', () => {

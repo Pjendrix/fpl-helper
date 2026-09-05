@@ -632,3 +632,9 @@ $('lgo').addEventListener('click', async () => {
   await loadLeague(lid);
   $('lgo').disabled = false;
 });
+/* Členství v lize je vlastnost ligy, ne týmu — po přepnutí na jinou se
+   musí zjistit znovu, jinak by appka tvrdila, že do ní patříš. */
+volatile('sync', () => {
+  LIGA_STAV = null;
+  LIGA_CHYBA = '';
+});
