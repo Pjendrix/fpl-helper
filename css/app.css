@@ -554,6 +554,14 @@ tr.click:hover td{background:var(--haze)}
   cursor:pointer;font-family:var(--f)}
 .hallmore[disabled]{opacity:.55;cursor:default}
 
+/* Na Přehledu je box užší než v Hubu — sloupce se stáhnou, ať se
+   tabulka vejde bez vodorovného posuvníku. */
+.hhall .hall{margin-bottom:6px}
+.hhall .hall th.c,.hhall .hall td.c{width:58px}
+.hhall .hall th,.hhall .hall td{padding:7px 8px}
+.hhall .hall td.c{font-size:14px}
+.hhall .note{margin:0}
+
 /* Rozsah, ze kterého se žebříčky sečetly. Bez něj se nedalo poznat,
    jestli „0“ znamená „nikdo nic neudělal“ nebo „nemám data“. */
 .boardsnote{margin:0 0 10px;font-size:12px;color:var(--mute)}
