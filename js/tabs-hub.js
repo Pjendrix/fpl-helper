@@ -514,26 +514,46 @@ function buildBoards(){
      GW2“ a člověk z toho přečetl „wildcard nemám“ — přestože ho měl
      od Vánoc zase k dispozici.
 
-     Ukazuje se proto jen probíhající polovina, a vedle toho, kolik
-     čipů komu v ní ještě zbývá. To je informace, kterou nikdo v lize
-     nemá jinak pohromadě. */
+     Ukazuje se proto jen probíhající polovina.
+
+     Řez je po žolíku, ne po hráči. Otázka, kvůli které se sem člověk
+     dívá, zní „je Bench Boost v lize ještě ve hře?“ — a na tu seznam
+     jmen s vypsanými čipy u každého odpovídal až po sečtení hlavou.
+     Proužek navíc unese i stav, kdy čip spálilo devět z deseti: tam
+     se formulace obrátí na „zbývá jen X“, takže nejhorší případ je
+     ten nejkratší. */
   const chipNames = {wildcard: 'Wildcard', '3xc': 'Triple captain',
                      bboost: 'Bench boost', freehit: 'Free hit', manager: 'Manager'};
   const SADA = ['wildcard', 'freehit', 'bboost', '3xc'];
   const tedPolovina = chipHalf(cur ? cur.id : 1);
+  const vsech = stats.length;
 
-  const chipRows = stats.map(s => {
-    const vTeto = (s.chips || []).filter(c => chipHalf(c.event) === tedPolovina);
-    const spalene = new Set(vTeto.map(c => c.name));
-    const zbyva = SADA.filter(k => !spalene.has(k)).length;
+  const chipRows = SADA.map(key => {
+    const uzili = stats.filter(s => (s.chips || []).some(
+      c => c.name === key && chipHalf(c.event) === tedPolovina));
+    const n = uzili.length;
+    const jmeno = s => `<span class="${s.m.entry === myId ? 'me' : ''}">${
+      esc(s.m.player_name)}</span>`;
 
-    // Kdo v téhle polovině nic nespálil, do seznamu nepatří — jinak by
-    // karta byla soupiska ligy, ne přehled čipů.
-    if(!vTeto.length) return '';
-    return `<li>${esc(s.m.player_name)} <span>${vTeto.map(c =>
-      (chipNames[c.name] || c.name) + ' GW' + c.event).join(', ')}${
-      zbyva ? ' · zbývá ' + zbyva : ' · nic'}</span></li>`;
-  }).filter(Boolean).join('');
+    /* Tři tvary popisku podle toho, čeho je míň — jmen, co spálila,
+       nebo jmen, co zbývají. Vypsat devět jmen a nechat čtenáře
+       dopočítat desáté je práce navíc za nic. */
+    let kdo;
+    if(!n) kdo = '<span class="mute">zatím nikdo</span>';
+    else if(n === vsech) kdo = 'všichni';
+    else if(vsech - n <= 2 && vsech > 4){
+      const zbyli = stats.filter(s => !uzili.includes(s));
+      kdo = '<span class="mute">zbývá' + (zbyli.length === 1 ? ' jen ' : ' ')
+        + '</span>' + zbyli.map(jmeno).join(', ');
+    }
+    else kdo = uzili.map(jmeno).join(', ');
+
+    const podil = vsech ? Math.round(n / vsech * 100) : 0;
+    return `<div class="chiprow"><span class="nm">${esc(chipNames[key] || key)}</span>
+      <span class="bar"><i style="width:${podil}%"></i></span>
+      <span class="ct">${n}/${vsech}</span></div>
+      <p class="chipwho">${kdo}</p>`;
+  }).join('');
 
   return `<p class="boardsnote">${esc(rozsah)}</p>
   <div class="boards">
@@ -546,9 +566,9 @@ function buildBoards(){
             pick(s => (s.value && s.total !== null) ? s.total / s.value : null),
             v => v.toFixed(1))}
     <div class="board">
-      <h4>Spálené žolíky</h4>
+      <h4>Žolíky</h4>
       <p class="cap">${esc('Kdo už co použil · ' + chipHalfName(tedPolovina))}</p>
-      <ol>${chipRows || '<li style="list-style:none;margin-left:-19px;color:var(--mute)">V téhle polovině zatím nikdo.</li>'}</ol>
+      <div class="chips-board">${chipRows}</div>
     </div>
   </div>`;
 }
