@@ -1,0 +1,41 @@
+{
+  "//": [
+    "Typová kontrola bez build stepu.",
+    "",
+    "Projekt je vědomě bez bundleru a to se tímhle nemění: `tsc` tu běží",
+    "s `noEmit`, takže je to lint, ne překladač. Nasazení se nemění ani",
+    "o řádek, v runtime nepřibývá žádná závislost.",
+    "",
+    "`strict` je vypnutý schválně. Cílem není přepsat 21 tisíc řádků do",
+    "TypeScriptu, ale chytat překlepy v názvech polí z FPL API — přesně",
+    "tu třídu chyb, kdy se pole při zápisu přejmenuje a čte se dál pod",
+    "starým jménem. Zapnout `strict` teď by znamenalo tisíce hlášek,",
+    "test by se přestal spouštět a nechytal by nic.",
+    "",
+    "moduleDetection zůstává výchozí. Soubory v js/ se načítají jako",
+    "klasické <script> a sdílejí jeden globální scope — kdyby je tsc",
+    "považoval za moduly, neviděl by přes hranici souboru a nahlásil by",
+    "tisíc chyb typu 'Cannot find name BOOT'.",
+    "",
+    "api/ a worker.js se nekontrolují: běží na Vercelu a v Cloudflare",
+    "Workeru, tedy nad jinými globály (process, Buffer, Request). Kvůli",
+    "třem souborům přidávat @types/node a typy Workeru nestojí za to —",
+    "hodnota je v js/, kde se čtou struktury z FPL API.",
+    "",
+    "Spuštění: npm run typecheck"
+  ],
+  "compilerOptions": {
+    "checkJs": true,
+    "allowJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": false,
+    "noImplicitAny": false,
+    "types": []
+  },
+  "include": ["js/**/*.js", "js/types.d.ts"],
+  "exclude": ["node_modules", "test.mjs"]
+}

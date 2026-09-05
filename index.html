@@ -8,16 +8,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=Inter:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/app.css">
+<!-- ?v= je ruční otisk verze. Bez build stepu se hashované názvy
+     souborů udělat nedají, ale query parametr dělá totéž: mění URL,
+     takže smí mít max-age na rok (viz vercel.json) a přesto se po
+     nasazení načte nová. Číslo se zvyšuje spolu s SHELL v sw.js —
+     obě čísla musí sedět, jinak service worker předcachuje jiné
+     URL, než jaké stránka žádá. Hlídá to test. -->
+<link rel="stylesheet" href="/css/app.css?v=30">
 
 <!-- Responzivní pravidla. Atribut media se dá za běhu přepsat, takže
      přepínač Desktop/Mobil nemusí mít vlastní kopie pravidel. -->
-<link id="mqL" rel="stylesheet" media="(max-width:720px)" href="/css/narrow.css">
-<link id="mqS" rel="stylesheet" media="(max-width:640px)" href="/css/small.css">
+<link id="mqL" rel="stylesheet" media="(max-width:720px)" href="/css/narrow.css?v=30">
+<link id="mqS" rel="stylesheet" media="(max-width:640px)" href="/css/small.css?v=30">
 
 <!-- Mobilní skořápka. Vlastní tag, ať s ním umí hýbat přepínač zobrazení
      (viz VIEW_MQ) stejně jako s mqL a mqS. -->
-<link id="mqM" rel="stylesheet" media="(max-width:720px)" href="/css/mobile.css">
+<link id="mqM" rel="stylesheet" media="(max-width:720px)" href="/css/mobile.css?v=30">
   <meta name="description" content="Kontrola FPL sestavy, miniligy a rozpisu na dalších šest kol.">
   <meta name="theme-color" content="#37003C">
   <meta name="mobile-web-app-capable" content="yes">
@@ -274,7 +280,7 @@
     </div>
 
     <div class="panel" id="p-planner" role="tabpanel" tabindex="-1" aria-labelledby="t-planner" hidden>
-      <p class="hint"><b>K čemu to je:</b> záložka Transfery řeší „koho vyměnit teď“.
+      <p class="hint"><b>K čemu to je:</b> Poradce řeší „koho vyměnit teď“.
         Tady si naopak vyzkoušíš, jestli se vyplatí počkat. Naklikáš tahy do
         následujících čtyř kol a appka spočítá, kolik zbude v bance, kolik ti
         zůstane volných přestupů a jestli za některý tah zaplatíš 4 body.
@@ -284,8 +290,12 @@
     </div>
 
     <div class="panel" id="p-plan" role="tabpanel" tabindex="-1" aria-labelledby="t-plan" hidden>
-      <p class="hint">Rozpis na šest kol dopředu, blanky a doubly, kdo dnes v noci zdraží
-        a kdy má smysl vyhořet čip.</p>
+      <!-- Text musí sedět s tím, co loadPlan() opravdu vykreslí. Sliboval
+           ceny, které mají od té doby vlastní záložku, a doporučení čipů,
+           které bylo odstraněno — obojí posílalo člověka hledat něco,
+           co tady není. -->
+      <p class="hint">Rozpis na šest kol dopředu a přehled blanků a doublů
+        pro celý kádr.</p>
       <div id="plmsg" role="status" aria-live="polite"></div>
       <div id="plout"></div>
     </div>
@@ -322,26 +332,30 @@
      Rules, ne to, že klíč není vidět. Prázdný config je v pořádku:
      sync se prostě nezapne a appka běží dál na localStorage.
      ============================================================ -->
-<script type="module" src="/js/firebase.js"></script>
+<script type="module" src="/js/firebase.js?v=30"></script>
 
 <!-- Pořadí není libovolné. Klasické skripty sdílejí globální scope, ale
      hoisting přes hranici souboru neplatí: core.js definuje CONFIG, cache,
      load() a selectTab, na kterých stojí všechno ostatní, a boot.js jako
      poslední spouští appku. mobile.js musí být před ním — přepisuje
      selectTab a čte TABS. -->
-<script src="/js/core.js"></script>
-<script src="/js/tabs.js"></script>
-<script src="/js/status.js"></script>
-<script src="/js/squad.js"></script>
-<script src="/js/h2h.js"></script>
-<script src="/js/advisor.js"></script>
-<script src="/js/news.js"></script>
-<script src="/js/ui.js"></script>
-<script src="/js/planner.js"></script>
-<script src="/js/histcache.js"></script>
-<script src="/js/sync.js"></script>
-<script src="/js/topbar.js"></script>
-<script src="/js/mobile.js"></script>
-<script src="/js/boot.js"></script>
+<script src="/js/core.js?v=30"></script>
+<script src="/js/tabs.js?v=30"></script>
+<script src="/js/tabs-players.js?v=30"></script>
+<script src="/js/tabs-hub.js?v=30"></script>
+<script src="/js/tabs-prices.js?v=30"></script>
+<script src="/js/tabs-league.js?v=30"></script>
+<script src="/js/status.js?v=30"></script>
+<script src="/js/squad.js?v=30"></script>
+<script src="/js/h2h.js?v=30"></script>
+<script src="/js/advisor.js?v=30"></script>
+<script src="/js/news.js?v=30"></script>
+<script src="/js/ui.js?v=30"></script>
+<script src="/js/planner.js?v=30"></script>
+<script src="/js/histcache.js?v=30"></script>
+<script src="/js/sync.js?v=30"></script>
+<script src="/js/topbar.js?v=30"></script>
+<script src="/js/mobile.js?v=30"></script>
+<script src="/js/boot.js?v=30"></script>
 </body>
 </html>

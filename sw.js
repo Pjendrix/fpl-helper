@@ -9,18 +9,34 @@
 // (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
 // nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v29';
+const SHELL = 'squadcheck-shell-v30';
 const BADGES = 'squadcheck-badges-v1';
+
+/* Otisk verze statiky. MUSÍ sedět s ?v= v index.html.
+
+   Když se rozejdou, service worker předcachuje jiné URL, než jaké
+   stránka požaduje — offline by pak byla skořápka bez skriptů, tedy
+   prázdná stránka. Že to sedí, hlídá test. */
+const V = '30';
+const s = (p) => p + '?v=' + V;
+
 const FILES = ['/', '/index.html', '/manifest.webmanifest',
                '/icon.svg', '/favicon.svg', '/club-marks.svg',
                // Styly a skripty jsou od rozdělení index.html samostatné
                // soubory. Bez nich by se offline načetla prázdná skořápka:
                // HTML by bylo z cache, ale appka by neměla čím naběhnout.
-               '/css/app.css', '/css/narrow.css', '/css/small.css',
-               '/css/mobile.css',
-               '/js/core.js', '/js/tabs.js', '/js/ui.js', '/js/planner.js',
-               '/js/h2h.js', '/js/status.js', '/js/squad.js', '/js/news.js', '/js/advisor.js', '/js/histcache.js', '/js/sync.js', '/js/topbar.js', '/js/mobile.js', '/js/boot.js',
-               '/js/firebase.js',
+               s('/css/app.css'), s('/css/narrow.css'), s('/css/small.css'),
+               s('/css/mobile.css'),
+               /* Pořadí odpovídá index.html. Skupina tabs*.js vznikla
+                  rozdělením jednoho souboru o 4 200 řádcích. */
+               s('/js/core.js'),
+               s('/js/tabs.js'), s('/js/tabs-players.js'), s('/js/tabs-hub.js'),
+               s('/js/tabs-prices.js'), s('/js/tabs-league.js'),
+               s('/js/status.js'), s('/js/squad.js'), s('/js/h2h.js'),
+               s('/js/advisor.js'), s('/js/news.js'), s('/js/ui.js'),
+               s('/js/planner.js'), s('/js/histcache.js'), s('/js/sync.js'),
+               s('/js/topbar.js'), s('/js/mobile.js'), s('/js/boot.js'),
+               s('/js/firebase.js'),
                /* Plakát a loga: velké, neměnné, a bez nich vypadá vstup
                   rozbitě. `logo.webp` tu bylo taky — jenže na něj nikde
                   nevede odkaz, takže se 19 kB stahovalo a drželo offline

@@ -89,7 +89,9 @@ function inlineScripts(html){
   return html.replace(
     /<script([^>]*?)\ssrc="(\/[^"]+)"([^>]*)><\/script>/g,
     (all, a, src, b) => {
-      const code = fs.readFileSync('.' + src, 'utf8');
+      // ?v=NN je otisk verze pro cache (viz index.html), ne součást
+      // cesty na disku — bez odstranění by readFileSync spadl.
+      const code = fs.readFileSync('.' + src.replace(/\?.*$/, ''), 'utf8');
       // </script> uvnitř řetězce v kódu by tag ukončil předčasně.
       return '<script' + a + b + '>' +
              code.replace(/<\/script>/g, '<\\/script>') + '</script>';
@@ -97,6 +99,20 @@ function inlineScripts(html){
 }
 
 const html=inlineScripts(fs.readFileSync('index.html','utf8'));
+
+/* Skupina js/tabs*.js jako jeden zdroj.
+
+   Do verze 2.0 to byl jeden soubor o 4 200 řádcích; testy, které
+   kontrolují tvar kódu, si ho načítaly přímo. Po rozdělení by hlásily
+   chybějící kód jen proto, že se přestěhoval — stejně jako se to stalo
+   u `resetVolatile()`. Pořadí odpovídá index.html, takže se `indexOf`
+   chová stejně jako předtím.
+
+   Že se soubory načítají ve správném pořadí a všechny, hlídá zvlášť
+   test „skupina tabs*.js se načítá celá a ve správném pořadí“. */
+const TABS_FILES = ['js/tabs.js', 'js/tabs-players.js', 'js/tabs-hub.js',
+                    'js/tabs-prices.js', 'js/tabs-league.js'];
+const TABS_SRC = TABS_FILES.map(f => fs.readFileSync(f, 'utf8')).join('\n');
 
 /* Zdroj appky. Testy, které kontrolují CSS pravidla nebo tvar kódu, si
    dřív načítaly index.html — ten měl ale všechno v sobě. Po rozdělení
@@ -110,8 +126,10 @@ const CSS_TAGS = [
 ];
 const SRC = [fs.readFileSync('index.html', 'utf8')]
   .concat(CSS_TAGS.map(([f, tag]) => tag + fs.readFileSync(f, 'utf8') + '</style>'))
-  .concat(['js/core.js','js/tabs.js','js/status.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js','js/histcache.js','js/ui.js','js/planner.js','js/sync.js','js/topbar.js',
-           'js/mobile.js','js/boot.js','js/firebase.js']
+  .concat(['js/core.js'].concat(TABS_FILES).concat(
+          ['js/status.js','js/squad.js','js/h2h.js','js/news.js','js/advisor.js',
+           'js/histcache.js','js/ui.js','js/planner.js','js/sync.js','js/topbar.js',
+           'js/mobile.js','js/boot.js','js/firebase.js'])
     .map(f => fs.readFileSync(f, 'utf8')))
   .join('\n');
 
@@ -1399,7 +1417,7 @@ check('plánovač vysvětlí, k čemu je', () => {
 check('obě místa s cenami mají stejnou značku', () => {
   // Ceny se vykreslují dvakrát — v Hubu a na Přehledu. Když se jedno
   // místo změní a druhé ne, rozpadne se rovnou to, které se zapomnělo.
-  const hub = fs.readFileSync('js/tabs.js', 'utf8');
+  const hub = TABS_SRC;
   const home = fs.readFileSync('js/core.js', 'utf8');
   for(const [jm, src] of [['Hub', hub], ['Přehled', home]]){
     if(!src.includes('<div class="medal"'))
@@ -2502,7 +2520,7 @@ check('žebříček označí sestavu i s medailí na řádku', () => {
 check('psaní do hledání watchlist samo nemění', () => {
   /* Dřív se po třetím znaku přidal nejlepší shodný hráč rovnou do
      watchlistu — kdo hledal Fernandese, dostal po „fer“ Wieffera. */
-  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const src = TABS_SRC;
   const fn = src.slice(src.indexOf('function wireWatch'),
                        src.indexOf('function wireWatch') + 3000);
   const naInput = fn.slice(fn.indexOf("q.addEventListener('input'"), 
@@ -3102,7 +3120,7 @@ check('Transfery jsou vypnuté a jejich práci převzal Poradce', () => {
 
 check('prodejní cena se už ručně nepřepisuje', () => {
   // Editor zmizel se záložkou; nákupní cena z transfers/ je přesnější.
-  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const src = TABS_SRC;
   const fn = src.slice(src.indexOf('function sellPrice'),
                        src.indexOf('function sellPrice') + 220);
   if(/loadSell/.test(fn))
@@ -4054,8 +4072,8 @@ check('chyba nabízí zkusit znovu, ne reload stránky', () => {
   const html = w.eval("errBox('FPL API vrátilo 403.', 't-h2h')");
   if(!/data-retry=/.test(html)) throw new Error('chybí tlačítko');
   if(!/role="alert"/.test(html)) throw new Error('odečítač se o chybě nedozví');
-  const src = ['js/core.js', 'js/tabs.js', 'js/news.js', 'js/advisor.js']
-    .map(f => fs.readFileSync(f, 'utf8')).join('');
+  const src = ['js/core.js', 'js/news.js', 'js/advisor.js']
+    .map(f => fs.readFileSync(f, 'utf8')).join('') + TABS_SRC;
   if(/msg'\)\.textContent = e\.message/.test(src))
     throw new Error('někde zůstala hláška bez tlačítka');
   return 'errBox všude';
@@ -4166,7 +4184,7 @@ check('okno drží fokus a zavírá se tlačítkem Zpět', () => {
 
 check('sestavu jde otevřít i z pořadí ligy a ze síně slávy', () => {
   const core = fs.readFileSync('js/core.js', 'utf8');
-  const tabs = fs.readFileSync('js/tabs.js', 'utf8');
+  const tabs = TABS_SRC;
   if(!/squadBtn\(m\.entry, cur\.id/.test(core))
     throw new Error('v pořadí ligy nejsou jména klikatelná');
   if((tabs.match(/squadBtn\(/g) || []).length < 3)
@@ -4790,21 +4808,92 @@ check('obnovení vyhodí i bootstrap a rozpis', () => {
   return 'cache, bootstrap, rozpis i stav záložek';
 });
 
-check('úklid je jeden, ne dva rozejité seznamy', () => {
+/* Odvozený stav se ověřuje spuštěním, ne čtením zdroje.
+
+   Dřív tenhle test hledal v těle `resetVolatile()` řetězce jako
+   `HUB = null`. Prošel by i tehdy, kdyby ten řádek stál v mrtvé větvi,
+   a naopak spadl při každém přejmenování — což se při rozdělení úklidu
+   do registru VOLATILE stalo. Test má hlídat výsledek: po úklidu je
+   proměnná ve výchozím stavu. Jak se to stane, je věc kódu. */
+const VOLATILE_CEKANI = [
+  ['HUB', null], ['HUB_FOR_HOME', false], ['HUB_HOME_ERR', null],
+  ['NEWS_FOR_HOME', false], ['NEWS_HOME_ERR', null], ['NEWS_GW', null],
+  ['HALL_ALL', false], ['STALE_USED', null], ['SQ_LIVE', null],
+  ['PLAYERS', null], ['LEAGUE_OWN', null], ['TR_STATE', null],
+  ['BUY_COST', null], ['PLANNER', null],
+  ['H2H_CACHE', null], ['H2H_FROZEN_LID', null], ['H2H_LIVE', null],
+  ['H2H_HOME_GW', null], ['H2H_TIMER', null],
+  ['LIGA_STAV', null], ['LIGA_CHYBA', ''],
+];
+
+check('úklid opravdu uklidí každý kus odvozeného stavu', () => {
   /* Regrese k zaseknutému boxu s cenami: `hardReload()` nulovalo HUB,
-     ale ne HUB_FOR_HOME, takže Přehled zůstal na kostře napořád.
-     Příčinou byly dva ručně udržované seznamy proměnných. */
-  if(!RESET_FN) throw new Error('resetVolatile() neexistuje');
+     ale ne HUB_FOR_HOME, takže Přehled zůstal na kostře napořád. */
+  const puvodni = {};
+  for(const [jm] of VOLATILE_CEKANI) puvodni[jm] = w.eval(jm);
+
+  try{
+    // Zašpiníme úplně všechno, ať se nedá projít náhodou.
+    w.eval("HUB = {x:1}; HUB_FOR_HOME = true; HUB_HOME_ERR = 'x'");
+    w.eval("NEWS_FOR_HOME = true; NEWS_HOME_ERR = 'x'; NEWS_GW = 7; HALL_ALL = true");
+    w.eval('STALE_USED = 123; SQ_LIVE = {}; PLAYERS = []; LEAGUE_OWN = {}');
+    w.eval('TR_STATE = {}; BUY_COST = {}; PLANNER = {}');
+    w.eval("H2H_CACHE = {}; H2H_FROZEN_LID = '9'; H2H_LIVE = {}; H2H_HOME_GW = 3");
+    w.eval("LIGA_STAV = 'clen'; LIGA_CHYBA = 'x'");
+    w.eval('NEWS_PICKS.set(1, []); NEWS_LIVE.set(1, {}); H2H_FROZEN = {9: 1}');
+
+    w.eval('resetVolatile()');
+
+    for(const [jm, ceka] of VOLATILE_CEKANI){
+      const je = w.eval(jm);
+      if(je !== ceka)
+        throw new Error(jm + ' zůstalo ' + JSON.stringify(je));
+    }
+    if(w.eval('NEWS_PICKS.size') || w.eval('NEWS_LIVE.size'))
+      throw new Error('sestavy a body kola po úklidu zůstaly');
+    if(Object.keys(w.eval('H2H_FROZEN')).length)
+      throw new Error('zamrazená kola po úklidu zůstala');
+    if(w.eval('API_CACHE.size')) throw new Error('cache po úklidu zůstala');
+  } finally {
+    for(const [jm] of VOLATILE_CEKANI){
+      w.__v = puvodni[jm];
+      w.eval(jm + ' = window.__v');
+    }
+  }
+  return VOLATILE_CEKANI.length + ' kusů stavu';
+});
+
+check('každý soubor s odvozeným stavem se hlásí do registru', () => {
+  /* Smysl registru je, že seznam leží u proměnné, které se týká — jinak
+     se ty dvě věci zase rozejdou. Kdo takový stav drží, musí se
+     zaregistrovat; jinak by ho `resetVolatile()` minul a nikde by to
+     nespadlo, protože jsou to „jen“ příznaky. */
+  const jmena = w.eval('VOLATILE.map(v => v.jmeno)');
+  for(const j of ['core', 'tabs', 'news', 'h2h', 'squad', 'planner', 'sync'])
+    if(!jmena.includes(j)) throw new Error('nehlásí se ' + j);
 
   const reset = SRC.slice(SRC.indexOf('function resetState()'),
                           SRC.indexOf('function resetState()') + 2000);
   if(!/resetVolatile\(\)/.test(reset))
     throw new Error('resetState() si úklid dělá po svém');
+  return jmena.length + ' registrací';
+});
 
-  for(const v of ['HUB = null', 'HUB_FOR_HOME = false', 'HUB_HOME_ERR = null', 'NEWS_FOR_HOME = false',
-                  'STALE_USED = null', 'SQ_LIVE = null', 'H2H_FROZEN_LID = null'])
-    if(!RESET_FN.includes(v)) throw new Error('chybí ' + v);
-  return 'obě cesty jedním seznamem';
+check('rozbitý úklid nesmí shodit ty ostatní', () => {
+  /* Jinak by chyba v jednom souboru nechala appku v půlce starého
+     stavu, což je horší než ten stav celý. */
+  w.eval("VOLATILE.push({jmeno: 'test-rozbity', reset: () => { throw new Error('bum'); }})");
+  const puv = w.eval('STALE_USED');
+  try{
+    w.eval('STALE_USED = 123');
+    w.eval('resetVolatile()');
+    if(w.eval('STALE_USED') !== null)
+      throw new Error('jeden výjimkou shodil zbytek úklidu');
+  } finally {
+    w.eval("VOLATILE.splice(VOLATILE.findIndex(v => v.jmeno === 'test-rozbity'), 1)");
+    w.__v = puv; w.eval('STALE_USED = window.__v');
+  }
+  return 'ostatní doběhnou';
 });
 
 check('nepovedené načtení ligy skončí hláškou, ne věčnou kostrou', () => {
@@ -5157,7 +5246,10 @@ check('přepínač označí právě jedno kolo', () => {
 });
 
 check('výběr kola se nepřenese na jiný tým', () => {
-  if(!/NEWS_GW = null/.test(RESET_FN) || !/NEWS_PICKS\.clear\(\)/.test(RESET_FN))
+  // Ověřeno spuštěním, ne čtením zdroje — viz komentář u VOLATILE_CEKANI.
+  w.eval('NEWS_GW = 7; NEWS_PICKS.set(7, [])');
+  w.eval('resetVolatile()');
+  if(w.eval('NEWS_GW') !== null || w.eval('NEWS_PICKS.size'))
     throw new Error('po přepnutí týmu by zůstalo cizí kolo i cizí sestavy');
   return 'reset čistí';
 });
@@ -5261,7 +5353,7 @@ check('starší kolo bez historie se dopočítá ze sestav', () => {
 });
 
 check('síň slávy nemizí spolu s prázdným kolem', () => {
-  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const src = TABS_SRC;
   const blok = src.slice(src.indexOf('if(!awards.length && !news.length)'),
                          src.indexOf('if(!awards.length && !news.length)') + 700);
   if(!/hallPanel\(\)/.test(blok))
@@ -5361,7 +5453,9 @@ check('panel ukáže ceny, novinky i síň slávy', () => {
 });
 
 check('výběr kola nechá i body hráčů cizímu týmu', () => {
-  if(!/NEWS_LIVE\.clear\(\)/.test(RESET_FN) || !/HALL_ALL = false/.test(RESET_FN))
+  w.eval('NEWS_LIVE.set(7, {elements: []}); HALL_ALL = true');
+  w.eval('resetVolatile()');
+  if(w.eval('NEWS_LIVE.size') || w.eval('HALL_ALL') !== false)
     throw new Error('po přepnutí týmu by zůstala cizí síň slávy');
   return 'reset čistí i ceny';
 });
@@ -5655,7 +5749,7 @@ check('Zranění jsou samostatná záložka mezi Zpravodajem a Top hráči', () 
 check('výchozí zobrazení je Celá liga', () => {
   const poradi = w.eval('INJ_VIEWS.map(v => v[0])');
   if(poradi[0] !== 'all') throw new Error('první přepínač je ' + poradi[0]);
-  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const src = TABS_SRC;
   if(!/let INJ = \{view: 'all'/.test(src))
     throw new Error('výchozí stav INJ není celá liga');
   return poradi.join(' → ');
@@ -5743,7 +5837,7 @@ check('tabulka nabízí řazení a hvězdičku ke každému řádku', () => sZra
 
 check('záložka Zranění nestahuje nic navíc', () => {
   // Všechno je v bootstrapu, který appka stahuje kvůli Sestavě.
-  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const src = TABS_SRC;
   const i = src.indexOf('function loadInjuries');
   const blok = src.slice(i, i + 2200);
   if(/\bapi\(|cached\(/.test(blok))
@@ -5937,7 +6031,7 @@ check('archiv se nezapisuje z neúplného kola', () => {
 });
 
 check('do archivu jde jen dopočítané kolo', () => {
-  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const src = TABS_SRC;
   const fn = src.slice(src.indexOf('async function nactiKolo'),
                        src.indexOf('async function nactiCelouSezonu'));
   if(!/const konecne = gwPhase\(g\) === 'final'/.test(fn))
@@ -6069,7 +6163,9 @@ check('appka bez kódu neumře, jen se nesdílí', () => {
 check('členství se po přepnutí ligy zjišťuje znovu', () => {
   /* Je to vlastnost ligy, ne týmu. Bez tohohle by appka po přepnutí
      tvrdila, že do nové ligy patříš. */
-  if(!/LIGA_STAV = null/.test(RESET_FN))
+  w.eval("LIGA_STAV = 'clen'");
+  w.eval('resetVolatile()');
+  if(w.eval('LIGA_STAV') !== null)
     throw new Error('resetVolatile() na členství zapomíná');
   const sync = fs.readFileSync('js/sync.js', 'utf8');
   const auth = sync.slice(sync.indexOf('window.FB.onUser'),
@@ -6286,7 +6382,7 @@ check('historie z archivu nahradí dotaz na každého člena', () => {
   /* entry/{id}/history/ je dotaz NA ČLENA — právě on dělá z otevření
      Hubu deset dotazů u vaší ligy a sto u stočlenné. Dohraná kola má
      archiv, běžící dodá pořadí ligy. */
-  const tabs = fs.readFileSync('js/tabs.js', 'utf8');
+  const tabs = TABS_SRC;
   const core = fs.readFileSync('js/core.js', 'utf8');
   for(const [jm, src] of [['tabs.js', tabs], ['core.js', core]]){
     if(!/await snapHists\(members, cur\.id\)/.test(src))
@@ -6636,7 +6732,7 @@ check('sekce je na Přehledu nad Zpravodajem', () => {
 });
 
 check('sekce si data nestahuje sama, veze se s Hubem', () => {
-  const src = fs.readFileSync('js/tabs.js', 'utf8');
+  const src = TABS_SRC;
   const fn = src.slice(src.indexOf('function homeGwLeague'),
                        src.indexOf('function buildHealth'));
   if(/\bapi\(|cached\(|pooled\(/.test(fn))
@@ -6644,6 +6740,300 @@ check('sekce si data nestahuje sama, veze se s Hubem', () => {
   if(!/homeHubPending/.test(fn))
     throw new Error('bez Hubu se nikdy nenačte');
   return 'nula dotazů navíc';
+});
+
+check('skupina tabs*.js se načítá celá a ve správném pořadí', () => {
+  /* Rozdělení bylo mechanické: soubory sdílejí jeden globální scope
+     a hoisting přes hranici souboru neplatí, takže pořadí je kontrakt.
+     Vynechaný soubor se navíc neprojeví jako chyba načtení, ale jako
+     „X is not defined“ až při otevření té jedné záložky. */
+  const html = fs.readFileSync('index.html', 'utf8');
+  const sw = fs.readFileSync('sw.js', 'utf8');
+
+  let posledni = -1;
+  for(const f of TABS_FILES){
+    const cesta = '/' + f;
+    const i = html.indexOf(cesta + '?');
+    if(i < 0) throw new Error(cesta + ' chybí v index.html');
+    if(i < posledni) throw new Error(cesta + ' je v index.html mimo pořadí');
+    posledni = i;
+    if(!sw.includes("s('" + cesta + "')"))
+      throw new Error(cesta + ' chybí v FILES service workeru');
+  }
+
+  // core.js musí být první: definuje $, esc, api, TABS.
+  if(html.indexOf('/js/core.js') > html.indexOf('/js/tabs.js'))
+    throw new Error('core.js se načítá až po tabs.js');
+  return TABS_FILES.length + ' souborů';
+});
+
+check('žádný soubor tabs*.js nepřerostl přes hlavu', () => {
+  /* Důvod rozdělení byl jeden soubor o 4 200 řádcích s osmi
+     nesouvisejícími sekcemi. Bez stropu se to za rok sejde znovu —
+     jen v jiném souboru. */
+  for(const f of TABS_FILES){
+    const n = fs.readFileSync(f, 'utf8').split('\n').length;
+    if(n > 1400) throw new Error(f + ' má ' + n + ' řádků, je čas dělit');
+  }
+  return 'nejdelší ' + Math.max(...TABS_FILES.map(f =>
+    fs.readFileSync(f, 'utf8').split('\n').length)) + ' řádků';
+});
+
+check('otisk verze statiky sedí mezi index.html a sw.js', () => {
+  /* Když se rozejdou, service worker předcachuje jiné URL, než jaké
+     stránka žádá — offline by pak byla skořápka bez skriptů, tedy
+     prázdná stránka. A protože se to projeví jen offline, nikdo by si
+     toho při nasazení nevšiml. */
+  const html = fs.readFileSync('index.html', 'utf8');
+  const sw = fs.readFileSync('sw.js', 'utf8');
+
+  const vSw = /const V = '(\d+)'/.exec(sw);
+  if(!vSw) throw new Error('sw.js nemá otisk verze');
+
+  const verze = new Set([...html.matchAll(/\/(?:js|css)\/[a-z0-9.-]+\.(?:js|css)\?v=(\d+)/g)]
+    .map(m => m[1]));
+  if(!verze.size) throw new Error('index.html nemá u statiky ?v=');
+  if(verze.size > 1)
+    throw new Error('index.html míchá verze: ' + [...verze].join(', '));
+  if([...verze][0] !== vSw[1])
+    throw new Error('index.html má v=' + [...verze][0] + ', sw.js V=' + vSw[1]);
+
+  // Každý <script src> a <link href> na vlastní statiku musí verzi mít.
+  const bez = [...html.matchAll(/(?:src|href)="(\/(?:js|css)\/[^"]+)"/g)]
+    .map(m => m[1]).filter(u => !u.includes('?v='));
+  if(bez.length) throw new Error('bez otisku verze: ' + bez.join(', '));
+  return 'v' + vSw[1];
+});
+
+check('dlouhá cache jde jen na URL, které nesou verzi', () => {
+  /* `immutable` na neverzované URL znamená, že se uživateli rok
+     nedostane oprava. Ta dvě rozhodnutí musí platit společně. */
+  const vercel = JSON.parse(fs.readFileSync('vercel.json', 'utf8'));
+  const staticka = vercel.headers.find(h => h.source === '/(css|js)/(.*)');
+  if(!staticka) throw new Error('statika nemá vlastní hlavičky');
+  const cc = staticka.headers.find(h => h.key === 'Cache-Control').value;
+  if(!/immutable/.test(cc)) throw new Error('statika se pořád revaliduje: ' + cc);
+
+  // index.html a sw.js naopak dlouhou cache mít NESMÍ — jsou to jediná
+  // místa, odkud se o nových verzích dozvíme.
+  for(const src of ['/(index.html)?', '/sw.js']){
+    const h = vercel.headers.find(x => x.source === src);
+    const v = h && h.headers.find(x => x.key === 'Cache-Control').value;
+    if(!v || !/max-age=0/.test(v))
+      throw new Error(src + ' má dlouhou cache: ' + v);
+  }
+  return 'verzované ano, vstupní body ne';
+});
+
+check('typová kontrola je nastavená a nic negeneruje', () => {
+  /* Projekt je vědomě bez build stepu. `tsc` tu smí být jen jako lint —
+     kdyby začal generovat, nasazení by přestalo odpovídat zdroji. */
+  // Klíč "//" nese vysvětlení v poli řetězců; JSON.parse ho zvládne,
+  // jen se na něj nesmíme ptát.
+  const cfg = JSON.parse(fs.readFileSync('jsconfig.json', 'utf8'));
+  if(cfg.compilerOptions.noEmit !== true)
+    throw new Error('tsc by generoval výstup');
+  if(cfg.compilerOptions.checkJs !== true)
+    throw new Error('kontrola JS je vypnutá, config nic nedělá');
+
+  const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  if(!pkg.scripts.typecheck) throw new Error('chybí npm run typecheck');
+  if(pkg.dependencies) throw new Error('typescript se dostal do runtime závislostí');
+
+  // Tvary z FPL API musí být popsané — kvůli nim to celé je.
+  const t = fs.readFileSync('js/types.d.ts', 'utf8');
+  for(const i of ['FplElement', 'FplPicks', 'FplEntryHistoryRow', 'FplStandingsMember'])
+    if(!t.includes('interface ' + i)) throw new Error('chybí typ ' + i);
+  return 'lint, ne překladač';
+});
+
+check('žolíky se počítají po polovinách sezóny', () => {
+  /* Od 2024/25 se čipy první sady po deadlinu GW19 ztrácejí a od GW20
+     má každý sadu novou. Bez rozdělení tabulka v březnu tvrdila
+     „Wildcard GW2“ o někom, kdo ho měl od Vánoc zase k dispozici. */
+  if(w.eval('chipHalf(19)') !== 1 || w.eval('chipHalf(20)') !== 2)
+    throw new Error('hranice poloviny sezóny nesedí na GW20');
+
+  const members = [{entry: 1, player_name: 'Adam', total: 900, event_total: 50},
+                   {entry: 2, player_name: 'Filip', total: 880, event_total: 45}];
+  const rada = g => ({round: g, event: g, points: 50, total_points: 50 * g,
+    event_transfers: 0, event_transfers_cost: 0, points_on_bench: 2, value: 1000});
+  const hists = [
+    {current: [rada(1), rada(25)], chips: [{name: 'wildcard', event: 2},
+                                           {name: 'bboost', event: 24}]},
+    {current: [rada(1), rada(25)], chips: [{name: 'wildcard', event: 3}]},
+  ];
+  w.__hub = {st: {league: {name: 'T'}}, members, hists, cur: {id: 25}, picks: []};
+  const puv = w.eval('HUB');
+  w.eval('HUB = window.__hub');
+  try{
+    const html = w.eval('buildBoards()');
+    if(!/2\. polovina sezóny/.test(html))
+      throw new Error('karta neříká, o kterou polovinu jde');
+    if(/Wildcard GW2\b/.test(html))
+      throw new Error('čip z první poloviny se počítá do druhé');
+    if(!/Bench boost GW24/.test(html))
+      throw new Error('čip z probíhající poloviny chybí');
+    // Adam spálil jeden ze čtyř, zbývají tři.
+    if(!/zbývá 3/.test(html)) throw new Error('nepočítá, co komu zbývá');
+    // Filip v druhé polovině nic nespálil, do seznamu čipů nepatří —
+    // jinde v žebříčcích se jeho jméno objevit smí.
+    const karta = html.slice(html.indexOf('Spálené žolíky'));
+    if(/Filip/.test(karta)) throw new Error('karta je soupiska, ne přehled čipů');
+    return 'sady oddělené';
+  } finally { w.__p = puv; w.eval('HUB = window.__p'); }
+});
+
+check('neúspěch v pooled() se neztratí jako prázdný člen', () => {
+  /* `out[i] = null` znamenalo dvě různé věci: „ten člen nemá data“
+     a „dotaz selhal“. Výpadek půlky ligy pak vypadal jako normální
+     stav, o kterém se nemá cenu zmiňovat. */
+  return (async () => {
+    w.__fn = async (x) => { if(x === 2) throw new Error('bum'); return x * 10; };
+    const out = await w.eval('pooled([1,2,3], window.__fn, 2)');
+    if(out[0] !== 10 || out[2] !== 30) throw new Error('úspěšné se ztratily');
+    if(out[1] !== null) throw new Error('neúspěšný nemá null');
+    if(!out.failed || out.failed.length !== 1)
+      throw new Error('neúspěch se nikam nezapsal');
+    if(out.failed[0].i !== 1) throw new Error('nesedí index neúspěchu');
+
+    // `failed` nesmí být vidět při iteraci — jinak by se z něj stal
+    // šestnáctý člen ligy.
+    if(Object.keys(out).includes('failed'))
+      throw new Error('failed je výčtová vlastnost');
+    if(JSON.parse(JSON.stringify(out)).length !== 3)
+      throw new Error('failed prosakuje do serializace');
+
+    w.__out = out;
+    const veta = w.eval("pooledNote(window.__out, 'sestav')");
+    if(!/1 z 3/.test(veta)) throw new Error('věta neříká kolik: ' + veta);
+    w.__ok = [1, 2];
+    if(w.eval("pooledNote(window.__ok, 'sestav')") !== '')
+      throw new Error('hlásí chybu i když žádná nebyla');
+    return 'chyba se přizná';
+  })();
+});
+
+check('diagnostika proxy nechodí každému', () => {
+  /* Odpověď, kterou dostane kdokoli, není místo pro stav proměnných
+     prostředí ani pro tři sta znaků cizí HTML stránky — tu navíc
+     vykreslujeme ve vlastním UI. */
+  const api = fs.readFileSync('api/fpl.js', 'utf8');
+  if(!/req\.query\.debug/.test(api))
+    throw new Error('diagnostika není za přepínačem');
+  if(!/escHtml\(/.test(api))
+    throw new Error('útržek cizí stránky se neescapuje');
+  const detail = api.slice(api.indexOf('const detail'), api.indexOf('const detail') + 700);
+  if(!/ladeni \?/.test(detail))
+    throw new Error('detail se sestavuje i bez ?debug=1');
+  return 'jen s ?debug=1';
+});
+
+check('proxy má strop na četnost i na tu drahou cestu', () => {
+  /* Jeden dotaz na `fixtures/` může při bloku od Cloudflare znamenat
+     41 dotazů na FPL. Následek není napadená appka, ale zablokovaná IP
+     Vercelu — a s ní přestane appka fungovat všem v lize. */
+  const api = fs.readFileSync('api/fpl.js', 'utf8');
+  if(!/status\(429\)/.test(api)) throw new Error('nikdy nevrátí 429');
+  if(!/Retry-After/.test(api))
+    throw new Error('bez Retry-After klient neví, jak dlouho čekat');
+  if(!/LIMIT_DRAHE/.test(api))
+    throw new Error('fixtures/ nemá vlastní, přísnější strop');
+  if(!/FIXTURES_INFLIGHT/.test(api))
+    throw new Error('dva souběžní klienti udělají 76 dotazů místo 38');
+
+  // Brzda musí být před stažením, ne po něm.
+  const handler = api.slice(api.indexOf('export default'));
+  if(handler.indexOf('pustit(ip') > handler.indexOf('fetchUpstream('))
+    throw new Error('brzda se ptá, až když je stažení za námi');
+  return 'strop, Retry-After i pojistka na souběh';
+});
+
+check('nadpisy na plátně jsou čitelné i v tmavém režimu', () => {
+  /* --aubergine je chrom: lišta a navigace, kde je pod ním vždycky
+     bílá. Jako barva textu na plátně měl v tmavém režimu kontrast
+     1,13:1 — tmavou na tmavé. */
+  const css = fs.readFileSync('css/app.css', 'utf8');
+  if(/(?<![-\w])color:var\(--aubergine\)/.test(css))
+    throw new Error('--aubergine se pořád používá jako barva textu');
+  if(!/--head:/.test(css)) throw new Error('chybí token pro nadpis');
+
+  const tma = css.slice(css.indexOf(':root[data-theme="dark"]{'));
+  if(!/--head:/.test(tma))
+    throw new Error('tmavý režim nemá vlastní barvu nadpisů');
+
+  // Kontrast spočítáme, ať se nedá zhoršit nepozorovaně.
+  const hodnota = (blok, token) => {
+    const m = new RegExp('--' + token + ':\\s*(#[0-9A-Fa-f]{6})').exec(blok);
+    return m && m[1];
+  };
+  const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const L = h => { const n = parseInt(h.slice(1), 16);
+    return 0.2126 * lin(n >> 16 & 255) + 0.7152 * lin(n >> 8 & 255) + 0.0722 * lin(n & 255); };
+  const pomer = (a, b) => { const x = L(a), y = L(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+
+  const r = pomer(hodnota(tma, 'head'), hodnota(tma, 'sky'));
+  if(r < 4.5) throw new Error('kontrast v tmavém režimu je jen ' + r.toFixed(2) + ':1');
+  return r.toFixed(1) + ':1 v tmavém režimu';
+});
+
+check('vodorovný scroll u tabulek se neobjeví až po vykreslení', () => {
+  /* requestAnimationFrame znamenal jeden snímek s neobalenou tabulkou —
+     ta roztáhla stránku a hned zase smrskla. Callback pozorovatele
+     běží jako mikroúloha ještě před vykreslením. */
+  const mob = fs.readFileSync('js/mobile.js', 'utf8');
+  const usek = mob.slice(mob.indexOf('function wrapTables'));
+  if(/MutationObserver[\s\S]{0,200}requestAnimationFrame\(\(\) => \{[^}]*wrapTables/.test(usek))
+    throw new Error('obalování je pořád odložené na další snímek');
+
+  // Bez pozorovatele se dřív neobalilo vůbec nic.
+  const podminka = usek.indexOf("if('MutationObserver' in window)");
+  const volani = usek.lastIndexOf('wrapTables();');
+  if(podminka > 0 && volani < podminka)
+    throw new Error('bez MutationObserveru se tabulky neobalí');
+
+  if(!/more-r/.test(mob) || !/more-r/.test(fs.readFileSync('css/app.css', 'utf8')))
+    throw new Error('chybí náznak, že tabulka pokračuje do strany');
+  return 'obalí se před vykreslením';
+});
+
+check('fokus se nekrade odkazům uvnitř panelů', () => {
+  /* `$(tid).focus()` volal i delegovaný listener na `data-goto`, paleta
+     a obnovení hashe. Kliknutí na „Hub ligy“ dole v boxu tak odskočilo
+     stránkou nahoru na navigační lištu. */
+  const core = fs.readFileSync('js/core.js', 'utf8');
+  if(!/function selectTab\(tid, moveFocus\)/.test(core))
+    throw new Error('selectTab o fokusu nerozhoduje');
+  if(!/selectTab\(btn\.dataset\.goto, false\)/.test(core))
+    throw new Error('odkaz data-goto pořád bere fokus');
+
+  // Obaly v mobile.js a topbar.js musí argument předat dál.
+  for(const f of ['js/mobile.js', 'js/topbar.js']){
+    const s = fs.readFileSync(f, 'utf8');
+    if(!/selectTab = function\(tid, moveFocus\)/.test(s))
+      throw new Error(f + ' zahazuje rozhodnutí o fokusu');
+    if(!/prevSelect\(tid, moveFocus\)/.test(s))
+      throw new Error(f + ' nepředává moveFocus dál');
+  }
+
+  // Klávesnice ho naopak potřebuje vždycky.
+  if(!/selectTab\(next, true\)/.test(core))
+    throw new Error('šipky by po přepnutí ztratily fokus');
+  return 'klávesnice ano, odkazy ne';
+});
+
+check('nápovědy záložek slibují jen to, co tam je', () => {
+  /* Text u Programu sliboval ceny a doporučení čipů. Ceny mají od té
+     doby vlastní záložku a doporučení čipů bylo odstraněno — obojí
+     posílalo člověka hledat něco, co v panelu není. */
+  const html = fs.readFileSync('index.html', 'utf8');
+  const plan = html.slice(html.indexOf('id="p-plan"'), html.indexOf('id="p-plan"') + 900);
+  if(/vyhořet čip|zdraží/.test(plan))
+    throw new Error('nápověda Programu slibuje ceny nebo čipy');
+  if(/záložka Transfery/.test(html))
+    throw new Error('text odkazuje na vypnutou záložku Transfery');
+  return 'text sedí s obsahem';
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
