@@ -15,6 +15,15 @@
   --aubergine:#37003C;      /* lišta a navigace — jen chrom, ne plátno */
   --aubergine-lift:#4B0F52;
 
+  /* Auberginová jako barva NADPISU na plátně.
+
+     Oddělená od --aubergine schválně. Ta je chrom: leží pod ní vždycky
+     bílý text, takže se v tmavém režimu nemá co překlápět. Jako barva
+     textu na pozadí plátna ale potřebuje vlastní hodnotu — a dokud to
+     byl týž token, měly nadpisy boxů na Přehledu i v Top hráčích
+     v tmavém režimu kontrast 1,13:1, tedy tmavou na tmavé. */
+  --head:#37003C;
+
   /* Plátno je světlé. Auberginová vypadala na maketě dobře, ale jako pozadí
      celé stránky z appky udělala tmavý web s bílými okny — přesný opak
      „Air“ pocitu, na kterém stojí zbytek návrhu. Odstín je vzatý z papíru
@@ -993,7 +1002,7 @@ button.small.on{border-color:var(--mint-fill);color:var(--mint-fill);
   min-width:0}
 .hbox h3{display:flex;align-items:center;gap:8px;margin:0 0 8px;
   font-family:var(--f-disp);font-size:13px;font-weight:800;letter-spacing:.6px;
-  text-transform:uppercase;color:var(--aubergine)}
+  text-transform:uppercase;color:var(--head)}
 .hbox .note{margin:0}
 .hbox .cnt{margin-left:auto;font-family:var(--f-mono);font-size:11px;
   background:var(--alert-bg);color:var(--alert);border-radius:9px;padding:2px 8px}
@@ -1060,7 +1069,7 @@ button.small.on{border-color:var(--mint-fill);color:var(--mint-fill);
 .pgw-h{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
   padding-bottom:9px;margin-bottom:3px;border-bottom:1px solid var(--line-soft)}
 .pgw h4{margin:0;font-family:var(--f-disp);font-size:14px;font-weight:800;
-  letter-spacing:.6px;text-transform:uppercase;color:var(--aubergine);min-width:52px}
+  letter-spacing:.6px;text-transform:uppercase;color:var(--head);min-width:52px}
 .pgw .ft{font-family:var(--f-mono);font-size:11.5px;color:var(--mute);margin:0}
 .pgw .ft b{color:var(--charcoal);font-size:13px}
 .pgw .ft.neg b{color:var(--alert)}
@@ -1121,8 +1130,11 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
     --f5:#C2483C; --f5i:#FFFFFF;
     --blank:repeating-linear-gradient(45deg,#33203A,#33203A 3px,#3E2A45 3px,#3E2A45 6px);
     --blank-i:#B291BA;
+
+    /* Nadpisy na plátně. Světlá auberginová, ne ta z palety chromu —
+       ta je na tomhle pozadí neviditelná. 12,4:1 proti --sky. */
+    --head:#E4CFEA;
   }
-}
 :root[data-theme="dark"] body{background:var(--sky)}
 :root[data-theme="dark"] .skel i{
   background:linear-gradient(90deg,var(--haze) 25%,#3A1E42 37%,var(--haze) 63%);
@@ -1138,7 +1150,7 @@ button.small.ghost:hover{border-color:var(--blue);color:var(--blue)}
 .tbox{background:var(--haze);border-radius:var(--r-card);padding:12px 12px 10px;
   min-width:0}
 .tbox h4{margin:0 0 1px;font-family:var(--f-disp);font-size:11.5px;font-weight:800;
-  letter-spacing:.7px;text-transform:uppercase;color:var(--aubergine)}
+  letter-spacing:.7px;text-transform:uppercase;color:var(--head)}
 .tbox .cap{margin:0 0 7px;font-size:10.5px;color:var(--mute);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tempty{font-size:11.5px;color:var(--mute);margin:0}
@@ -1297,6 +1309,23 @@ h2 .i-tip,h3 .i-tip,h4 .i-tip{position:relative;top:-1px}
    z něj #mqM udělá vodorovný scroller. Vkládá ho JS, aby se nemusel
    psát do každé šablony zvlášť. */
 .tscroll{max-width:100%}
+
+/* Náznak, že tabulka pokračuje do strany.
+
+   Stín je `inset`, takže se maluje k okraji kontejneru a neposouvá se
+   s obsahem — na rozdíl od ::after, které by odjelo spolu s tabulkou.
+   Třídy přepíná scrollHint() v js/mobile.js podle skutečné pozice, aby
+   na konci tabulky nesliboval pokračování, které tam není. */
+.tscroll{transition:box-shadow .15s ease}
+.tscroll.more-r{box-shadow:inset -16px 0 12px -12px rgba(55,0,60,.32)}
+.tscroll.more-l{box-shadow:inset 16px 0 12px -12px rgba(55,0,60,.32)}
+.tscroll.more-l.more-r{box-shadow:inset -16px 0 12px -12px rgba(55,0,60,.32),
+  inset 16px 0 12px -12px rgba(55,0,60,.32)}
+:root[data-theme="dark"] .tscroll.more-r{box-shadow:inset -16px 0 12px -12px rgba(0,0,0,.75)}
+:root[data-theme="dark"] .tscroll.more-l{box-shadow:inset 16px 0 12px -12px rgba(0,0,0,.75)}
+:root[data-theme="dark"] .tscroll.more-l.more-r{
+  box-shadow:inset -16px 0 12px -12px rgba(0,0,0,.75),
+             inset 16px 0 12px -12px rgba(0,0,0,.75)}
 
 /* ---------- ceny kola na Přehledu ----------
    Tytéž karty jako v Hubu, jen bez podtitulku a v užší mřížce: na
@@ -1472,7 +1501,7 @@ table.h2ht tr.me td b{color:var(--ok)}
 .advbox{border:1px solid var(--line);border-radius:var(--r-card);padding:12px 14px}
 .advbox h4{display:flex;align-items:baseline;gap:8px;margin:0 0 9px;
   font-family:var(--f-disp);font-size:12px;letter-spacing:.06em;
-  text-transform:uppercase;color:var(--aubergine)}
+  text-transform:uppercase;color:var(--head)}
 .advbox h4 span{margin-left:auto;font-family:var(--f-mono);font-size:10px;
   font-weight:400;letter-spacing:0;color:var(--mute);text-transform:none}
 .advrow{display:flex;align-items:baseline;gap:8px;padding:4px 0;font-size:12px}
