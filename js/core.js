@@ -1517,6 +1517,8 @@ function drawHome(){
       ? `<div class="hgrid">${homeH2H()}${homeAwards()}</div>` : homeAwards()}
     ${typeof homeGwLeague === 'function'
       ? `<div class="hgrid one">${homeGwLeague()}</div>` : ''}
+    ${typeof homeHall === 'function'
+      ? `<div class="hgrid one">${homeHall()}</div>` : ''}
     ${typeof homeNews === 'function' ? `<div class="hgrid one">${homeNews()}</div>` : ''}`;
 }
 

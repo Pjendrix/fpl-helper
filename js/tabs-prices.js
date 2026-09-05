@@ -360,6 +360,10 @@ function hallOfFame(){
   }));
   const podleEntry = new Map(rows.map(r => [r.m.entry, r]));
   let kol = 0, pokryto = 0;
+  // Nejnižší a nejvyšší dopočítané kolo — aby tabulka uměla říct,
+  // z čeho vlastně je. Počet kol na to nestačí: sezóna může začínat
+  // jinde než u GW1, když se liga založila později.
+  let prvni = null, posl = null;
 
   for(const g of newsGws()){
     /* Do bilance sezóny jde jen dopočítané kolo. Rozehrané se mění po
@@ -369,6 +373,8 @@ function hallOfFame(){
     const gw = gwRows(g);
     if(!gw.length) continue;
     kol++;
+    if(prvni === null || g < prvni) prvni = g;
+    if(posl === null || g > posl) posl = g;
 
     const sorted = gw.slice().sort((a, b) => b.ev.points - a.ev.points);
     const max = sorted[0].ev.points;
@@ -394,7 +400,7 @@ function hallOfFame(){
 
   rows.sort((a, b) => b.win - a.win || a.flop - b.flop || b.cap - a.cap
     || a.m.player_name.localeCompare(b.m.player_name, 'cs'));
-  return {rows, kol, pokryto};
+  return {rows, kol, pokryto, prvni, posl};
 }
 
 /* ------------------------------------------------------------
@@ -512,10 +518,15 @@ function newsPanel(){
 }
 
 /* Tabulka cen za celou sezónu. Kapitánské sloupce se počítají jen
-   z kol, pro která máme sestavy — tlačítko je dotáhne pro všechna. */
-function hallPanel(){
-  const {rows, kol, pokryto} = hallOfFame();
-  if(kol < 1 || rows.length < 2) return '';
+   z kol, pro která máme sestavy — tlačítko je dotáhne pro všechna.
+
+   Tělo je oddělené od obalu, protože tatáž tabulka visí na dvou
+   místech: v Hubu pod cenami kola a na Přehledu mezi aktuálním kolem
+   a Zpravodajem. Kdyby si každé místo skládalo vlastní HTML, rozešly
+   by se při první úpravě sloupců. */
+function hallBody(){
+  const {rows, kol, pokryto, prvni, posl} = hallOfFame();
+  if(kol < 1 || rows.length < 2) return null;
 
   const SLOUPCE = [
     ['win', '🏆', 'Výhry'], ['bench', '🪑', 'Smůla'],
@@ -538,19 +549,58 @@ function hallPanel(){
       }).join('')}
     </tr>`).join('');
 
+  /* Z jakých kol tabulka je. Samotné „ze 3 kol“ neřekne, jestli chybí
+     začátek, nebo běžící konec sezóny — a přesně na tohle se člověk
+     ptá, když čísla nesedí s tím, co si pamatuje. */
+  const rozsah = kol === 1 ? 'GW' + posl
+    : (posl - prvni + 1 === kol ? `GW${prvni}–${posl}`
+       : `${kol} kol do GW${posl}`);
+
   const chybi = kol - pokryto;
   const pozn = chybi > 0
-    ? `<p class="note">Kapitánské sloupce mám z ${pokryto} z ${kol} kol —
+    ? `<p class="note">Data ${rozsah}. Kapitánské sloupce mám z ${pokryto} z ${kol} kol —
         zbytek potřebuje sestavy. ${HALL_ALL ? ''
           : `<button type="button" class="hallmore" data-hallall="1">Načíst celou sezónu</button>`}</p>`
-    : `<p class="note">Ze všech ${kol} dopočítaných kol sezóny.
+    : `<p class="note">Data ${rozsah}, ze všech ${kol} dopočítaných kol sezóny.
         Zlatě je maximum ve sloupci.</p>`;
 
-  return `<div class="secline"><h4>Síň slávy</h4></div>
-    <div class="hall"><table>
+  const tabulka = `<div class="hall"><table>
       <thead><tr><th>Manažer</th>${hlavicka}</tr></thead>
       <tbody>${telo}</tbody>
-    </table></div>${pozn}`;
+    </table></div>`;
+
+  return {tabulka, pozn, rozsah, kol, posl};
+}
+
+function hallPanel(){
+  const h = hallBody();
+  if(!h) return '';
+  return `<div class="secline"><h4>Síň slávy</h4></div>${h.tabulka}${h.pozn}`;
+}
+
+/* Tatáž tabulka na Přehledu, mezi aktuálním kolem a Zpravodajem.
+   Stojí čistě na datech Hubu, takže nepřidává jediný dotaz — když se
+   Hub ještě nenačetl, drží se výška kostrou jako u sousedních boxů. */
+function homeHall(){
+  const box = (inner, rozsah) => `<div class="hbox hhall">
+    <h3><i class="hi">🏅</i>Síň slávy${rozsah ? ' · ' + esc(rozsah) : ''}
+      <button type="button" class="lnkbtn" data-goto="t-hub">Hub ligy</button></h3>
+    ${inner}</div>`;
+
+  const lid = CONFIG.leagueId || localStorage.getItem('fpl_league');
+  if(!lid) return '';
+
+  if(typeof HUB === 'undefined' || !HUB){
+    const cekani = typeof homeHubPending === 'function' ? homeHubPending() : null;
+    return box(cekani || '<div class="skel"><i></i><i></i></div>');
+  }
+
+  const h = hallBody();
+  if(!h){
+    return box(`<p class="note">Síň slávy se počítá z dopočítaných kol —
+      zatím žádné takové není.</p>`);
+  }
+  return box(h.tabulka + h.pozn, h.rozsah);
 }
 
 /* Přepnutí kola. Sestavy starších kol se stahují až teď — otevření
