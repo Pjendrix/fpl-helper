@@ -566,6 +566,21 @@ tr.click:hover td{background:var(--haze)}
 .board li span{float:right;font-family:var(--f-mono);font-size:12px;color:var(--mute)}
 .board li.me{color:var(--blue);font-weight:600}
 
+/* Žolíky: řádek na čip, pod ním jména. Proužek nese poměr, ať se karta
+   dá přečíst bez čtení jmen — otázka je „je ten čip ještě ve hře?“. */
+.chiprow{display:flex;align-items:center;gap:10px;padding:6px 0;
+  border-top:1px solid var(--line-soft)}
+.chiprow:first-child{border-top:0;padding-top:0}
+.chiprow .nm{font-size:13px;font-weight:600;flex:none}
+.chiprow .bar{flex:1;height:6px;min-width:24px;background:var(--white);
+  border-radius:9999px;overflow:hidden}
+.chiprow .bar i{display:block;height:100%;background:var(--blue);opacity:.55}
+.chiprow .ct{font-family:var(--f-mono);font-size:11px;color:var(--mute);flex:none}
+.chipwho{font-size:12px;line-height:1.5;margin:2px 0 8px}
+.chipwho:last-child{margin-bottom:0}
+.chipwho .mute{color:var(--mute)}
+.chipwho .me{color:var(--blue);font-weight:600}
+
 .capmap{display:flex;flex-direction:column;gap:8px}
 .capmap .row2{display:flex;align-items:center;gap:10px;font-size:13px}
 .capmap .nm2{width:96px;font-weight:600;flex:none}
