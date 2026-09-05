@@ -524,6 +524,43 @@ function newsPanel(){
    místech: v Hubu pod cenami kola a na Přehledu mezi aktuálním kolem
    a Zpravodajem. Kdyby si každé místo skládalo vlastní HTML, rozešly
    by se při první úpravě sloupců. */
+/* Proč které kolo v síni slávy chybí.
+
+   Kolo se do bilance započítá, jen když je `final` a zároveň se pro něj
+   podaří poskládat řádky členů. Obojí má víc zdrojů, takže z chybějícího
+   řádku v tabulce se důvod uhádnout nedá. Volá se ručně: debugSin(). */
+window.debugSin = function(){
+  if(typeof HUB === 'undefined' || !HUB){
+    console.log('HUB není načtený — otevři nejdřív Hub ligy.'); return;
+  }
+  const tab = newsGws().map(g => {
+    const ev = (BOOT.events || []).find(e => e.id === g) || {};
+    const fx = (Array.isArray(FIX) ? FIX : []).filter(f => f.event === g);
+    const rows = gwRows(g);
+    // Odkud řádky jsou: historie je primární, zbytek jsou záložní zdroje.
+    const zHist = rows.filter(r => !r.ev.zeStandings && !r.ev.zeSestav).length;
+    return {
+      GW: g,
+      faze: gwPhase(g),
+      'do bilance': gwPhase(g) === 'final' && rows.length ? 'ano' : 'NE',
+      data_checked: !!ev.data_checked,
+      finished: !!ev.finished,
+      'zápasů': fx.length,
+      'dohraných': fx.filter(f => f.finished).length,
+      's bonusy': fx.filter(f => fixtureBonusDone(f)).length,
+      'řádků': rows.length + '/' + HUB.members.length,
+      'z historie': zHist,
+      sestavy: NEWS_PICKS.has(g) ? (NEWS_PICKS.get(g) || []).length : '—',
+      live: NEWS_LIVE.has(g) ? (NEWS_LIVE.get(g) ? 'ano' : 'CHYBA') : '—',
+    };
+  });
+  console.table(tab);
+  const h = hallBody();
+  console.log(h ? `tabulka: ${h.kol} kol, rozsah ${h.rozsah}`
+                : 'tabulka se nesestavila (žádné dopočítané kolo)');
+  return tab;
+};
+
 function hallBody(){
   const {rows, kol, pokryto, prvni, posl} = hallOfFame();
   if(kol < 1 || rows.length < 2) return null;

@@ -58,6 +58,12 @@ async function loadHub(){
              .filter(Boolean).join(' ')};
     renderHub();
 
+    /* Přehled stojí na týchž datech (síň slávy, aktuální kolo v lize),
+       ale vykresluje se dřív, než Hub doběhne. Bez tohohle překreslení
+       na něm zůstane kostra nebo „zatím žádná data“ i ve chvíli, kdy je
+       Hub o kus vedle ukazuje. */
+    if(typeof drawHome === 'function') drawHome();
+
     /* Neúplná data se přiznávají. Dřív `pooled()` neúspěch spolkl jako
        `null` a Hub vykreslil žebříčky, ve kterých prostě někdo chyběl —
        což není vidět jako chyba, jen jako jiná čísla. */
