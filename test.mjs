@@ -6731,6 +6731,41 @@ check('sekce je na Přehledu nad Zpravodajem', () => {
   return 'nad Zpravodajem';
 });
 
+check('historie od FPL se čte i bez pole round', () => {
+  /* Ostrá chyba: `entry/{id}/history/` posílá číslo kola jako `event`.
+     Pole `round` mají jen řádky, které si appka staví sama (archiv,
+     dopočet z pořadí ligy), a testy je dosud posílaly všude — takže
+     kód četl `row.round` a na syrových datech nenašel ani jedno kolo.
+     Síň slávy pak po dvou dohraných kolech hlásila, že žádné nemá. */
+  if(w.eval('histGw({event: 7})') !== 7)
+    throw new Error('samotné event se nepřečte');
+  if(w.eval('histGw({round: 7})') !== 7)
+    throw new Error('samotné round se nepřečte');
+  if(w.eval('histGw(null)') !== null || w.eval('histGw({})') !== null)
+    throw new Error('chybějící kolo není null');
+
+  // Řádky přesně v tom tvaru, v jakém chodí z FPL — bez `round`.
+  const syrovy = g => ({event: g, points: 60 + g, total_points: 60 * g,
+    event_transfers: 1, event_transfers_cost: 0, points_on_bench: 3, value: 1000});
+  const members = [{entry: 1, player_name: 'Adam', entry_name: 'A', event_total: 61, total: 61},
+                   {entry: 2, player_name: 'Filip', entry_name: 'F', event_total: 62, total: 62}];
+  const puv = w.eval('HUB');
+  w.__hub = {st: {league: {name: 'T'}}, members, cur: {id: 2}, picks: [],
+             hists: [{current: [syrovy(1), syrovy(2)], chips: []},
+                     {current: [syrovy(1), syrovy(2)], chips: []}]};
+  w.eval('HUB = window.__hub');
+  try{
+    const r1 = w.eval('gwRows(1)');
+    if(r1.length !== 2) throw new Error('gwRows nenajde kolo podle event');
+    if(r1[0].ev.points !== 61) throw new Error('našel se špatný řádek');
+
+    // pointsByRound indexuje podle čísla kola, ne podle pozice v poli.
+    const mapa = w.eval('[...pointsByRound(HUB.hists[0]).keys()]');
+    if(mapa.join() !== '1,2') throw new Error('křivka se indexuje podle undefined');
+    return 'event i round';
+  } finally { w.__p = puv; w.eval('HUB = window.__p'); }
+});
+
 check('síň slávy je na Přehledu mezi aktuálním kolem a Zpravodajem', () => {
   const core = fs.readFileSync('js/core.js', 'utf8');
   const dh = core.slice(core.indexOf('function drawHome'),

@@ -9,7 +9,7 @@
 // (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
 // nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v31';
+const SHELL = 'squadcheck-shell-v32';
 const BADGES = 'squadcheck-badges-v1';
 
 /* Otisk verze statiky. MUSÍ sedět s ?v= v index.html.
@@ -17,7 +17,7 @@ const BADGES = 'squadcheck-badges-v1';
    Když se rozejdou, service worker předcachuje jiné URL, než jaké
    stránka požaduje — offline by pak byla skořápka bez skriptů, tedy
    prázdná stránka. Že to sedí, hlídá test. */
-const V = '31';
+const V = '32';
 const s = (p) => p + '?v=' + V;
 
 const FILES = ['/', '/index.html', '/manifest.webmanifest',
