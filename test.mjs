@@ -6731,6 +6731,49 @@ check('sekce je na Přehledu nad Zpravodajem', () => {
   return 'nad Zpravodajem';
 });
 
+check('síň slávy je na Přehledu mezi aktuálním kolem a Zpravodajem', () => {
+  const core = fs.readFileSync('js/core.js', 'utf8');
+  const dh = core.slice(core.indexOf('function drawHome'),
+                        core.indexOf('/* Odkazy „Spravovat“'));
+  const a = dh.indexOf('homeGwLeague');
+  const b = dh.indexOf('homeHall');
+  const c = dh.indexOf('homeNews');
+  if(b < 0) throw new Error('drawHome síň slávy nevykresluje');
+  if(!(a < b && b < c)) throw new Error('síň slávy není mezi kolem a Zpravodajem');
+  if(!/typeof homeHall === 'function'/.test(dh))
+    throw new Error('bez typeof by chybějící tabs-prices.js shodil Přehled');
+
+  /* Tabulka smí existovat jen jednou — Hub i Přehled ji berou ze
+     společného hallBody(). Dvě kopie HTML by se rozešly při první
+     úpravě sloupců. */
+  const src = fs.readFileSync('js/tabs-prices.js', 'utf8');
+  if(src.split('<thead><tr><th>Manažer').length !== 2)
+    throw new Error('tabulka síně slávy je v kódu dvakrát');
+  return 'mezi kolem a Zpravodajem';
+});
+
+check('síň slávy říká, ze kterých kol je', () => {
+  const members = [{entry: 1, player_name: 'Adam', entry_name: 'A'},
+                   {entry: 2, player_name: 'Filip', entry_name: 'F'}];
+  const puv = w.eval('HUB');
+  w.__hub = {st: {league: {name: 'T'}}, members, hists: [], cur: {id: 3}, picks: []};
+  w.eval('HUB = window.__hub');
+  try{
+    const h = w.eval('hallBody()');
+    // Bez dopočítaných kol nemá co ukázat a nesmí si vymyslet rozsah.
+    if(h !== null) throw new Error('bez dopočítaných kol se tabulka nesestaví');
+
+    // Rozsah se skládá z čísel kol, ne z jejich počtu — jinak by
+    // „ze 3 kol“ neřeklo, jestli chybí začátek nebo běžící konec.
+    const src = fs.readFileSync('js/tabs-prices.js', 'utf8');
+    if(!/GW\$\{prvni\}–\$\{posl\}/.test(src))
+      throw new Error('rozsah se nepočítá z čísel kol');
+    if(!/Data \$\{rozsah\}/.test(src))
+      throw new Error('poznámka pod tabulkou rozsah neuvádí');
+    return 'rozsah v poznámce i v hlavičce';
+  } finally { w.__p = puv; w.eval('HUB = window.__p'); }
+});
+
 check('sekce si data nestahuje sama, veze se s Hubem', () => {
   const src = TABS_SRC;
   const fn = src.slice(src.indexOf('function homeGwLeague'),
