@@ -5,6 +5,13 @@
 
 const BASE = "https://fantasy.premierleague.com/api";
 
+// Utrzek upstream odpovedi konci ve vlastnim UI, takze z nej nesmi jit
+// nic vykreslit. Apostrof je v seznamu schvalne - staci jeden atribut
+// v jednoduchych uvozovkach a chybejici &#39; je dira.
+const escHtml = (t) =>
+  String(t).replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 // Whitelist - proxy nesmi byt otevrena pro libovolne cile.
 const ALLOWED = [
   /^bootstrap-static\/$/,
@@ -208,6 +215,47 @@ async function presWorker(path) {
 }
 
 // ---------------------------------------------------------------------
+// K6 - OMEZENI CETNOSTI
+//
+// Whitelist cest resi jinou hrozbu: brani pouzit proxy na libovolny cil,
+// nebrani pouzit ji na FPL prilis casto. A prave to je ta situace, ktera
+// opravdu nastane - zacykleny klient, otevrena karta s auto-refreshem
+// nebo nekdo, kdo si adresu proxy ulozil do skriptu.
+//
+// Nejhorsi kombinace je `fixtures/` behem bloku od Cloudflare: tri
+// pokusy plus 38 dotazu po kolech = 41 dotazu na FPL z jednoho
+// pozadavku. Nasledek neni napadena appka, ale zablokovana IP Vercelu -
+// a s ni prestane appka fungovat vsem v lize.
+//
+// Limit je v pameti instance. Neresi odhodlaneho utocnika: instanci je
+// vic a pamet se s nimi nesdili. Na to je Cloudflare pred domenou, ne
+// slozitejsi kod tady.
+// ---------------------------------------------------------------------
+const OKNO_MS = 60_000;
+const LIMIT = 90;        // dotazu za minutu na IP
+const LIMIT_DRAHE = 3;   // fixtures/ bez parametru za minutu na IP
+const HITS = new Map();  // ip -> {n, drahe, do}
+
+function pustit(ip, drahaCesta) {
+  const ted = Date.now();
+  let z = HITS.get(ip);
+  if (!z || ted > z.do) {
+    z = { n: 0, drahe: 0, do: ted + OKNO_MS };
+    HITS.set(ip, z);
+  }
+
+  // Uklid, at mapa neroste donekonecna v dlouho zijici instanci.
+  if (HITS.size > 5000) for (const [k, v] of HITS) if (ted > v.do) HITS.delete(k);
+
+  z.n++;
+  if (drahaCesta) z.drahe++;
+  const za = Math.max(1, Math.ceil((z.do - ted) / 1000));
+  if (z.drahe > LIMIT_DRAHE) return { ok: false, za };
+  if (z.n > LIMIT) return { ok: false, za };
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------
 // FPL odmita `fixtures/` bez parametru castěji nez ostatni endpointy -
 // je to nejvetsi odpoved v celem API (vsech 380 zapasu sezony) a z IP
 // datacentra ji casto vrati 403, i kdyz `bootstrap-static/` projde.
@@ -217,7 +265,21 @@ async function presWorker(path) {
 // nejsou. Deje se to jen kdyz plna cesta selze, a vysledek se drzi na
 // edge cache, takze 38 dotazu padne nanejvys jednou za nekolik minut.
 // ---------------------------------------------------------------------
-async function fixturesByEvent() {
+/* Druhy soubezny pozadavek se priveze na tom prvnim.
+
+   Bez tohohle znamenaji dva klienti ve stejnou vterinu 76 dotazu na
+   FPL - tedy presne to chovani, kvuli kteremu blok vznikl. Limit vyse
+   to nechyti: kazdy z nich ma jinou IP. */
+let FIXTURES_INFLIGHT = null;
+
+function fixturesByEvent() {
+  if (FIXTURES_INFLIGHT) return FIXTURES_INFLIGHT;
+  FIXTURES_INFLIGHT = fixturesByEventRun()
+    .finally(() => { FIXTURES_INFLIGHT = null; });
+  return FIXTURES_INFLIGHT;
+}
+
+async function fixturesByEventRun() {
   const cisla = Array.from({ length: 38 }, (_, i) => i + 1);
   const out = [];
 
@@ -247,6 +309,17 @@ export default async function handler(req, res) {
 
   if (!ALLOWED.some((re) => re.test(path))) {
     return res.status(403).json({ error: "Tahle cesta není povolená." });
+  }
+
+  /* Klic je IP z x-forwarded-for. Da se podvrhnout, ale kdo ji
+     podvrhuje, tomu uz zadny limit v pameti nepomuze. */
+  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "?";
+  const brzda = pustit(ip, path === "fixtures/");
+  if (!brzda.ok) {
+    // Klient na 429 uz umi cekat a zkusit to znovu (viz api() v js/core.js),
+    // takze se na strane appky nemeni nic.
+    res.setHeader("Retry-After", String(brzda.za));
+    return res.status(429).json({ error: "Moc dotazů. Zkus to za chvíli." });
   }
 
   try {
@@ -302,7 +375,18 @@ export default async function handler(req, res) {
       // Plati proto pro kazdou chybu. Diagnostika, ktera se zapina jen
       // u statusu, o kterem uz predem vim, ze nastane, nepomuze prave
       // tehdy, kdyz nastane neco jineho.
-      const detail = {
+      /* K7 - diagnostika se posila jen na vyzadani.
+
+         Duvod, proc tu vubec je, plati dal: chyba bez duvodu se ladi
+         hadanim. Ale odpoved, kterou dostane kazdy, neni misto pro stav
+         promennych prostredi ani pro tri sta znaku cizi HTML stranky -
+         tu navic vykreslujeme ve vlastnim UI.
+
+         Do konzole se dostanes pres ?debug=1, coz je presne ta situace,
+         kdy tahle cisla nekdo opravdu chce. */
+      const ladeni = String(req.query.debug || "") === "1";
+
+      const detail = ladeni ? {
         cfRay: upstream.headers.get("cf-ray") || null,
         cfMitigated: upstream.headers.get("cf-mitigated") || null,
         server: upstream.headers.get("server") || null,
@@ -314,12 +398,14 @@ export default async function handler(req, res) {
         workerLast: WORKER_LAST,
         workerUrl: process.env.FPL_WORKER_URL ? "nastaveno" : "chybi",
         workerToken: process.env.FPL_WORKER_TOKEN ? "nastaveno" : "chybi",
-        snippet: (await upstream.text().catch(() => "")).slice(0, 300),
-      };
+        // Utrzek cizi stranky se escapuje, at se neda vykreslit ani
+        // v rezimu ladeni - vypisujeme ho ve vlastnim UI.
+        snippet: escHtml((await upstream.text().catch(() => "")).slice(0, 300)),
+      } : null;
 
       return res.status(upstream.status).json({
         error: `FPL API vrátilo ${upstream.status} pro ${path}.`,
-        detail,
+        ...(detail ? { detail } : {}),
       });
     }
 
