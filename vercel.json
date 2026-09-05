@@ -59,8 +59,7 @@
           "key": "Cache-Control",
           "value": "public, max-age=31536000, immutable"
         }
-      ],
-      "//": "URL nese ?v=NN (viz index.html), takze se pri kazdem nasazeni meni a smi mit dlouhou cache. Drive tu bylo max-age=0, must-revalidate: 22 podminenych dotazu pri kazdem nacteni appky, jen aby na vsechny prislo 304."
+      ]
     },
     {
       "source": "/api/badge",
