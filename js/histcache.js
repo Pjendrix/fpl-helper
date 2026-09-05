@@ -450,7 +450,7 @@ async function snapHists(members, curId){
                     points_on_bench: null, value: null, bank: null,
                     zeStandings: true});
 
-    current.sort((a, b) => a.round - b.round);
+    current.sort((a, b) => histGw(a) - histGw(b));
     out.push({current, chips, past: []});
   }
   return out;
@@ -479,7 +479,7 @@ function snapPatchCurrent(hists, picks, curId){
 
   hists.forEach((h, i) => {
     if(!h || !Array.isArray(h.current)) return;
-    const row = h.current.find(x => x.round === curId && x.zeStandings);
+    const row = h.current.find(x => histGw(x) === curId && x.zeStandings);
     if(!row) return;
 
     const eh = picks[i] && picks[i].entry_history;

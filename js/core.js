@@ -67,6 +67,20 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+/* Číslo kola z řádku historie týmu.
+
+   FPL v `entry/{id}/history/` posílá `event`. Řádky, které si appka
+   staví sama — archiv a dopočet z pořadí ligy — nesou navíc `round`,
+   a odtud se `round` rozlezl do celého kódu jako by byl od FPL.
+   Fungovalo to jen na vlastních datech: na syrové historii bylo
+   `row.round` undefined, takže hub žádné kolo nenašel a síň slávy
+   zůstala prázdná i po dvou dohraných kolech.
+
+   Čte se proto obojí, `round` napřed — u vlastních řádků jsou stejně
+   totožné a `event` je jistota pro data od FPL. */
+const histGw = r => (r && r.round != null ? r.round
+                     : (r && r.event != null ? r.event : null));
+
 /* ------------------------------------------------------------
    Přístup k FPL API.
 

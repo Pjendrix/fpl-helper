@@ -152,10 +152,10 @@ function h2hSeed(lid, gw){
    hodnotu z pořadí ligy — jenže ta platí jen pro právě běžící kolo,
    takže starší kola by zůstala bez bodů.
 
-   Přijímají se obě jména. Kdyby FPL klíč zase přejmenovalo, je to
-   jedno místo. */
+   Přijímají se obě jména — sdíleným histGw() z core.js, ať existuje
+   jen jedno místo, které o téhle dvojkolejnosti ví. */
 function h2hRound(e){
-  return e && (e.event != null ? e.event : e.round);
+  return histGw(e);
 }
 
 function h2hLastPlayed(){

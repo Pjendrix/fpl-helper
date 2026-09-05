@@ -442,7 +442,7 @@ async function showPlayer(pid){
 
   const pills = last5.length
     ? `<div class="pills">${last5.map(h => `<span class="pill ${pillCls(h.total_points)}">
-        ${h.total_points}<small>GW${h.round}</small></span>`).join('')}</div>`
+        ${h.total_points}<small>GW${histGw(h)}</small></span>`).join('')}</div>`
     : '<p class="note">Zatím žádné odehrané zápasy v této sezóně.</p>';
 
   const season = hist.reduce((a, h) => ({
@@ -462,7 +462,7 @@ async function showPlayer(pid){
     <tbody>${hist.slice().reverse().slice(0, 12).map(h => {
       const opp = teams[h.opponent_team];
       return `<tr>
-        <td>${h.round}</td>
+        <td>${histGw(h)}</td>
         <td class="hide-s">${opp ? esc(opp.short_name) : '–'}${h.was_home ? ' (D)' : ' (V)'}</td>
         <td class="n">${h.minutes}</td>
         <td class="n">${h.goals_scored}</td>

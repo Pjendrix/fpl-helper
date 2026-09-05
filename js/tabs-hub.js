@@ -76,11 +76,11 @@ async function loadHub(){
 // poradi v lize po jednotlivych kolech, z kumulativnich bodu
 /* Body po kolech, indexované podle čísla kola — ne podle pozice v poli.
 
-   Manažer, který do FPL vstoupil až v GW5, má current[0].round === 5.
+   Manažer, který do FPL vstoupil až v GW5, má u current[0] kolo 5.
    Čtení přes current[g] mu proto posunulo celou křivku o čtyři kola doleva. */
 function pointsByRound(h){
   const map = new Map();
-  if(h && h.current) for(const ev of h.current) map.set(ev.round, ev);
+  if(h && h.current) for(const ev of h.current) map.set(histGw(ev), ev);
   return map;
 }
 
@@ -203,7 +203,7 @@ function gwRows(gwId){
 
   return members.map((m, i) => {
     const h = hists[i];
-    let ev = h && h.current.find(x => x.round === gwId);
+    let ev = h && h.current.find(x => histGw(x) === gwId);
     if(!ev && gwId === HUB.cur.id && Number.isFinite(m.event_total)){
       ev = {round: gwId, points: m.event_total, total_points: m.total,
             zeStandings: true};
