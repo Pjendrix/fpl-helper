@@ -133,11 +133,22 @@ function smolari(gw, picksFor, live, gwId){
   return {vsichni: s, nej: max > 0 ? s.filter(x => x.lav === max) : []};
 }
 
-/* Zpětně kompatibilní jednička — používá ji síň slávy, kde se počítá
-   jen to, kdo cenu dostal. */
+/* Kdo za kolo dostal smolaře — týmž pravidlem, jakým to rozhoduje
+   karta kola. Když stejnou lavičku drží polovina ligy a víc, cena se
+   neuděluje a vrací se prázdno; při shodě menší skupiny se cena dělí,
+   takže se vrací všichni. Síň slávy tohle musí počítat stejně jako
+   karta, jinak tabulka přiznává ceny, které v kole nikdo nedostal. */
+function smolarNej(gw, picksFor, live, gwId){
+  const {vsichni, nej} = smolari(gw, picksFor, live, gwId);
+  if(!nej.length) return [];
+  if(nej.length * 2 >= vsichni.length) return [];
+  return nej;
+}
+
+/* Zpětně kompatibilní jednička pro volající, které zajímá jen první. */
 function smolar(gw, picksFor, live, gwId){
-  const {nej} = smolari(gw, picksFor, live, gwId);
-  return nej.length ? nej[0] : null;
+  const n = smolarNej(gw, picksFor, live, gwId);
+  return n.length ? n[0] : null;
 }
 
 /* Diagnostika kapitánských cen.
@@ -285,11 +296,13 @@ function buildAwards(gwId, picksFor, liveFor){
      může dostat propadáka — a naopak. */
   const caps = capRows(picksFor, liveFor, id);
   if(caps.length >= 2){
+    /* Rozhodnutí, kdo cenu bere, dělá capCeny() — tentýž kód, ze
+       kterého počítá síň slávy. Karta z něj jen skládá text, takže
+       se ta dvě místa nemůžou rozejít. */
     const dle = caps.slice().sort((a, b) => b.pts - a.pts);
-    const nej = dle[0], nic = dle[dle.length - 1];
+    const {vitezove: capVyhra, posledni: capPad, nej, nic} = capCeny(caps);
     const vitezove = dle.filter(c => c.pts === nej.pts);
     const posledni = dle.filter(c => c.pts === nic.pts);
-    const vetsina = list => list.length * 2 >= caps.length;
 
     const jmena = list => list.length <= 3
       ? list.map(c => esc(c.m.player_name)).join(', ')
@@ -319,7 +332,7 @@ function buildAwards(gwId, picksFor, liveFor){
         sub: 'Nikdo nepropadl víc než ostatní — všichni na stejných bodech.',
       });
     }else{
-      out.push(vetsina(vitezove)
+      out.push(!capVyhra.length
         ? {key: 'cap', who: 'Bez ceny', val: '—',
            sub: `${duvod(vitezove)} — cena se za tohle kolo neuděluje.`}
         : {key: 'cap', who: jmena(vitezove), val: nej.pts + ' b',
@@ -330,7 +343,7 @@ function buildAwards(gwId, picksFor, liveFor){
                : caps.filter(c => c.pid === nej.pid).length === 1
                  ? ' — jako jediný v lize.' : '.')});
 
-      out.push(vetsina(posledni)
+      out.push(!capPad.length
         ? {key: 'flop', who: 'Bez ceny', val: '—',
            sub: `${duvod(posledni)} — cena se za tohle kolo neuděluje.`}
         : {key: 'flop', who: jmena(posledni), val: nic.pts + ' b',
@@ -354,6 +367,36 @@ function buildAwards(gwId, picksFor, liveFor){
    ze kterých kapitánské sloupce vznikly, aby se dalo poznat, že jsou
    neúplné, místo aby tabulka tiše lhala.
    ------------------------------------------------------------ */
+/* Kdo za kolo bere kapitánskou cenu a kdo propadáka.
+
+   Pravidlo je jedno pro kartu kola i pro síň slávy, protože jinak
+   tabulka sezóny přiznávala ceny, které v tom kole nikdo nedostal:
+   počítala prostě nejlepšího a nejhoršího kapitána, i když karta nad
+   ní hlásila „Bez ceny“, a při shodě odměnila jen prvního z nich.
+
+   Cena je odlišení, takže propadá, když na krajní hodnotě stojí
+   polovina ligy nebo víc. Práh je ostrý na polovině: 4 z 10 cenu
+   ještě dostanou, 5 z 10 už ne. Obě strany se posuzují zvlášť —
+   propadlá kapitánská cena neruší propadáka a naopak. Když se celá
+   liga sejde na jednom čísle, nedostane cenu nikdo. */
+function capCeny(caps){
+  const prazdno = {vitezove: [], posledni: [], nej: null, nic: null};
+  if(!caps || caps.length < 2) return prazdno;
+
+  const dle = caps.slice().sort((a, b) => b.pts - a.pts);
+  const nej = dle[0], nic = dle[dle.length - 1];
+  if(nej.pts === nic.pts) return {...prazdno, nej, nic};
+
+  const vitezove = dle.filter(c => c.pts === nej.pts);
+  const posledni = dle.filter(c => c.pts === nic.pts);
+  const vetsina = list => list.length * 2 >= caps.length;
+  return {
+    vitezove: vetsina(vitezove) ? [] : vitezove,
+    posledni: vetsina(posledni) ? [] : posledni,
+    nej, nic,
+  };
+}
+
 function hallOfFame(){
   const rows = HUB.members.map(m => ({
     m, win: 0, bench: 0, cap: 0, flop: 0,
@@ -382,19 +425,16 @@ function hallOfFame(){
       const r = podleEntry.get(x.m.entry); if(r) r.win++;
     });
 
-    const lav = smolar(gw, NEWS_PICKS.get(g), NEWS_LIVE.get(g), g);
-    if(lav){
-      const r = podleEntry.get(lav.m.entry); if(r) r.bench++;
+    for(const x of smolarNej(gw, NEWS_PICKS.get(g), NEWS_LIVE.get(g), g)){
+      const r = podleEntry.get(x.m.entry); if(r) r.bench++;
     }
 
     const caps = capRows(NEWS_PICKS.get(g), NEWS_LIVE.get(g), g);
     if(caps.length >= 2){
-      const dle = caps.slice().sort((a, b) => b.pts - a.pts);
-      if(dle[0].pts !== dle[dle.length - 1].pts){
-        pokryto++;
-        const a = podleEntry.get(dle[0].m.entry); if(a) a.cap++;
-        const b = podleEntry.get(dle[dle.length - 1].m.entry); if(b) b.flop++;
-      }
+      pokryto++;
+      const {vitezove, posledni} = capCeny(caps);
+      for(const c of vitezove){ const r = podleEntry.get(c.m.entry); if(r) r.cap++; }
+      for(const c of posledni){ const r = podleEntry.get(c.m.entry); if(r) r.flop++; }
     }
   }
 
