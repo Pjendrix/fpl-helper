@@ -6731,6 +6731,39 @@ check('sekce je na Přehledu nad Zpravodajem', () => {
   return 'nad Zpravodajem';
 });
 
+check('síň slávy uděluje ceny týmž pravidlem jako karta kola', () => {
+  /* Ostrá chyba: tabulka sezóny si ceny počítala vlastní, jednodušší
+     cestou — prostě nejlepší a nejhorší kapitán kola. Karta nad ní
+     přitom u téhož kola hlásila „Bez ceny“, protože stejného kapitána
+     měla většina ligy. V tabulce tak měl bod někdo, kdo v žádném kole
+     cenu nedostal, a při shodě se místo dělení ocenil jen první. */
+  const caps = n => Array.from({length: 10}, (_, i) => ({
+    m: {entry: i + 1, player_name: 'H' + i, entry_name: 'T' + i},
+    pid: 1, raw: n[i], mult: 2, pts: n[i] * 2,
+  }));
+
+  // 6 z 10 na maximu = většina → kapitánská cena propadá. Minimum drží
+  // jeden, ten propadáka bere.
+  let v = w.eval('capCeny')(caps([9,9,9,9,9,9,5,5,5,1]));
+  if(v.vitezove.length) throw new Error('cena se udělila i při většině na maximu');
+  if(v.posledni.length !== 1) throw new Error('propadák propadl spolu s cenou');
+
+  // 4 z 10 na maximu = pod prahem → cena se dělí mezi všechny čtyři.
+  v = w.eval('capCeny')(caps([9,9,9,9,5,5,5,5,3,1]));
+  if(v.vitezove.length !== 4) throw new Error('cena se při shodě nedělí');
+
+  // Celá liga na jednom čísle: nedostane nikdo nic, ani propadáka.
+  v = w.eval('capCeny')(caps([7,7,7,7,7,7,7,7,7,7]));
+  if(v.vitezove.length || v.posledni.length)
+    throw new Error('při shodě celé ligy se přesto uděluje');
+
+  // A hlavně: karta kola i tabulka musí číst z jednoho místa.
+  const src = fs.readFileSync('js/tabs-prices.js', 'utf8');
+  if(src.split('list.length * 2 >= caps.length').length !== 2)
+    throw new Error('pravidlo většiny je v kódu dvakrát');
+  return 'většina i dělení';
+});
+
 check('historie od FPL se čte i bez pole round', () => {
   /* Ostrá chyba: `entry/{id}/history/` posílá číslo kola jako `event`.
      Pole `round` mají jen řádky, které si appka staví sama (archiv,
