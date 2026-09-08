@@ -156,8 +156,21 @@ w.eval('BOOT = window.__boot; FIX = window.__fix;');
 const g = new Proxy({}, {get: (_, k) => w.eval(String(k))});
 
 const squad0=new Set();
+/* Asynchronní test musí selhat nahlas. Dřív se vrácený slib vypsal
+   jako `Promise { <pending> }` s fajfkou a chyba uvnitř se ztratila —
+   test byl zelený, i když padal. Sliby se proto sbírají a na konci se
+   na ně čeká. */
+const PENDING=[];
 const check=(name,fn)=>{
-  try{ const v=fn(); console.log('✓',name,'→',v); }
+  try{
+    const v=fn();
+    if(v && typeof v.then === 'function'){
+      PENDING.push(v.then(r => console.log('✓',name,'→',r),
+                          e => { console.log('✗',name,'→',e.message); process.exitCode=1; }));
+      return;
+    }
+    console.log('✓',name,'→',v);
+  }
   catch(e){ console.log('✗',name,'→',e.message); process.exitCode=1; }
 };
 
@@ -1004,11 +1017,18 @@ check('crest klíčuje podle code, ne podle id', () => {
 });
 
 check('crest má záložní značku pro chybějící odznak', () => {
+  /* Bez inline onerror: jediný inline handler v appce držel
+     'unsafe-inline' ve script-src. Záloha se řeší delegovaným
+     posluchačem chyby v zachytávací fázi (js/ui.js). */
   const html = w.eval('crest')(1);
-  if(!html.includes('onerror')) throw new Error('chybí fallback');
-  if(!html.includes('#club-')) throw new Error('fallback neukazuje na sprite');
+  if(html.includes('onerror')) throw new Error('inline onerror je zpátky — rozbíjí CSP');
+  if(!/data-crest="/.test(html)) throw new Error('chybí data-crest pro delegovaný fallback');
   if(!html.includes('loading="lazy"')) throw new Error('chybí lazy loading');
-  return 'onerror → sprite';
+  const vercel = fs.readFileSync('vercel.json', 'utf8');
+  const csp = (vercel.match(/"Content-Security-Policy",\s*"value":\s*"([^"]+)"/) || [])[1] || '';
+  const script = (csp.match(/script-src[^;]*/) || [''])[0];
+  if(/unsafe-inline/.test(script)) throw new Error("script-src má 'unsafe-inline'");
+  return 'data-crest → delegovaný posluchač, CSP bez unsafe-inline';
 });
 
 check('crest neznámého týmu nic nevyrobí', () => {
@@ -3940,6 +3960,77 @@ check('Triple Captain přenese trojnásobek, ne dvojku', () => {
   });
 });
 
+check('náhradník, jehož zápas neskončil, se nepřeskakuje — čeká se', () => {
+  /* Základ dohrál s nulou; lavička 1 hraje až v neděli, lavička 2 už
+     hrála v sobotu. Dřív se nasadila lavička 2 a v neděli se to
+     přepočítalo na lavičku 1 — střídání tam a zpátky. FPL čeká. */
+  const pk = sestava();
+  const zaklad = pk.picks.filter(x => x.position <= 11);
+  const lavice = pk.picks.filter(x => x.position > 11);
+  const els = w.eval('BOOT.elements');
+  const team = id => els.find(p => p.id === id).team;
+
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  st.set(zaklad[10].element, {minutes: 0, total_points: 0});   // útočník DNP
+  st.set(lavice[1].element, {minutes: 0, total_points: 0});    // lavička 1 ještě nehrála
+  st.set(lavice[2].element, {minutes: 90, total_points: 5});   // lavička 2 hrála
+
+  const puv = w.eval('FIX');
+  const cekajici = team(lavice[1].element);
+  w.__fx = w.eval('BOOT.teams').map(t => ({
+    event: 30, team_h: t.id, team_a: (t.id % 20) + 1,
+    finished: t.id !== cekajici, finished_provisional: t.id !== cekajici, stats: [],
+  }));
+  w.eval('FIX = window.__fx');
+  try{
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    if(L.subs.length) throw new Error('vystřídalo se, i když první náhradník ještě hraje');
+    return 'čeká na prvního náhradníka';
+  } finally { w.__fx = puv; w.eval('FIX = window.__fx'); }
+});
+
+check('pořadí střídání je pořadí lavičky, ne základu', () => {
+  /* Dva vypadlí: obránce a útočník. Lavička: 1 = útočník, 2 = obránce.
+     Oba se vystřídají; první náhradník musí jít dovnitř první. */
+  const pk = sestava();
+  const zaklad = pk.picks.filter(x => x.position <= 11);
+  const lavice = pk.picks.filter(x => x.position > 11);
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  st.set(zaklad[1].element, {minutes: 0, total_points: 0});    // obránce DNP
+  st.set(zaklad[10].element, {minutes: 0, total_points: 0});   // útočník DNP
+
+  return sAutosuby(30, () => {
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    if(L.subs.length !== 2) throw new Error('střídání: ' + L.subs.length);
+    if(L.subs[0].in !== lavice[1].element)
+      throw new Error('první dovnitř nešel první náhradník z lavičky');
+    return '2 střídání v pořadí lavičky';
+  });
+});
+
+check('„ještě nehrálo“ nepočítá hráče, kteří dohráli s nulou', () => {
+  /* Kdo dohrál s nulou a vystřídat nešel, nehraje „ještě“ — nehraje
+     vůbec. Dřív po kole viselo „ještě hraje 1“. */
+  const pk = sestava();
+  const zaklad = pk.picks.filter(x => x.position <= 11);
+  const st = new Map();
+  pk.picks.forEach(x => st.set(x.element, {minutes: 90, total_points: 2}));
+  st.set(zaklad[10].element, {minutes: 0, total_points: 0});
+  // celá lavička taky s nulou — není kdo by nastoupil
+  pk.picks.filter(x => x.position > 11).forEach(x => st.set(x.element, {minutes: 0, total_points: 0}));
+
+  return sAutosuby(30, () => {
+    w.__pk = pk; w.__st = st;
+    const L = w.eval('resolveLineup(window.__pk, window.__st, 30)');
+    if(L.toPlay !== 0) throw new Error('toPlay = ' + L.toPlay);
+    return 'toPlay 0 po konci kola';
+  });
+});
+
 check('s Bench Boostem se nestřídá, hraje celý kádr', () => {
   const pk = sestava();
   pk.active_chip = 'bboost';
@@ -6267,11 +6358,15 @@ check('opakování se v klientovi a v proxy nenásobí', () => {
   if(/r\.status === 404/.test(fn))
     throw new Error('404 se opakuje i v klientovi — násobí se to s proxy');
   if(!/r\.status === 429/.test(fn)) throw new Error('429 se musí opakovat');
-  if(!/r\.status >= 500/.test(fn)) throw new Error('chyby serveru se musí opakovat');
+  /* 503 = odstávka FPL (proxy ji tak překládá i s Retry-After); 502 a
+     ostatní pětistovky se neopakují — při odstávce by to jen násobilo
+     dotazy, které stejně neprojdou. */
+  if(!/r\.status === 503/.test(fn)) throw new Error('503 (odstávka) se musí opakovat');
+  if(/r\.status >= 500/.test(fn)) throw new Error('5xx se opakují plošně — 502 se opakovat nemá');
 
   // A záložní data musí zůstat poslední záchranou, když se to vzdá.
   if(!/staleLoad\(p\)/.test(fn)) throw new Error('chybí pád na uložená data');
-  return 'jen 429 a 5xx';
+  return 'jen 429 a 503';
 });
 
 check('dotazy nechodí na FPL v pěti naráz', () => {
@@ -7153,5 +7248,118 @@ check('nápovědy záložek slibují jen to, co tam je', () => {
 });
 
 // jsdom drzi bezici setInterval odpoctu; bez tohohle proces nikdy neskonci
+/* ================= code review 09/2026 ================= */
+
+check('souběžnost dotazů na FPL je všude 2', () => {
+  /* Pět souběžných dotazů z IP datacentra je obrazec, který si u FPL
+     vyslouží blok — a Hub byl přesně ten hromadný dotaz, kde jich pět
+     zůstalo. */
+  const spatne = [];
+  for(const f of fs.readdirSync('js')){
+    const src = fs.readFileSync('js/' + f, 'utf8');
+    const m = src.match(/pooled\([^;]*?,\s*[3-9]\s*[,)]/gs) || [];
+    if(m.length) spatne.push(f + ' ×' + m.length);
+  }
+  if(spatne.length) throw new Error('pooled(…, >2): ' + spatne.join(', '));
+  return 'limit 2';
+});
+
+check('bootstrap a rozpis se stahují jedním sdíleným slibem', () => {
+  const zbytky = [];
+  for(const f of fs.readdirSync('js')){
+    const src = fs.readFileSync('js/' + f, 'utf8');
+    if(/if\(!BOOT\)\s*\{?\s*\[?BOOT/.test(src)) zbytky.push(f);
+  }
+  if(zbytky.length) throw new Error('ruční if(!BOOT) v: ' + zbytky.join(', '));
+  if(typeof w.eval('bootReady') !== 'function') throw new Error('bootReady chybí');
+  if(typeof w.eval('refreshRound') !== 'function') throw new Error('refreshRound chybí');
+  return 'bootReady + refreshRound';
+});
+
+check('refreshRound nahradí rozpis běžícího kola a nechá ostatní kola', () => {
+  return (async () => {
+    const puvFix = w.eval('FIX');
+    const cur = w.eval('BOOT.events.find(e => e.is_current)');
+    if(!cur) return 'bez běžícího kola v testovacích datech — přeskočeno';
+    const jinych = puvFix.filter(f => f.event !== cur.id).length;
+    w.__nove = puvFix.filter(f => f.event === cur.id).map(f => ({...f, finished: true, finished_provisional: true}));
+    if(!w.__nove.length) return 'kolo ' + cur.id + ' nemá zápasy v testovacích datech — přeskočeno';
+    const puvApi = w.eval('api');
+    w.__api = async (p) => { if(p === 'fixtures/?event=' + cur.id) return w.__nove; return puvApi(p); };
+    w.eval('api = window.__api');
+    try{
+      const z = await w.eval('refreshRound(true)');
+      const fix = w.eval('FIX');
+      if(!z) throw new Error('nehlásí změnu');
+      if(fix.filter(f => f.event !== cur.id).length !== jinych) throw new Error('ostatní kola se změnila');
+      if(!fix.filter(f => f.event === cur.id).every(f => f.finished)) throw new Error('nové řádky se nepropsaly');
+      if(fix === puvFix) throw new Error('pole je totéž — index by se neobnovil');
+      return 'GW' + cur.id + ' vyměněno, zbytek beze změny';
+    } finally {
+      w.__api = puvApi; w.eval('api = window.__api');
+      w.__fx = puvFix; w.eval('FIX = window.__fx');
+    }
+  })();
+});
+
+check('archiv jde do cloudu až po data_checked', () => {
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  if(!/function gwChecked/.test(src)) throw new Error('chybí gwChecked');
+  const cw = src.slice(src.indexOf('async function snapCloudWrite'), src.indexOf('function debugArchiv'));
+  if(!/snap\.ck/.test(cw)) throw new Error('snapCloudWrite nehlídá příznak ck');
+  if(!/ck: gwChecked\(g\)/.test(src)) throw new Error('packSnap příznak nezapisuje');
+  const rules = fs.readFileSync('firestore.rules', 'utf8');
+  if(!/string\(request\.resource\.data\.gw\) == gw/.test(rules))
+    throw new Error('pravidla nehlídají shodu gw s ID dokumentu');
+  return 'ck v snímku, cloud jen zkontrolované, gw == ID';
+});
+
+check('při plné kvótě jde nejdřív pryč záloha bootstrapu, ne archiv', () => {
+  const src = fs.readFileSync('js/histcache.js', 'utf8');
+  const fn = src.slice(src.indexOf('function snapLocalWrite'), src.indexOf('function snapClear'));
+  const a = fn.indexOf('staleClear()'), b = fn.indexOf('startsWith(ARCH_KEY)');
+  if(a < 0) throw new Error('staleClear se nevolá');
+  if(b < a) throw new Error('archiv se maže dřív než záloha');
+  return 'stale → archiv';
+});
+
+check('mobilní plachta escapuje název týmu', () => {
+  const src = fs.readFileSync('js/mobile.js', 'utf8');
+  if(!/\$\{esc\(who\)\}/.test(src)) throw new Error('${who} bez esc()');
+  return 'esc(who)';
+});
+
+check('klientský fetch má timeout a chyba nese status', () => {
+  const src = fs.readFileSync('js/core.js', 'utf8');
+  if(!/AbortSignal\.timeout\(API_TIMEOUT_MS\)/.test(src)) throw new Error('chybí timeout');
+  if(!/e\.status = status/.test(src)) throw new Error('apiError nenese status');
+  return 'timeout ' + w.eval('API_TIMEOUT_MS') / 1000 + ' s';
+});
+
+check('service worker necachuje chybové odpovědi', () => {
+  const sw = fs.readFileSync('sw.js', 'utf8');
+  const shell = sw.slice(sw.indexOf('// Skořápka'));
+  if(!/if\(res\.ok\)/.test(shell)) throw new Error('c.put bez kontroly res.ok');
+  return 'jen res.ok';
+});
+
+check('proxy překládá odstávku FPL na 503 s Retry-After', () => {
+  const api = fs.readFileSync('api/fpl.js', 'utf8');
+  const blok = api.slice(api.indexOf('if (!ctype.includes("json"))', api.indexOf('export default')));
+  if(!/status\(503\)/.test(blok.slice(0, 600))) throw new Error('není 503');
+  if(!/Retry-After/.test(blok.slice(0, 600))) throw new Error('chybí Retry-After');
+  return '503 + Retry-After 60';
+});
+
+check('typová deklarace zná všechny debug pomocníky', () => {
+  const d = fs.readFileSync('js/types.d.ts', 'utf8');
+  for(const n of ['debugCeny', 'debugArchiv', 'debugSin'])
+    if(!d.includes(n)) throw new Error('chybí ' + n);
+  return '3 pomocníci';
+});
+
+/* Asynchronní testy dobíhají tady; `process.exit` by je zabil dřív,
+   než by stihly cokoli vypsat. */
+await Promise.all(PENDING);
 w.close();
-process.exit(0);
+process.exit(process.exitCode || 0);

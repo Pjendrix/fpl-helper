@@ -178,6 +178,9 @@ service cloud.firestore {
     function archivMaTvar() {
       return request.resource.data.keys().hasAll(['v', 'gw', 'picks', 'live'])
         && request.resource.data.gw is int
+        // Dokument musí nést číslo kola, pod kterým leží — jinak jde
+        // zapsat doc `5` s `gw: 7` a Hub čte cizí kolo.
+        && string(request.resource.data.gw) == gw
         && request.resource.data.v is int
         && request.resource.data.live is string
         && request.resource.data.live.size() < 400000

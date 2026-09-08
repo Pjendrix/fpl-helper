@@ -9,7 +9,7 @@
 // (postup a sestup), takže je držíme natrvalo — u obrázku zastaralost
 // nehrozí a šetří to desítky requestů při každém otevření.
 
-const SHELL = 'squadcheck-shell-v33';
+const SHELL = 'squadcheck-shell-v34';
 const BADGES = 'squadcheck-badges-v1';
 
 /* Otisk verze statiky. MUSÍ sedět s ?v= v index.html.
@@ -17,7 +17,7 @@ const BADGES = 'squadcheck-badges-v1';
    Když se rozejdou, service worker předcachuje jiné URL, než jaké
    stránka požaduje — offline by pak byla skořápka bez skriptů, tedy
    prázdná stránka. Že to sedí, hlídá test. */
-const V = '33';
+const V = '34';
 const s = (p) => p + '?v=' + V;
 
 const FILES = ['/', '/index.html', '/manifest.webmanifest',
@@ -87,8 +87,12 @@ self.addEventListener('fetch', ev => {
   ev.respondWith(
     fetch(ev.request)
       .then(res => {
-        const copy = res.clone();
-        caches.open(SHELL).then(c => c.put(ev.request, copy)).catch(() => {});
+        // Chybová stránka od serveru do cache nepatří — offline by se
+        // pak místo skriptu servírovalo HTML s pětistovkou.
+        if(res.ok){
+          const copy = res.clone();
+          caches.open(SHELL).then(c => c.put(ev.request, copy)).catch(() => {});
+        }
         return res;
       })
       .catch(() => caches.match(ev.request).then(hit => hit || caches.match('/')))
