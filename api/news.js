@@ -113,12 +113,20 @@ function clip(s) {
   return (space > EXCERPT * 0.6 ? cut.slice(0, space) : cut) + "…";
 }
 
+// Nevalidni pubDate drive shodil cely zdroj: toISOString() na
+// Invalid Date vyhodi RangeError. Zdroj s jednim spatnym datem je porad
+// zdroj - polozka se jen zaradi jako "ted".
+function safeDate(s) {
+  const d = new Date(s || Date.now());
+  return (Number.isNaN(d.getTime()) ? new Date() : d).toISOString();
+}
+
 function parseRss(xml) {
   const items = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
   return items.slice(0, PER_SOURCE).map((it) => ({
     title: decode(tag(it, "title")),
     link: decode(tag(it, "link")),
-    date: new Date(decode(tag(it, "pubDate")) || Date.now()).toISOString(),
+    date: safeDate(decode(tag(it, "pubDate"))),
     excerpt: clip(
       stripBoilerplate(decode(tag(it, "description") || tag(it, "content:encoded")))
     ),

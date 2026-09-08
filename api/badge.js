@@ -1,8 +1,7 @@
-// Odznaky klubu jako WebP, servirovane z vlastni domeny.
+// Odznaky klubu (PNG z CDN Premier League), servirovane z vlastni domeny.
 //
 // Proc to jde pres proxy a ne primo <img src="https://resources...">:
 //   1. CSP v vercel.json ma img-src 'self' — cizi domena by se neprokreslila.
-//   2. Chteli jsme WebP; PL CDN dava PNG.
 //   3. Odznaky se meni jednou za sezonu (postup/sestup), tak at je edge cache
 //      drzi rok a nechodi se pro ne pri kazdem nacteni.
 //
@@ -10,20 +9,11 @@
 // mezi sezonami, id se prehazuje podle abecedy — proto code.
 //   Arsenal 3, Man Utd 1, Liverpool 14, Man City 43, Spurs 6, …
 //
-// sharp je nepovinny. Kdyz chybi, funkce vrati original PNG misto WebP;
-// obrazek se zobrazi tak jako tak, jen o par kB vetsi.
-
 const CDN = "https://resources.premierleague.com/premierleague/badges";
 
 // Nejvetsi rozumna velikost, ktera na CDN existuje pro vsechny kluby.
 const SIZES = new Set(["25", "50", "70"]);
 
-let sharp = null;
-try {
-  ({ default: sharp } = await import("sharp"));
-} catch {
-  // bez sharpu jedeme dal, jen bez konverze
-}
 
 export default async function handler(req, res) {
   const code = String(req.query.code || "");
@@ -45,16 +35,11 @@ export default async function handler(req, res) {
       return res.status(404).json({ error: `Odznak pro kód ${code} na CDN není.` });
     }
 
-    const png = Buffer.from(await upstream.arrayBuffer());
-    let body = png;
-    let type = "image/png";
-
-    if (sharp) {
-      body = await sharp(png).webp({ quality: 88, effort: 5 }).toBuffer();
-      type = "image/webp";
-    }
-
-    res.setHeader("Content-Type", type);
+    // Puvodne se tu prekodovavalo do WebP pres `sharp`, ktery ale nebyl
+    // v package.json - na Vercelu se tedy nikdy nenainstaloval a vzdy sel
+    // PNG. Kod, ktery se nikdy nespustil, je pryc; PNG z CDN staci.
+    const body = Buffer.from(await upstream.arrayBuffer());
+    res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=31536000, immutable");
     return res.status(200).send(body);
   } catch {

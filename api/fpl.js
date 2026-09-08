@@ -32,10 +32,10 @@ const ALLOWED = [
 // sestavy manazeru po kolech, bootstrap jednou denne.
 function ttlFor(path) {
   if (/^event\/\d+\/live\/$/.test(path)) return 45;
+  if (/^entry\/\d+\/transfers\/$/.test(path)) return 120;   // pred obecnym entry/, jinak mrtva vetev
   if (path.startsWith("entry/")) return 60;
   if (/^leagues-classic\/\d+\/standings\/\?phase=\d+$/.test(path)) return 300;
   if (path.startsWith("leagues-classic/")) return 120;
-  if (/^entry\/\d+\/transfers\/$/.test(path)) return 120;
   return 600;
 }
 
@@ -412,8 +412,12 @@ export default async function handler(req, res) {
     // FPL obcas vrati HTML (udrzba, rate limit stranka) se statusem 200.
     const ctype = upstream.headers.get("content-type") || "";
     if (!ctype.includes("json")) {
+      // 503 + Retry-After, ne 502: odstavka je "pockej", ne "rozbite".
+      // Klient opakuje jen 429 a 503 (viz api() v js/core.js) - a az po
+      // minute, ne trikrat za sebou, kdyz appku otevira cela liga naraz.
+      res.setHeader("Retry-After", "60");
       return res
-        .status(502)
+        .status(503)
         .json({ error: "FPL API nevrátilo JSON — pravděpodobně dočasná odstávka." });
     }
 
