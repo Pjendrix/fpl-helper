@@ -336,11 +336,24 @@ function crest(teamId, cls){
   const t = BOOT && BOOT.teams.find(x => x.id === teamId);
   if(!t) return '';
   const sn = esc(t.short_name);
-  const fb = `this.onerror=null;this.outerHTML='<svg class=&quot;crest ${cls || ''}&quot;`
-    + ` role=&quot;img&quot; aria-label=&quot;${sn}&quot;><use href=&quot;#club-${sn}&quot;/></svg>'`;
+  /* Záloha při chybějícím odznaku se řeší delegovaným posluchačem níž,
+     ne atributem onerror: jediný inline handler v celé appce držel
+     `'unsafe-inline'` ve `script-src`, a tím CSP proti XSS vypínal. */
   return `<img class="crest ${cls || ''}" src="/api/badge?code=${t.code}&size=50"
-    alt="" width="21" height="21" loading="lazy" decoding="async" onerror="${fb}">`;
+    alt="" width="21" height="21" loading="lazy" decoding="async"
+    data-crest="${sn}" data-crestcls="${esc(cls || '')}">`;
 }
+
+/* Chyba načtení obrázku nebublá, takže posluchač musí být v zachytávací
+   fázi. Odznak se nahradí barevnou značkou ze spritu club-marks.svg. */
+document.addEventListener('error', ev => {
+  const img = /** @type {any} */ (ev.target);
+  if(!img || img.tagName !== 'IMG' || !img.dataset || !img.dataset.crest) return;
+  const sn = esc(img.dataset.crest), cls = esc(img.dataset.crestcls || '');
+  const svg = document.createElement('div');
+  svg.innerHTML = `<svg class="crest ${cls}" role="img" aria-label="${sn}"><use href="#club-${sn}"/></svg>`;
+  img.replaceWith(svg.firstElementChild);
+}, true);
 
 /* ============================================================
    SNAPSHOTY MINILIGY

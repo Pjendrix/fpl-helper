@@ -40,9 +40,8 @@ if(FIREBASE_CONFIG.projectId){
          losování je vlastnost ligy, ne jednoho člověka. Zapisuje ten,
          kdo se na dohrané kolo podívá první; ostatní už jen čtou.
 
-         create bez update v pravidlech znamená, že zápis je jednorázový
-         — jakmile kolo jednou spadne dovnitř, nikdo (ani omylem, ani
-         schválně) ho nepřepíše. */
+         Pravidla dovolí `create` a `update` jen na vyšší verzi snímku
+         — přepsat kolo jinými čísly téže verze nejde nikomu. */
       h2hRead: async lid => {
         const snap = await store.getDocs(
           store.collection(db, "leagues", String(lid), "h2h"));

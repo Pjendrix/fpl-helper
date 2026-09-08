@@ -404,7 +404,7 @@ async function loadPlayers(){
     /* Rozpis je potřeba kvůli projekci ve verdiktu porovnání. Dřív se sem
        došlo s BOOT načteným a FIX null, funkce spadla a záložka zůstala
        prázdná bez jediného slova. Tichá chyba je horší než hlasitá. */
-    if(!BOOT) BOOT = await api('bootstrap-static/');
+    await bootReady();
     if(!FIX) FIX = await api('fixtures/');
     if(!PLAYERS){
       $('pout').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';

@@ -853,7 +853,9 @@ function h2hAutoRefresh(){
     if(!HUB || !HUB.cur || gwPhase(HUB.cur.id) === 'final'){
       clearInterval(H2H_TIMER); H2H_TIMER = null; return;
     }
-    const pred = JSON.stringify(H2H_LIVE ? [...H2H_LIVE.stats.keys()].length : 0);
+    // Nejdřív rozpis — bez něj `playerDone()` nikdy neřekne „dohrál“
+    // a autosuby se během neděle neprojeví (viz refreshRound v core.js).
+    if(typeof refreshRound === 'function') await refreshRound(false);
     await h2hEnsureLive();
     try{
       renderH2H();
@@ -862,7 +864,6 @@ function h2hAutoRefresh(){
       const karta = document.querySelector('#h2hout .h2hm.big');
       if(karta && typeof flash === 'function') flash(karta);
       if(typeof drawStatus === 'function') drawStatus();
-      void pred;
     }catch(e){ console.error('H2H:', e); }
   }, 60000);
 }

@@ -27,18 +27,12 @@
    jednou na člena ligy, takže padesátičlenná liga jinak znamená padesát
    průchodů přes sedm set hráčů, a při „Načíst celou sezónu“ ještě
    osmatřicetkrát tolik. */
-const IDX_LIVEMAP = new WeakMap();
-
+/* Body hráčů kola. Dřív tu byla vlastní mapa vedle `liveStats()` z
+   core.js — dvě tabulky nad týmiž daty. Teď je to jen pohled na tu jednu. */
 function liveMap(live){
-  if(!live || !Array.isArray(live.elements)) return new Map();
-  let m = IDX_LIVEMAP.get(live);
-  if(!m){
-    m = new Map();
-    for(const e of live.elements){
-      m.set(e.id, e.stats ? (e.stats.total_points || 0) : 0);
-    }
-    IDX_LIVEMAP.set(live, m);
-  }
+  const st = liveStats(live);
+  const m = new Map();
+  for(const [id, s] of st) m.set(id, (s && s.total_points) || 0);
   return m;
 }
 
@@ -706,7 +700,7 @@ async function nactiKolo(g){
   if(!NEWS_PICKS.has(g)){
     try{
       NEWS_PICKS.set(g, await pooled(HUB.members,
-        m => cached('entry/' + m.entry + '/event/' + g + '/picks/'), 5));
+        m => cached('entry/' + m.entry + '/event/' + g + '/picks/'), 2));
     }catch(e){
       // Bez sestav prostě nebudou kapitánské ceny. Zbytek panelu
       // je na nich nezávislý, takže tohle není důvod nic hlásit.
@@ -723,7 +717,8 @@ async function nactiKolo(g){
   }
 
   /* Kolo je dohrané a povedlo se celé — ať se příště nestahuje znovu.
-     Ukládá se až tady, protože dřív není jisté, že máme obojí. */
+     Ukládá se až tady, protože dřív není jisté, že máme obojí. Do
+     cloudu jde snímek až po `data_checked` (viz gwChecked v histcache). */
   if(konecne) snapSave(g, HUB.members, NEWS_PICKS.get(g), NEWS_LIVE.get(g));
 }
 
@@ -897,6 +892,7 @@ function ownFdr(teamId, oppId, home, fallback){
    dostane zhruba pětinu buněk — obtížnost je tím pádem vždy relativní
    k tomu, co se v daných kolech reálně hraje. */
 let FDR_CUTS = null;
+volatile('fdr', () => { FDR_CUTS = null; });
 
 function computeFdrCuts(startGw, n){
   const all = [];
@@ -1137,7 +1133,7 @@ function buildPrices(){
 async function loadPlan(){
   $('plmsg').textContent = 'Načítám rozpis…';
   try{
-    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+    await bootReady();
     startCountdown();
 
     const start = planStartGw();

@@ -190,4 +190,5 @@ interface Window {
   /** Konzolové pomůcky pro živou diagnostiku. */
   debugCeny?: (gw: number) => unknown;
   debugArchiv?: () => unknown;
+  debugSin?: (...args: unknown[]) => unknown;
 }

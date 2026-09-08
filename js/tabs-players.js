@@ -32,7 +32,7 @@ async function analyzeTransfers(){
   $('trmsg').textContent = 'Načítám sestavu…';
   $('trout').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';
   try{
-    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+    await bootReady();
     if(!PLAYERS) PLAYERS = playerRows();
 
     const entryId = CONFIG.entryId || localStorage.getItem('fpl_entry');
@@ -63,7 +63,7 @@ async function analyzeTransfers(){
     // historie kazdeho hrace v kadru — kvuli bodum za posledni zapasy
     const summaries = (await pooled(picks.picks,
       pk => cached('element-summary/' + pk.element + '/').then(r => r.history || []),
-      5, (d, t) => { $('trmsg').textContent = `Procházím kádr… ${d}/${t}`; })).map(x => x || []);
+      2, (d, t) => { $('trmsg').textContent = `Procházím kádr… ${d}/${t}`; })).map(x => x || []);
 
     const els0 = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
     const squad = picks.picks.map(pk => ({p: els0[pk.element], pick: pk})).filter(x => x.p);

@@ -114,7 +114,7 @@
         )}<span>Oficiální FPL</span></a>` +
       '</div>' +
       '<h3>Účet a zobrazení</h3>' +
-      `<p class="mwho">Tým <b>${who}</b></p>` +
+      `<p class="mwho">Tým <b>${esc(who)}</b></p>` +
       '<div class="mgrid">' +
         actionBtn('theme',   'Tmavý režim',   '<path d="M20 14.4A8.4 8.4 0 0 1 9.6 4 8.4 8.4 0 1 0 20 14.4z"/>') +
         actionBtn('reload',  'Načíst znovu',  '<path d="M20 5.6v5h-5"/><path d="M19.3 14a7.6 7.6 0 1 1-1.5-7"/>') +

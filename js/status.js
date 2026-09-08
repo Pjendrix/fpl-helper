@@ -106,7 +106,23 @@ function drawStatus(){
 
 /* Čas i odpočet se posouvají samy, i když se nic nenačítá — od toho
    tam jsou. Překreslujeme celý pruh, protože odpočet je jeho součástí. */
-setInterval(() => { try{ drawStatus(); }catch(e){} }, 30000);
+setInterval(() => {
+  try{ drawStatus(); }catch(e){}
+  /* Rozpis běžícího kola se obnovuje i bez otevřeného H2H — jinak by
+     stav „dopočítáno“ a autosuby na Přehledu přišly až s reloadem.
+     Uvnitř je vlastní minutový limit, takže tohle nestojí víc než
+     jeden malý dotaz za minutu, a to jen během kola. */
+  if(typeof refreshRound === 'function' && !document.hidden)
+    refreshRound(false).then(z => {
+      if(!z) return;
+      drawStatus();
+      /* Vlastní sestava má živé body z doby otevření stránky. Po změně
+         rozpisu se jednou za pět minut obnoví — to jsou tři malé dotazy,
+         ne jeden za minutu, a stačí to na autosuby i na konec kola. */
+      if(ENTRY_ID && typeof HOME !== 'undefined' && HOME && HOME.picks
+         && Date.now() - SQUAD_AT > 5 * 60000) load(ENTRY_ID);
+    }).catch(() => {});
+}, 30000);
 
 /* ------------------------------------------------------------
    Zvýraznění změny

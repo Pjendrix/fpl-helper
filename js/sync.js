@@ -115,6 +115,14 @@ async function pullSync(){
         changed++;
       });
 
+      /* Značky smazání se držely napořád: každý kdy smazaný klíč šel
+         při každém zápisu znovu jako '' a `_ts` jen rostlo. Po měsíci
+         se z cloudu stáhly, kam se stáhnout měly — starší se zahodí. */
+      const staré = Date.now() - 30 * 86400000;
+      Object.keys(mine).forEach(k => {
+        if(localStorage.getItem(k) === null && (mine[k] || 0) < staré){ delete mine[k]; changed++; }
+      });
+
       if(changed){
         try{ localStorage.setItem(TS_KEY, JSON.stringify(mine)); }catch(e){}
         // Watchlist i sestava se čtou do paměti při startu — po slití

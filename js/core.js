@@ -164,20 +164,27 @@ async function api(p, tries = 3){
   for(let attempt = 0; ; attempt++){
     let r, ct, data;
     try{
-      r = await fetch('/api/fpl?path=' + encodeURIComponent(p));
+      /* Bez timeoutu zůstane při zaseklé proxy (studený start + tři
+         pokusy + Worker) viset kostra bez jediné hlášky. */
+      r = await fetch('/api/fpl?path=' + encodeURIComponent(p),
+        {signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout
+                   ? AbortSignal.timeout(API_TIMEOUT_MS) : undefined});
       ct = r.headers.get('content-type') || '';
     }catch(e){
       // Spadlá síť. Uložená odpověď je pořád lepší než prázdná stránka.
       const zaloha = staleLoad(p);
       if(zaloha) return zaloha;
-      throw new Error('Síť neodpovídá — zkontroluj připojení.');
+      const timeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
+      throw apiError(timeout
+        ? 'Server neodpověděl do ' + (API_TIMEOUT_MS / 1000) + ' s — zkus to znovu.'
+        : 'Síť neodpovídá — zkontroluj připojení.', 0, p);
     }
 
     if(!ct.includes('application/json')){
       const zaloha = staleLoad(p);
       if(zaloha) return zaloha;
-      throw new Error('Serverová funkce /api/fpl neodpovídá (' + r.status + '). '
-        + 'Zkontroluj, že je nasazený soubor api/fpl.js a package.json.');
+      throw apiError('Serverová funkce /api/fpl neodpovídá (' + r.status + '). '
+        + 'Zkontroluj, že je nasazený soubor api/fpl.js a package.json.', r.status, p);
     }
 
     data = await r.json();
@@ -206,7 +213,11 @@ async function api(p, tries = 3){
 
        Opakuje se proto jen to, co proxy neřeší: žádost o strpení (429)
        a chyba serveru. Blok se nechává padnout a chytí ho staleLoad. */
-    const doCasne = r.status === 429 || r.status >= 500;
+    /* Jen 429 a 503: obojí znamená „počkej“. Proxy vrací 503 pro
+       odstávku FPL (HTML místo JSON) i pro vlastní přetížení, a 502 pro
+       „nedostupné“ — to opakovat nemá smysl a při odstávce by to jen
+       násobilo dotazy, které stejně neprojdou. */
+    const doCasne = r.status === 429 || r.status === 503;
 
     if(doCasne && attempt < tries - 1){
       const hinted = Number(r.headers.get('retry-after')) || 0;
@@ -219,8 +230,20 @@ async function api(p, tries = 3){
     const zaloha = staleLoad(p);
     if(zaloha) return zaloha;
 
-    throw new Error((data.error || 'Chyba') + ' — ' + p + ' (' + r.status + ')');
+    throw apiError(data.error || 'Chyba', r.status, p);
   }
+}
+
+/* Chyba s číslem stavu, ať volající rozliší 404 od výpadku bez parsování
+   textu. Cesta jde do `detail`, ne do hlášky — člověk ji nepotřebuje. */
+const API_TIMEOUT_MS = 15000;
+
+function apiError(msg, status, path){
+  const e = /** @type {Error & {status?: number, path?: string}} */ (
+    new Error(msg + (status ? ' (' + status + ')' : '')));
+  e.status = status || 0;
+  e.path = path;
+  return e;
 }
 
 /* Kdy se naposled něco doopravdy stáhlo. Pruh se stavem dat z toho
@@ -322,6 +345,84 @@ async function fetchStandings(lid, onPage = null){
 }
 
 let BOOT = null, FIX = null;
+
+/* Jeden slib pro bootstrap a rozpis.
+
+   Ruční `BOOT = await api(...)` za podmínkou stálo na osmi místech. Když se
+   spustily dvě záložky naráz (Přehled si sám otevírá Hub), stáhl se
+   bootstrap dvakrát a dvakrát se serializoval do localStorage; dvě
+   místa navíc nechala `FIX` prázdný. Odteď je to jedna funkce a
+   souběžní volající sdílejí tentýž dotaz. */
+let BOOT_PROMISE = null;
+let BOOT_AT = 0, FIX_AT = 0;
+
+function bootReady(){
+  if(BOOT && FIX) return Promise.resolve();
+  if(!BOOT_PROMISE){
+    BOOT_PROMISE = Promise.all([api('bootstrap-static/'), api('fixtures/')])
+      .then(([b, f]) => { BOOT = b; FIX = f; BOOT_AT = FIX_AT = Date.now(); })
+      .finally(() => { BOOT_PROMISE = null; });
+  }
+  return BOOT_PROMISE;
+}
+
+/* Obnova během kola.
+
+   `FIX` se dřív stáhl jednou při startu a už nikdy. Kdo měl appku
+   otevřenou od soboty, měl v neděli večer rozpis ze soboty: zápasy
+   v něm nebyly dohrané, `playerDone()` vracelo false, autosuby ani
+   přesun pásky se neprojevily a H2H skóre bylo nižší než na FPL.
+   Tlačítko ⟳ to opravilo, ale nikdo nevěděl, že má.
+
+   Bere se jen rozpis běžícího kola (`fixtures/?event=N` — jeden malý
+   dotaz) a nahradí se v `FIX` řádky téhož kola; index `IDX_FIX` je
+   klíčovaný identitou pole, takže nové pole = nový index sám od sebe.
+   Bootstrap se obnovuje jednou za hodinu — mění se v něm stav hráčů
+   a `data_checked`. Vrací true, když se něco změnilo. */
+const FIX_REFRESH_MS = 60 * 1000;
+const BOOT_REFRESH_MS = 60 * 60 * 1000;
+
+async function refreshRound(force){
+  if(!BOOT || !FIX) return false;
+  let zmena = false;
+  const ted = Date.now();
+
+  if(force || ted - BOOT_AT > BOOT_REFRESH_MS){
+    try{ BOOT = await api('bootstrap-static/'); BOOT_AT = Date.now(); zmena = true; }
+    catch(e){ /* starý bootstrap je pořád lepší než žádný */ }
+  }
+
+  const cur = (BOOT.events || []).find(e => e.is_current);
+  if(!cur) return zmena;
+  const hotovo = typeof gwPhase === 'function' && gwPhase(cur.id) === 'final';
+  if(hotovo && !force) return zmena;
+  if(!force && ted - FIX_AT < FIX_REFRESH_MS) return zmena;
+
+  try{
+    const cerstve = await api('fixtures/?event=' + cur.id);
+    if(Array.isArray(cerstve) && cerstve.length){
+      const jine = FIX.filter(f => f.event !== cur.id);
+      FIX = jine.concat(cerstve);
+      FIX_AT = Date.now();
+      zmena = true;
+    }
+  }catch(e){ /* zkusí se za minutu */ }
+  return zmena;
+}
+
+/* Návrat na kartu po delší době: rozpis i vlastní sestava se obnoví.
+   Pět minut je hranice, za kterou se během kola už stihlo něco stát. */
+let HIDDEN_AT = null;
+document.addEventListener('visibilitychange', () => {
+  if(document.hidden){ HIDDEN_AT = Date.now(); return; }
+  const pryc = HIDDEN_AT ? Date.now() - HIDDEN_AT : 0;
+  HIDDEN_AT = null;
+  if(pryc < 5 * 60 * 1000 || !BOOT || !ENTRY_ID) return;
+  refreshRound(true).then(() => {
+    if(typeof drawStatus === 'function') drawStatus();
+    if(HOME && HOME.picks) load(ENTRY_ID);
+  });
+});
 let MY_SQUAD = null;   // Set(playerId) — naplní se po načtení vlastní sestavy
 /* Body za probíhající kolo počítá render() ze živých dat. Přehled je
    potřebuje taky a přepočítávat je podruhé by znamenalo držet dvě
@@ -329,12 +430,21 @@ let MY_SQUAD = null;   // Set(playerId) — naplní se po načtení vlastní ses
 let LAST_LIVE_TOTAL = null;
 let ENTRY_ID = null;   // aktuálně otevřený tým; klíčuje localStorage i cache
 
+let SQUAD_AT = 0;   // kdy se naposled vykreslila vlastní sestava (živé body)
+
 async function load(id){
   ENTRY_ID = parseInt(id, 10);
-  $('msg').textContent = 'Načítám…';
-  $('out').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';
+  SQUAD_AT = Date.now();
+  /* Kostra jen při prvním načtení. Při tiché obnově během kola zůstává
+     stará sestava vidět, dokud nedorazí nová — blikání kostry každých
+     pět minut by vypadalo jako chyba. */
+  const tiche = HOME && HOME.picks && HOME.entry && HOME.entry.id === ENTRY_ID;
+  if(!tiche){
+    $('msg').textContent = 'Načítám…';
+    $('out').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i><i></i></div>';
+  }
   try{
-    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+    await bootReady();
     startCountdown();
     drawRail();
     drawStatus();
@@ -345,13 +455,20 @@ async function load(id){
     const startGw = nxt ? nxt.id : (cur ? cur.id + 1 : 1);
     const pickGw = cur ? cur.id : 1;
 
-    const entry = await api('entry/' + id + '/');
+    let entry;
+    try{ entry = await api('entry/' + id + '/'); }
+    catch(e){
+      if(e && e.status === 404)
+        throw new Error('Tým s ID ' + id + ' na FPL neexistuje. Zkontroluj ID v adrese '
+          + 'fantasy.premierleague.com/entry/…');
+      throw e;
+    }
     setWhoName(entry);
 
-    let picks = null;
+    let picks = null, picksErr = null;
     if(cur){
       try { picks = await api('entry/' + id + '/event/' + pickGw + '/picks/'); }
-      catch(e){ picks = null; }
+      catch(e){ picks = null; picksErr = e; }
     }
 
     // Body, které hráči v probíhajícím kole reálně mají. Dokud kolo běží,
@@ -373,8 +490,21 @@ async function load(id){
       HOME = {entry, picks: null, startGw, liveTotal: null};
       drawHome();
       renderPreseason(entry, startGw);
-      $('msg').innerHTML = 'Sestava zatím není veřejná — FPL ji zpřístupní až po deadlinu '
-        + 'GW' + startGw + '. Zatím ukazuju stav hráčů v celé lize.';
+      /* Tři různé důvody, tři různé věty. Dřív se každý (i výpadek FPL)
+         překládal na „počkej na deadline“, což člověka poslalo čekat na
+         něco, co nepřijde. */
+      if(!cur || (picksErr && picksErr.status === 404)){
+        $('msg').innerHTML = cur
+          ? 'Sestava pro GW' + pickGw + ' není k dispozici — tým v tomhle kole '
+            + 'ještě neexistoval nebo FPL sestavu zveřejní až po deadlinu. '
+            + 'Zatím ukazuju stav hráčů v celé lize.'
+          : 'Sestava zatím není veřejná — FPL ji zpřístupní až po deadlinu '
+            + 'GW' + startGw + '. Zatím ukazuju stav hráčů v celé lize.';
+      } else {
+        $('msg').innerHTML = errBox('Sestavu se teď nepodařilo načíst — FPL API '
+          + 'neodpovídá. Zatím ukazuju stav hráčů v celé lize.', null,
+          () => load(ENTRY_ID));
+      }
     }
   }catch(e){
     $('msg').innerHTML = errBox(e.message, null, () => load(ENTRY_ID));
@@ -516,11 +646,26 @@ function resolveLineup(pk, stats, gw){
     const typ = id => { const p = els.get(id); return p ? p.element_type : 0; };
     const lavice = bench.map(x => x.element);
 
-    for(const out of xi.slice()){
-      if(mins(out) > 0 || !playerDone(out, gw)) continue;
+    /* Pořadí je pořadí lavičky, ne základu — tak to dělá FPL: první
+       náhradník dostane první příležitost a hledá si, koho ze základu
+       může nahradit (v pořadí sestavy), teprve pak přijde druhý.
+       Procházet nejdřív základ a každému hledat náhradníka dává u dvou
+       vypadlých s různými pozicemi jiný výsledek než FPL. */
+    for(const cand of lavice){
+      if(subs.some(s => s.in === cand)) continue;
 
-      for(const cand of lavice){
-        if(mins(cand) <= 0 || subs.some(s => s.in === cand)) continue;
+      /* Náhradník, který ještě nedohrál, se nepřeskakuje — čeká se.
+         Přeskočit ho a nasadit dalšího by znamenalo v neděli večer
+         střídat zpátky, jakmile nastoupí. Dokud o něm není jasno,
+         nemůže být jasno ani o nikom za ním v pořadí. */
+      if(mins(cand) <= 0){
+        if(!playerDone(cand, gw)) break;
+        continue;
+      }
+
+      for(const out of xi.slice()){
+        if(mins(out) > 0 || !playerDone(out, gw)) continue;
+        if(subs.some(s => s.out === out)) continue;
 
         // Brankář se střídá jen za brankáře; u ostatních rozhoduje formace.
         const zkus = xi.map(id => (id === out ? cand : id)).map(typ);
@@ -574,7 +719,10 @@ function resolveLineup(pk, stats, gw){
   const cost = (pk.entry_history && pk.entry_history.event_transfers_cost) || 0;
   const total = rows.reduce((a, r) => a + r.pts, 0) - cost;
   const benchTotal = rows.filter(r => !r.mult).reduce((a, r) => a + r.raw, 0);
-  const toPlay = rows.filter(r => r.mult > 0 && !r.played).length;
+  /* Kdo dohrál s nulou a vystřídat nešel (formace), nehraje „ještě“ —
+     nehraje vůbec. Bez `playerDone` tu po kole viselo „ještě hraje 1“. */
+  const toPlay = rows.filter(r => r.mult > 0 && !r.played
+                                  && !playerDone(r.element, gw)).length;
 
   return {rows, total, benchTotal, toPlay, capId, subs, cost, bboost};
 }
@@ -691,7 +839,7 @@ function renderPreseason(entry, startGw){
 
 function render(entry, picks, startGw, liveCtx){
   const teams = Object.fromEntries(BOOT.teams.map(t => [t.id, t]));
-  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const els = elsById();
 
   MY_SQUAD = new Set(picks.picks.map(pk => pk.element));
   // Teď teprve víme, kdo má v kterém kole volno — kolejnice dostane tečky.
@@ -707,8 +855,12 @@ function render(entry, picks, startGw, liveCtx){
   const efekt = lineup
     ? new Map(lineup.rows.map(r => [r.element, r])) : null;
 
-  const squad = picks.picks.map(pk => {
-    const p = els[pk.element];
+  /* Hráč, kterého FPL ze soupisky odstranilo (odchod mimo ligu), v
+     bootstrapu není. Dřív to byl TypeError a místo sestavy chybová
+     hláška; teď se řádek vynechá a řekne se to v upozorněních. */
+  const chybejici = picks.picks.filter(pk => !els.get(pk.element));
+  const squad = picks.picks.filter(pk => els.get(pk.element)).map(pk => {
+    const p = els.get(pk.element);
     const f = fdr(p.team, startGw, 5);
 
     // Body, které hráč v probíhajícím kole opravdu má, včetně násobiče
@@ -753,9 +905,12 @@ function render(entry, picks, startGw, liveCtx){
           : '<div class="pts wait">–</div>')
       : `<div class="fd">FDR ${s.f.avg ? s.f.avg.toFixed(1) : '–'}</div><div class="mn"></div>`;
 
+    /* „zatím nehrál“ jen dokud jeho tým hraje; po konci kola je to
+       „nehrál“ — jinak to vypadá, že se ještě něco stane. */
     const foot2 = live
       ? `<div class="mn${s.played ? '' : ' wait'}">${
-          s.played ? s.st.minutes + '′' : 'zatím nehrál'}</div>`
+          s.played ? s.st.minutes + '′'
+          : (liveGw != null && playerDone(s.p.id, liveGw) ? 'nehrál' : 'zatím nehrál')}</div>`
       : '';
 
     return `<div class="shirt ${s.p.status}${live && s.played ? ' done' : ''}${
@@ -822,7 +977,17 @@ function render(entry, picks, startGw, liveCtx){
   const problems = squad.filter(s => s.p.status !== 'a' || s.chance < 100);
   problems.sort((a,b) => (a.starting === b.starting ? a.chance - b.chance : (a.starting ? -1 : 1)));
 
-  const alertHtml = problems.length ? problems.map(s => `
+  const chybiHtml = chybejici.map(pk => `
+    <div class="alert bad">
+      <div class="top">
+        <span class="who">Hráč #${pk.element} už v soupisce FPL není</span>
+        <span class="tag">${pk.position <= 11 ? 'Základ' : 'Lavička'}</span>
+      </div>
+      <div class="txt">FPL ho ze hry odstranilo (odchod mimo ligu). V sestavě
+        se nezobrazuje a body za něj nejdou spočítat — vyměň ho.</div>
+    </div>`).join('');
+
+  const alertHtml = chybiHtml + (problems.length ? problems.map(s => `
     <div class="alert ${s.chance <= 50 ? 'bad' : ''}">
       <div class="top">
         <span class="who">${esc(s.p.web_name)}</span>
@@ -832,7 +997,7 @@ function render(entry, picks, startGw, liveCtx){
       </div>
       ${s.p.news ? `<div class="txt">${esc(s.p.news)}</div>` : ''}
     </div>`).join('')
-    : '<div class="alert" style="border-left-color:var(--ok)"><div class="top"><span class="who">Nikdo není hlášený jako zraněný ani suspendovaný.</span></div></div>';
+    : '<div class="alert" style="border-left-color:var(--ok)"><div class="top"><span class="who">Nikdo není hlášený jako zraněný ani suspendovaný.</span></div></div>');
 
   /* --- přehled kádru po pozicích ---
 
@@ -987,7 +1152,9 @@ function render(entry, picks, startGw, liveCtx){
         <div><b>${toPlay || '–'}</b><span>ještě nehrálo</span></div>
         <div class="txt">${liveCtx.finished
           ? 'Kolo je uzavřené, čísla jsou konečná.'
-          : 'Průběžně — bonusy z BPS se po zápase ještě mohou změnit.'}</div>
+          : 'Průběžně — bonusy z BPS se po zápase ještě mohou změnit.'}
+          <span class="sbtime">stav k ${esc(new Date().toLocaleTimeString('cs-CZ',
+            {hour: '2-digit', minute: '2-digit'}))}</span></div>
       </div>` : ''}
       ${[4,3,2,1].map(t => `<div class="row">${rows[t].map(shirt).join('')}</div>`).join('')}
     </div>
@@ -1726,6 +1893,7 @@ volatile('core', () => {
   /* Štítek „záložní data“ musí zmizet, když se povede načíst čerstvá.
      Jinak appka tvrdí, že ukazuje starou odpověď, i když neukazuje. */
   STALE_USED = null;
+  LAST_LIVE_TOTAL = null;
 });
 
 let RELOADING = false;
@@ -1827,7 +1995,7 @@ async function loadLeague(lid){
   $('lmsg').textContent = 'Načítám ligu…';
   $('lout').innerHTML = '';
   try{
-    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+    await bootReady();
 
     const cur = BOOT.events.find(e => e.is_current);
 
@@ -1852,13 +2020,13 @@ async function loadLeague(lid){
 
     if(!hist){
       hist = await pooled(members, m => cached('entry/' + m.entry + '/history/'),
-        5, prog('Načítám historii…'));
+        2, prog('Načítám historii…'));
     }
 
     let picks = [];
     if(cur){
       picks = await pooled(members, m => cached('entry/' + m.entry + '/event/' + cur.id + '/picks/'),
-        5, prog('Načítám sestavy…'));
+        2, prog('Načítám sestavy…'));
       // Táž oprava jako v Hubu: běžící kolo doplní `entry_history` ze
       // sestav, které stahujeme tak jako tak.
       if(typeof snapPatchCurrent === 'function') snapPatchCurrent(hist, picks, cur.id);

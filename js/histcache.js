@@ -55,8 +55,32 @@
    zpětně u každého pole: nula je platná hodnota. Snímky v2 se pro
    sestavy pořád použijí (to je ta drahá část), historie se z nich ale
    neskládá — ta se dobere z API a zapíše se znovu už jako v3. */
-const ARCH_V = 3;
+/* Verze 4 přidává příznak `ck` (kolo zkontrolované FPL, viz gwChecked).
+   Zvyšuje se proto, že snímky v3 v cloudu příznak nemají a pravidla
+   dovolí přepis jen vyšší verzí: bez povýšení by se v3 snímek po
+   kontrole odmítl, stáhl znovu — a do cloudu už nikdy nezapsal. Tvar
+   dat je jinak stejný jako ve v3. */
+const ARCH_V = 4;
 const ARCH_KEY = 'sc:gwsnap:';
+
+/* Je kolo od FPL zkontrolované?
+
+   Rozpis hlásí `final` ve chvíli, kdy jsou bonusy připsané. FPL ale
+   ještě může přepsat asistence a čistá konta při kontrole (typicky do
+   úterý) a `overall_rank` v `entry_history` je do té doby provizorní.
+   Kdo se do Hubu podíval první, zapsal tahle čísla do sdíleného
+   archivu jako fakt — a protože přepsat šlo jen vyšší verzí, zůstala
+   tam celou sezónu.
+
+   Do cloudu se proto zapisuje až po `data_checked`. Lokálně se kolo
+   smí uložit dřív (je to jen pohodlí tohoto prohlížeče), ale snímek
+   nese příznak `ck`, a jakmile je kolo zkontrolované a snímek příznak
+   nemá, bere se jako neplatný a stáhne se znovu. */
+function gwChecked(g){
+  const ev = (typeof BOOT !== 'undefined' && BOOT && BOOT.events || [])
+    .find(e => e.id === g);
+  return Boolean(ev && ev.data_checked);
+}
 
 /* ID ligy, pod kterým archiv leží. Sestavy jsou sice per manažer, ale
    snímek je vždycky snímek celé ligy — jiná liga má jiné členy. */
@@ -202,7 +226,7 @@ function packSnap(g, members, picks, live){
     if(!pk || !Array.isArray(pk.picks) || !pk.picks.length) return;
     P[String(m.entry)] = packPicks(pk);
   });
-  return {v: ARCH_V, gw: g, picks: P, live: packLive(live)};
+  return {v: ARCH_V, gw: g, picks: P, live: packLive(live), ck: gwChecked(g) ? 1 : 0};
 }
 
 /* Vrací sestavy zarovnané na aktuální členy ligy a seznam těch, které
@@ -233,14 +257,21 @@ function snapLocalWrite(g, snap){
   try{
     localStorage.setItem(snapKey(g), JSON.stringify(snap));
   }catch(e){
-    /* Plná kvóta. Archiv je pohodlí, ne nutnost — zahodíme ho celý
-       a příště se to povede. Mazat po jednom nemá cenu: snímky jsou
-       stejně velké, takže by se to opakovalo za dvě kola znovu. */
+    /* Plná kvóta. Viníkem bývá záložní kopie bootstrapu (`sc:stale:`,
+       kolem dvou megabajtů), ne archiv o pár kilobajtech na kolo.
+       Dřív se tady smazal celý archiv a záložní kopie zůstala — takže
+       se to za dvě kola opakovalo a archiv se nikdy neudržel. Nejdřív
+       jde pryč ta záloha; teprve když nestačí ani to, archiv. */
+    try{
+      if(typeof staleClear === 'function') staleClear();
+      localStorage.setItem(snapKey(g), JSON.stringify(snap));
+      return;
+    }catch(e2){}
     try{
       for(const k of Object.keys(localStorage))
         if(k.startsWith(ARCH_KEY)) localStorage.removeItem(k);
       localStorage.setItem(snapKey(g), JSON.stringify(snap));
-    }catch(e2){}
+    }catch(e3){}
   }
 }
 
@@ -288,6 +319,7 @@ let SNAP_LAST = 'zatím se nezapisovalo';
 async function snapCloudWrite(g, snap){
   const lid = snapLid();
   if(!lid){ SNAP_LAST = 'není ID ligy'; return; }
+  if(!snap || !snap.ck){ SNAP_LAST = 'GW' + g + ' ještě není zkontrolované (data_checked) — jen lokálně'; return; }
   if(!window.FB || !window.FB.gwWrite){ SNAP_LAST = 'Firebase není načtený'; return; }
 
   /* Počkat, až Firebase dořeší session. Bez toho se zápis odehraje
@@ -336,6 +368,11 @@ async function snapLoad(g, members){
     zCloudu = Boolean(snap);
   }
 
+  /* Snímek pořízený před kontrolou FPL může nést čísla, která FPL
+     mezitím opravilo. Jakmile je kolo zkontrolované, takový snímek
+     neplatí — stáhne se znovu a uloží už s příznakem. */
+  if(snap && !snap.ck && gwChecked(g)) return false;
+
   const u = snap && unpackSnap(snap, members);
   if(!u || !u.live.elements.length) return false;
 
@@ -373,7 +410,7 @@ async function snapLoad(g, members){
      neopakovalo. */
   if(u.chybi.length){
     const dopl = await pooled(u.chybi,
-      m => cached('entry/' + m.entry + '/event/' + g + '/picks/'), 5);
+      m => cached('entry/' + m.entry + '/event/' + g + '/picks/'), 2);
     u.chybi.forEach((m, j) => {
       const i = members.indexOf(m);
       if(i >= 0 && dopl[j] && dopl[j].picks) u.picks[i] = dopl[j];
@@ -412,6 +449,7 @@ async function snapHists(members, curId){
     // Jedno chybějící nebo staré kolo shodí celou úsporu. Je to tvrdé,
     // ale míchat archiv s API po kolech by znamenalo stejně tolik dotazů.
     if(!snap || snap.v !== ARCH_V || !snap.picks) return null;
+    if(!snap.ck && gwChecked(g)) return null;   // předběžný snímek, viz gwChecked
     snapy.set(g, snap);
   }
   if(!snapy.size) return null;

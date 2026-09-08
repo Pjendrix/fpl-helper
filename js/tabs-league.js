@@ -174,7 +174,7 @@ async function loadLeagueHistory(members, myId){
     // prvních padesát — víc se stejně do tabulky rozumně nevejde.
     const subset = members.slice(0, 50);
     const pasts = await pooled(subset,
-      m => cached('entry/' + m.entry + '/history/'), 5,
+      m => cached('entry/' + m.entry + '/history/'), 2,
       (done, total) => {
         box.innerHTML = `<p class="note">Načítám historii… ${done}/${total}</p>`;
       });
@@ -790,7 +790,7 @@ async function loadPrices(){
   $('prmsg').textContent = 'Načítám…';
   $('prout').innerHTML = '<div class="skel"><i></i><i></i><i></i><i></i></div>';
   try{
-    if(!BOOT) BOOT = await api('bootstrap-static/');
+    await bootReady();
 
     const SECTIONS = [
       ['Dnes v noci', buildPrices()],

@@ -18,7 +18,7 @@ async function loadHub(){
   $('hubmsg').textContent = 'Načítám ligu…';
   $('hubout').innerHTML = '';
   try{
-    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+    await bootReady();
     if(!PLAYERS) PLAYERS = playerRows();
 
     const lid = CONFIG.leagueId || localStorage.getItem('fpl_league');
@@ -41,11 +41,11 @@ async function loadHub(){
       // cached() znamená, že po načtení Miniligy je tohle skoro zadarmo —
       // jsou to přesně tytéž adresy.
       hists = await pooled(members, m => cached('entry/' + m.entry + '/history/'),
-        5, (d, t) => { $('hubmsg').textContent = `Načítám historii… ${d}/${t}`; });
+        2, (d, t) => { $('hubmsg').textContent = `Načítám historii… ${d}/${t}`; });
     }
 
     const picks = await pooled(members, m => cached('entry/' + m.entry + '/event/' + cur.id + '/picks/'),
-      5, (d, t) => { $('hubmsg').textContent = `Načítám sestavy… ${d}/${t}`; });
+      2, (d, t) => { $('hubmsg').textContent = `Načítám sestavy… ${d}/${t}`; });
 
     /* Sestavy vezou `entry_history` běžícího kola. Bez tohohle kroku by
        poslední řádek historie znal jen body a součet — a sezónní
@@ -92,7 +92,9 @@ function leagueRanks(members, hists){
   for(let g = 1; g <= gws; g++){
     const pts = members.map((m, i) => {
       const ev = maps[i].get(g);
-      return [i, ev ? ev.total_points : -1];
+      // Řádek z pořadí ligy může mít součet `null`; ten se řadí jako
+      // neznámý, ne jako nula — jinak klesne pod ty s reálnou nulou.
+      return [i, ev && Number.isFinite(ev.total_points) ? ev.total_points : -1];
     }).sort((a, b) => b[1] - a[1]);
     pts.forEach(([i], pos) => ranks[i].push(pos + 1));
   }
@@ -217,7 +219,7 @@ function buildNews(gwId, picksFor){
   const {members, hists} = HUB;
   const cur = {id: gwId != null ? gwId : HUB.cur.id};
   const picks = picksFor || [];
-  const els = Object.fromEntries(BOOT.elements.map(p => [p.id, p]));
+  const els = Object.fromEntries(elsById());
   const news = [];
   const phase = gwPhase(cur.id);
 

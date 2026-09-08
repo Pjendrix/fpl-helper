@@ -304,6 +304,7 @@ function advTeam(id){
    dotaz na celé kolo pro všechny hráče — ne patnáct dotazů na hráče,
    jak to dělaly Transfery. */
 let ADV_MINS = null;   // Map(gw → Map(playerId → minuty))
+volatile('advisor', () => { ADV_MINS = null; ADV_SQUAD = null; ADV_BANK = null; });
 
 async function advLoadMinutes(){
   ADV_MINS = new Map();
@@ -654,7 +655,7 @@ async function loadAdvisor(){
   if(!ENTRY_ID){ $('advmsg').textContent = 'Nejdřív zadej ID týmu.'; return; }
 
   try{
-    if(!BOOT){ [BOOT, FIX] = await Promise.all([api('bootstrap-static/'), api('fixtures/')]); }
+    await bootReady();
 
     const cur = BOOT.events.find(e => e.is_current);
     const gw = cur ? cur.id : 1;
